@@ -14,4 +14,4 @@ RUN chmod +x /app/scripts/migrate.py
 
 EXPOSE 5000
 
-CMD ["sh", "-c", "python scripts/migrate.py && python app.py"]
+CMD ["python", "app.py"]
