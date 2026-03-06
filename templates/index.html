@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GatewayChef</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/app.css" rel="stylesheet">
+    <link rel="icon" type="image/png" href="/static/icon/IconGatewayChef.png">
+</head>
+<body>
+
+<div class="container" style="max-width: 1500px;">
+    <div class="app-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="app-title d-flex align-items-center gap-2 flex-grow-1 justify-content-center">
+                <h2 class="m-0">GatewayChef</h2>
+            </div>
+            <img src="/static/icon/IconGatewayChef.png" alt="GatewayChef" class="app-title-icon app-title-icon-right">
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2 mt-2 headline-conn">
+            <span class="badge bg-secondary" id="gatewayConnectionState">Unbekannt</span>
+            <span class="badge bg-warning text-dark" id="gatewayGoldenBadge" style="display:none;">Golden Config erkannt</span>
+            <span class="text-muted" id="gatewayConnectionHint">Bitte mit dem Gateway-WLAN verbinden.</span>
+            <button class="btn btn-outline-secondary btn-sm" type="button" onclick="runReadPipeline()">Gateway lesen</button>
+        </div>
+        <div class="small text-danger mt-2" id="gatewayConnectionError" style="display:none;"></div>
+        <div class="small text-muted mt-2" id="appStatusInfo">Gateway nicht verbunden. Auto-Refresh aus.</div>
+    </div>
+
+    <ul class="nav nav-tabs mb-3 no-scroll-tabs" id="mainTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-workflow-tab" data-bs-toggle="tab" data-bs-target="#tab-workflow" type="button" role="tab" aria-controls="tab-workflow" aria-selected="true">Workflow</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-log-tab" data-bs-toggle="tab" data-bs-target="#tab-log" type="button" role="tab" aria-controls="tab-log" aria-selected="false">Status Protokoll</button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="mainTabContent">
+    <div class="tab-pane fade show active" id="tab-workflow" role="tabpanel" aria-labelledby="tab-workflow-tab">
+        <div class="workflow-layout row g-4">
+            <div class="col-lg-3 workflow-static">
+                <div class="list-group stepper" id="stepperNav">
+                    <a class="list-group-item list-group-item-action" id="step-link-customer" href="#step-customer">1 Kundendaten <span class="badge bg-secondary ms-2" id="step-status-customer">-</span></a>
+                    <a class="list-group-item list-group-item-action" id="step-link-gateway-data" href="#step-gateway-data">2 Gateway-Daten <span class="badge bg-secondary ms-2" id="step-status-gateway-data">-</span></a>
+                    <a class="list-group-item list-group-item-action" id="step-link-config" href="#step-config">3 Gateway Konfiguration <span class="badge bg-secondary ms-2" id="step-status-config">-</span></a>
+                    <a class="list-group-item list-group-item-action" id="step-link-gateway-status" href="#step-gateway-status">4 Gateway Status <span class="badge bg-secondary ms-2" id="step-status-gateway-status">-</span></a>
+                    <a class="list-group-item list-group-item-action" id="step-link-external" href="#step-external">5 Externe Services <span class="badge bg-secondary ms-2" id="step-status-external">-</span></a>
+                    <a class="list-group-item list-group-item-action" id="step-link-final" href="#step-final">6 Final <span class="badge bg-secondary ms-2" id="step-status-final">-</span></a>
+                </div>
+            </div>
+            <div class="col-lg-9 workflow-scroll">
+
+                <section id="step-customer" data-step="customer" class="section-block">
+                    <div class="section-header">
+                        <div>
+                            <h5 class="section-title">1 Kundendaten</h5>
+                            <div class="section-status small text-muted" id="section-status-customer">Status: -</div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title"><span class="step-num">1</span>Kundendaten</h5>
+                            <p class="text-muted small">Kundendaten optional. Gateway kann auch ohne Kundendaten konfiguriert werden.</p>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="wsUser" class="form-label">Webservice Benutzer</label>
+                                    <input type="text" class="form-control" id="wsUser" placeholder="admin">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="wsPass" class="form-label">Webservice Passwort</label>
+                                    <input type="password" class="form-control" id="wsPass" placeholder="••••••">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="clientSearch" class="form-label">Kunde suchen</label>
+                                    <input type="text" class="form-control" id="clientSearch" placeholder="Kundenname eingeben">
+                                    <div class="form-text small">Suche startet ab 3 Zeichen (300ms Delay).</div>
+                                </div>
+                                <div class="col-12">
+                                    <div id="clientSearchResults" class="list-group client-results"></div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="clientId" class="form-label">Kunden-ID</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="clientId" placeholder="clientId">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="loadClientGateways()">Gateways laden</button>
+                                    </div>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label">Vorhandene Gateways</label>
+                                    <div class="small text-muted mb-1" id="clientGatewaysStatus">-</div>
+                                    <ul class="list-group small" id="clientGatewaysList"></ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="step-gateway-data" data-step="gateway-data" class="section-block">
+                    <div class="section-header">
+                        <div>
+                            <h5 class="section-title">2 Geräte‑Zuordnung &amp; Verbindung</h5>
+                            <div class="section-status small text-muted" id="section-status-gateway-data">Status: -</div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title"><span class="step-num">2</span>Geräte‑Zuordnung &amp; Verbindung</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="gwName" class="form-label">Gateway Name (Kunde/Standort)</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="gwName" placeholder="z.B. Kunde-Musterstadt-01">
+                                    </div>
+                                    <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
+                                        <div class="form-text small text-muted" id="suggestedNameLabel">Vorschlag: -</div>
+                                        <button class="btn btn-outline-secondary btn-sm" type="button" onclick="setSuggestedName()">Vorschlag setzen</button>
+                                    </div>
+                                </div>
+                                <div class="w-100"></div>
+                                <div class="col-md-6">
+                                    <label class="form-label">VPN IP (auto)</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="vpnIp" placeholder="VPN IP">
+                                        <button class="btn btn-outline-primary" type="button" onclick="applyVpnIp()">Apply</button>
+                                        <button class="btn btn-outline-primary" type="button" onclick="fetchIp()">Get New</button>
+                                    </div>
+                                </div>
+                                <div class="w-100"></div>
+                                <div class="col-md-6">
+                                    <label class="form-label">SIM Vendor</label>
+                                    <div class="input-group">
+                                        <select class="form-select" id="simVendor" onchange="handleSimVendorChange()">
+                                            <option value="">Bitte waehlen</option>
+                                        </select>
+                                        <button class="btn btn-outline-secondary" type="button" onclick="fetchNextSim()">Next SIM</button>
+                                    </div>
+                                    <div class="form-text small">APN wird automatisch gesetzt. SIM Daten kommen nicht vom Gateway.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">SIM ICCID</label>
+                                    <input type="text" class="form-control" id="simIccid" placeholder="8941...">
+                                    <div class="form-text small text-muted">SIM ICCID wird bei bestehendem Gateway aus der DB geladen.</div>
+                                </div>
+                                <div class="col-12">
+                                    <button class="btn btn-outline-primary" type="button" onclick="saveCustomerData()">Zuordnung speichern</button>
+                                    <span class="small text-muted ms-2">Speichert Name/Serial (und optional SIM) in der DB nach VPN IP.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="step-config" data-step="config" class="section-block">
+                    <div class="section-header">
+                        <div>
+                            <h5 class="section-title">3 Gateway Konfiguration</h5>
+                            <div class="section-status small text-muted" id="section-status-config">Status: -</div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title"><span class="step-num">3</span>Gateway Konfiguration</h5>
+                            <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                                <button class="btn btn-info text-white" type="button" onclick="refreshGatewayStatus()">Status aktualisieren</button>
+                                <div class="form-check form-switch ms-2">
+                                    <input class="form-check-input" type="checkbox" id="gwAutoRefresh" onchange="toggleAutoRefresh(this.checked)" checked>
+                                    <label class="form-check-label small" for="gwAutoRefresh">Auto-Refresh</label>
+                                </div>
+                                <span class="small text-muted">Quelle Device-Info: <code>/node-red/device-info</code></span>
+                                <span class="small text-muted">Quelle LoRa: <code>/node-red/device-info-lora</code></span>
+                            </div>
+                            <div class="mb-3">
+                                <div class="d-flex flex-wrap gap-2 align-items-center">
+                                    <a class="btn btn-outline-primary btn-sm" href="http://192.168.1.1" target="_blank">Gateway Login</a>
+                                    <span class="small text-muted">User: <code id="loginUser">admin</code></span>
+                                    <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyText(document.getElementById('loginUser').textContent, 'login_user')">Copy User</button>
+                                    <span class="small text-muted">Passwort: <code id="loginPassword">bb_DB_2024_rat</code></span>
+                                    <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyText(document.getElementById('loginPassword').textContent, 'login_password')">Copy Passwort</button>
+                                    <button class="btn btn-outline-secondary btn-sm" type="button" onclick="openHelp('login')">Hilfe</button>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle gw-status-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Konfiguration</th>
+                                            <th>Aktuell</th>
+                                            <th>Erwartet</th>
+                                            <th></th>
+                                            <th>Aktion</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr id="rowGatewayId">
+                                            <td>Gateway ID</td>
+                                            <td id="statusGatewayId">-</td>
+                                            <td id="targetGatewayId">-</td>
+                                            <td id="statusGatewayIdState" class="status-cell">-</td>
+                                            <td class="actions-wide">
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyText(document.getElementById('targetGatewayId').textContent, 'gateway_id')">Copy</button>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyAndOpen(document.getElementById('targetGatewayId').textContent, 'gateway_id', 'http://192.168.1.1/#packetforward/general')">Copy &amp; Open</button>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="openHelp('gateway-id')">Hilfe</button>
+                                            </td>
+                                        </tr>
+                                        <tr id="rowApn">
+                                            <td>APN (UI)</td>
+                                            <td id="cfgApn"><strong id="cfgApnValue">-</strong></td>
+                                            <td id="targetApn">-</td>
+                                            <td id="cfgApnState" class="status-cell">-</td>
+                                            <td class="actions-wide">
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyText(document.getElementById('cfgApn').textContent, 'apn')">Copy</button>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyAndOpen(document.getElementById('cfgApn').textContent, 'apn', 'http://192.168.1.1/#network/interfaces/cellular')">Copy &amp; Open</button>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="openHelp('apn')">Hilfe</button>
+                                            </td>
+                                        </tr>
+                                        <tr id="rowVpnIp">
+                                            <td>VPN IP (Gateway)</td>
+                                            <td id="statusVpnReported">-</td>
+                                            <td id="targetVpnIp">-</td>
+                                            <td id="statusVpnReportedState" class="status-cell">-</td>
+                                            <td class="actions-wide">
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyText(formatVpnCidr(document.getElementById('targetVpnIp').textContent), 'vpn_ip/32')">Copy</button>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyAndOpen(formatVpnCidr(document.getElementById('targetVpnIp').textContent), 'vpn_ip/32', 'http://192.168.1.1/#network/vpn/wireguard')">Copy &amp; Open</button>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="openHelp('vpn')">Hilfe</button>
+                                            </td>
+                                        </tr>
+                                        <tr id="rowVpnKey">
+                                            <td>VPN Private Key</td>
+                                            <td id="cfgVpnKey">-</td>
+                                            <td id="targetVpnKey" class="truncate-key">-</td>
+                                            <td id="cfgVpnKeyState" class="status-cell">-</td>
+                                            <td class="actions-wide">
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyText(document.getElementById('targetVpnKey').dataset.full || '', 'vpn_key')">Copy</button>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyAndOpen(document.getElementById('targetVpnKey').dataset.full || '', 'vpn_key', 'http://192.168.1.1/#network/vpn/wireguard')">Copy &amp; Open</button>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="openHelp('vpn')">Hilfe</button>
+                                            </td>
+                                        </tr>
+                                        <tr id="rowWifiSsid">
+                                            <td>WiFi SSID</td>
+                                            <td id="statusWifiSsid">-</td>
+                                            <td id="targetWifiSsid">-</td>
+                                            <td id="statusWifiSsidState" class="status-cell">-</td>
+                                            <td class="actions-wide">
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyText(document.getElementById('targetWifiSsid').textContent, 'wifi_ssid')">Copy</button>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyAndOpen(document.getElementById('targetWifiSsid').textContent, 'wifi_ssid', 'http://192.168.1.1/#network/interfaces/wlan')">Copy &amp; Open</button>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="openHelp('wifi-ssid')">Hilfe</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                </section>
+
+                <section id="step-gateway-status" data-step="gateway-status" class="section-block">
+                    <div class="section-header">
+                        <div>
+                            <h5 class="section-title">4 Gateway Status</h5>
+                            <div class="section-status small text-muted" id="section-status-gateway-status">Status: -</div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title"><span class="step-num">4</span>Gateway Status</h5>
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle status-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Status</th>
+                                            <th>Aktuell</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr id="rowCellularStatus">
+                                            <td>Cellular Status</td>
+                                            <td id="statusCellularStatus">-</td>
+                                        </tr>
+                                        <tr id="rowVpnReach">
+                                            <td>VPN Connected</td>
+                                            <td id="statusVpnReach">-</td>
+                                        </tr>
+                                        <tr id="rowLoraStatus">
+                                            <td>LoRa Network Server</td>
+                                            <td id="statusLns">-</td>
+                                        </tr>
+                                        <tr id="rowGatewayEuiStatus">
+                                            <td>Gateway EUI</td>
+                                            <td id="statusGatewayEui">-</td>
+                                        </tr>
+                                        <tr id="rowMacAddress">
+                                            <td>MAC Adresse</td>
+                                            <td id="statusMacAddress">-</td>
+                                        </tr>
+                                        <tr id="rowSerialNumber">
+                                            <td>Serial Number</td>
+                                            <td>
+                                                <div class="d-flex flex-wrap align-items-center gap-2">
+                                                    <span id="statusSerialNumber">-</span>
+                                                    <button class="btn btn-outline-primary btn-sm" type="button" onclick="toggleSerialNumberEdit()">Set</button>
+                                                </div>
+                                                <div class="input-group input-group-sm mt-2 d-none" id="serialNumberEditGroup">
+                                                    <input type="text" class="form-control" id="serialNumberInput" placeholder="Serial Number eingeben">
+                                                    <button class="btn btn-outline-primary" type="button" onclick="setSerialNumberFromStatus()">Confirm</button>
+                                                    <button class="btn btn-outline-secondary" type="button" onclick="toggleSerialNumberEdit(false)">Cancel</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <input type="hidden" id="gwMac">
+                            <input type="hidden" id="gwSn">
+                            <input type="hidden" id="loraGatewayEui">
+                            <input type="hidden" id="loraGatewayId">
+                            <input type="hidden" id="loraActiveServer">
+                            <input type="hidden" id="loraStatus">
+                            <input type="hidden" id="loraPending">
+                            <input type="hidden" id="gwVpnReported">
+                            <input type="hidden" id="gwWifiSsid">
+                            <input type="hidden" id="gwEui">
+                            <input type="hidden" id="gwCellularStatus">
+                            <input type="hidden" id="gwLteState">
+                            <input type="hidden" id="gwLteConnected">
+                            <input type="hidden" id="gwIpAssigned">
+                            <input type="hidden" id="gwCellularIp">
+                            <input type="hidden" id="gwWifiIp">
+                            <input type="hidden" id="simCardId">
+                            <input type="hidden" id="simInventoryId">
+                            <input type="hidden" id="vpnKey">
+                            <span id="cfgGatewayId" class="d-none">-</span>
+                            <span id="cfgVpnIp" class="d-none">-</span>
+                            <span id="cfgWifiSsid" class="d-none">-</span>
+                            <span id="cfgGatewayIdState" class="d-none">-</span>
+                            <span id="cfgVpnIpState" class="d-none">-</span>
+                            <span id="cfgWifiSsidState" class="d-none">-</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="step-external" data-step="external" class="section-block">
+                    <div class="section-header">
+                        <div>
+                            <h5 class="section-title">5 Externe Services</h5>
+                            <div class="section-status small text-muted" id="section-status-external">Status: -</div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title"><span class="step-num">5</span>ChirpStack + Milesight + Webservice</h5>
+                            <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+                                <span class="badge bg-secondary" id="badgeChirpstack">ChirpStack: -</span>
+                                <span class="badge bg-secondary" id="badgeMilesight">Milesight: -</span>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle external-table">
+                                    <thead>
+                                        <tr>
+                                            <th>System</th>
+                                            <th>Name</th>
+                                            <th>Verbindung</th>
+                                            <th>Status / Fehler</th>
+                                            <th>Letztes Update</th>
+                                            <th>Aktion</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>ChirpStack</td>
+                                            <td id="serviceNameChirpstack">-</td>
+                                            <td id="serviceConnChirpstack">-</td>
+                                            <td id="chirpstackStatus">ChirpStack Status: -</td>
+                                            <td id="serviceUpdatedChirpstack">-</td>
+                                            <td>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="checkChirpstackExists()">Aktualisieren</button>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="dryRunChirpstack()">Dry Run</button>
+                                                <button class="btn btn-outline-primary btn-sm" type="button" id="btnChirpstackCreate" onclick="createChirpstackDevice()">Device anlegen</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>Milesight Developer Platform</td>
+                                            <td id="serviceNameMilesight">-</td>
+                                            <td id="serviceConnMilesight">-</td>
+                                            <td id="milesightStatus">Milesight Status: -</td>
+                                            <td id="serviceUpdatedMilesight">-</td>
+                                            <td>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="checkMilesightExists()">Aktualisieren</button>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="dryRunMilesightCreate()">Dry Run</button>
+                                                <button class="btn btn-outline-primary btn-sm" type="button" id="btnMilesightCreate" onclick="createMilesightDevice()">Device anlegen</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>Webservice</td>
+                                            <td id="serviceNameWebservice">-</td>
+                                            <td id="serviceConnWebservice">-</td>
+                                            <td id="webserviceStatus">Webservice Status: -</td>
+                                            <td id="serviceUpdatedWebservice">-</td>
+                                            <td>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="checkWebserviceStatus()">Aktualisieren</button>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="dryRunWebservice()">Dry Run</button>
+                                                <button class="btn btn-outline-primary btn-sm" type="button" onclick="createWebserviceGateway()">Device anlegen</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-3 p-3 border rounded bg-light">
+                                <div class="small text-muted mb-2">Abweichungen (Gateway vs. Integrationen)</div>
+                                <ul class="small mb-0" id="mismatchList"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="step-final" data-step="final" class="section-block">
+                    <div class="section-header">
+                        <div>
+                            <h5 class="section-title">6 Final</h5>
+                            <div class="section-status small text-muted" id="section-status-final">Status: -</div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title"><span class="step-num">6</span>DB Update</h5>
+                            <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+                                <span class="badge bg-secondary" id="badgeFinalCheck">Konfigurations Check: -</span>
+                            </div>
+                            <div class="mt-3 p-3 border rounded bg-light">
+                                <div class="small text-muted mb-2">Geplante Aenderungen (Gateway -> Gewuenscht)</div>
+                                <ul class="small mb-0" id="desiredDiffList"></ul>
+                            </div>
+                            <div class="mt-3">
+                                <div class="small text-muted mb-2">Write-Modus</div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="writeMode" id="writeModeAll" value="all" checked>
+                                    <label class="form-check-label" for="writeModeAll">Alle Aenderungen anwenden</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="writeMode" id="writeModeStep" value="step" disabled>
+                                    <label class="form-check-label" for="writeModeStep">Schrittweise anwenden (geplant)</label>
+                                </div>
+                            </div>
+                            <div class="d-grid gap-2 mt-3">
+                                <button class="btn btn-outline-dark btn-lg" type="button" onclick="runFinalCheck()">Konfigurations Check</button>
+                                <button class="btn btn-success btn-lg" id="btnPush" onclick="pushData()" disabled>In DB speichern</button>
+                            </div>
+                            <div class="mt-3 small text-muted" id="finalCheckResult">Konfigurations Check: -</div>
+                            <div class="mt-3 p-3 border rounded bg-light">
+                                <div class="small text-muted mb-2">Konfigurations Check Details</div>
+                                <ul class="small mb-3" id="finalCheckReasons"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+    <div class="tab-pane fade" id="tab-log" role="tabpanel" aria-labelledby="tab-log-tab">
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">Status Protokoll</div>
+            <div class="card-body p-0">
+                <div id="statusLog" class="console-log">
+                    <div>.. Bereit. Warte auf Eingabe.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="helpModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="helpModalTitle">Hilfe</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="helpModalBody">Lade...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="blocked-overlay" id="appBlocked">
+    <div class="card">
+        <div class="card-body text-center">
+            <h5 class="card-title">Nicht mit Gateway verbunden</h5>
+            <p class="text-muted">Bitte mit dem Gateway-WLAN verbinden und erneut lesen.</p>
+            <div class="small text-muted mb-3">SSID: <span id="blockedSsidHint">bbdbmon_*</span></div>
+            <button class="btn btn-outline-primary" type="button" onclick="runReadPipeline()">Erneut pruefen</button>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="/static/js/main.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>
