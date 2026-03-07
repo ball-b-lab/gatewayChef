@@ -89,6 +89,26 @@ window.setSuggestedName = setSuggestedName;
 window.setSerialNumberFromStatus = setSerialNumberFromStatus;
 window.toggleSerialNumberEdit = toggleSerialNumberEdit;
 
+function applyDbProxyStatus() {
+    const badge = document.getElementById('dbProxyState');
+    if (!badge) return;
+
+    const runtime = window.RUNTIME_CONFIG || {};
+    const proxyEnabled = !!runtime.db_api_proxy_enabled;
+    const providerUrl = runtime.db_api_provider_url || '';
+
+    badge.classList.remove('bg-secondary', 'bg-success', 'bg-warning', 'text-dark');
+    if (proxyEnabled) {
+        badge.textContent = 'DB: Cloud API Proxy';
+        badge.classList.add('bg-success');
+        badge.title = `DB_API_PROVIDER_URL: ${providerUrl}`;
+    } else {
+        badge.textContent = 'DB: lokal';
+        badge.classList.add('bg-warning', 'text-dark');
+        badge.title = 'Direkte DB-Verbindung (kein DB_API_PROVIDER_URL gesetzt).';
+    }
+}
+
 function bindAutoRefreshPause() {
     const formElements = document.querySelectorAll('input, select, textarea');
     formElements.forEach(el => {
@@ -233,6 +253,7 @@ function initStepperObserver() {
 }
 
 window.addEventListener('load', () => {
+    applyDbProxyStatus();
     const savedUser = localStorage.getItem('wsLastUser');
     const wsUser = document.getElementById('wsUser');
     if (savedUser && wsUser) {

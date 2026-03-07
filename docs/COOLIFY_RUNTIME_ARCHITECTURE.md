@@ -1,6 +1,6 @@
 # Coolify Runtime Architecture (GatewayChef)
 
-Stand: 2026-03-06
+Stand: 2026-03-07
 
 ## 1) Zielbild in einem Satz
 - Die App ist oeffentlich ueber HTTPS erreichbar.
@@ -20,6 +20,9 @@ Stand: 2026-03-06
 - App-Container: `gatewayChef` (Dockerfile)
 - DB-Container: PostgreSQL-Resource in Coolify (separat anzulegen)
 - Reverse Proxy (Coolify intern): TLS + Routing von Domain auf App-Port
+- App laeuft mit `APP_MODE=cloud_api` und exponiert nur:
+  - DB API (`/api/db/*`, `/api/sim/*`, `/api/provision`, `/api/confirm`)
+  - VPN Ping Service (`/api/network/ping-service`, `/api/network/vpn-check`)
 
 ## 3) Container und Ports
 
@@ -42,6 +45,7 @@ Stand: 2026-03-06
 
 Diese Variablen gehoeren in die Coolify-App (laufender Betrieb):
 
+- `APP_MODE=cloud_api`
 - `DB_HOST=<interner db-service-name>`
 - `DB_PORT=5432`
 - `DB_NAME=<neue-db-name>`
@@ -51,24 +55,13 @@ Diese Variablen gehoeren in die Coolify-App (laufender Betrieb):
 - `PORT=5000`
 - `OPEN_BROWSER=false`
 - `FLASK_DEBUG=false`
-- `JWT_SECRET=<starker-secret-wert>`
-- `JWT_ALGORITHM=HS256`
-- `JWT_EXPIRES_HOURS=24`
-- `CHIRPSTACK_URL=...`
-- `CHIRPSTACK_API_TOKEN=...`
-- `CHIRPSTACK_TENANT_ID=...`
-- `CHIRPSTACK_STATS_INTERVAL_SECS=30`
-- `MILESIGHT_URL=...`
-- `MILESIGHT_CLIENT_ID=...`
-- `MILESIGHT_CLIENT_SECRET=...`
-- `MILESIGHT_TOKEN_URL=`
-- `GATEWAY_USER=...`
-- `GATEWAY_PASSWORD=...`
+- `API_SERVICE_TOKEN=<shared-token-local-cloud>`
 - `VPN_PING_SERVICE_TOKEN=<shared-token>`
 
 Wichtig:
 - `DB_*` in der App zeigen nach Cutover immer auf die neue DB.
 - Nie auf die alte DB zeigen lassen, wenn du schon umgestellt hast.
+- Cloud braucht im Zielbild keine Gateway-/ChirpStack-/Milesight-/Webservice-Credentials.
 
 ## 5) Env-Variablen fuer Migration (einmalig)
 
@@ -121,7 +114,19 @@ Dazu setzen:
   - `VPN_PING_PROVIDER_URL=https://<cloud-app-url>`
   - `VPN_PING_SERVICE_TOKEN=<same-secret>`
 
-## 9) Minimaler Mental-Model Summary
+## 9) DB API Proxy aus lokaler App
+
+Lokaler Runner kann DB-Aufrufe an die Cloud API weiterreichen:
+
+- Lokal setzen:
+  - `DB_API_PROVIDER_URL=https://<cloud-app-url>`
+  - `API_SERVICE_TOKEN=<same-token-as-cloud>`
+- Ergebnis:
+  - lokale Endpunkte `/api/db*`, `/api/sim*`, `/api/provision`, `/api/confirm`
+    werden serverseitig an Cloud weitergeleitet.
+  - Frontend bleibt unveraendert auf relativen `/api/...`-Pfaden.
+
+## 10) Minimaler Mental-Model Summary
 
 - Betrieb: App -> neue interne DB
 - Migration: alte DB -> neue DB (einmalig)

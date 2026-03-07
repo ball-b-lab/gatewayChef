@@ -1,6 +1,6 @@
 # Target Architecture: Local App + Cloud API
 
-Stand: 2026-03-06
+Stand: 2026-03-07
 
 ## 1) Zielbild
 
@@ -60,13 +60,14 @@ flowchart LR
 ### Gemeinsamer App-Entry (lokal + cloud)
 - `app.py`
   - startet Flask
-  - registriert alle Blueprints (`routes/*`)
-  - gleiches Entry fuer lokalen und cloud Betrieb
+  - registriert je nach `APP_MODE` unterschiedliche Blueprints
+  - `local`: UI + Gateway/ChirpStack/Milesight/Webservice + DB/Auth/Network
+  - `cloud_api`: nur DB + Network
 
 ### Cloud API relevante Teile (DB + VPN service)
 - `routes/db.py`
   - DB-Endpunkte (`/api/db/*`, `/api/sim/*`, `/api/provision`, `/api/confirm`)
-  - ist der zentrale DB-API Layer
+  - in `cloud_api`: geschuetzt ueber `X-API-Token` (wenn `API_SERVICE_TOKEN` gesetzt)
 - `routes/network.py`
   - `/api/network/ping-service` (cloud ping endpoint)
   - `/api/network/vpn-check` (proxy/local fallback logic)
@@ -74,6 +75,8 @@ flowchart LR
   - `X-API-Token` Guard fuer Service-zu-Service Schutz
 - `db/connection.py`
   - Postgres-Verbindung ueber `DB_*`
+- `config.py`
+  - `DB_API_PROVIDER_URL` fuer lokalen Proxy auf Cloud DB API
 - `repositories/*` und `services/*`
   - Datenzugriff und Business-Logik hinter den DB-Endpunkten
 
@@ -138,13 +141,13 @@ Diese setzt du in der Cloud-App:
 - `PORT=5000`
 - `OPEN_BROWSER=false`
 - `FLASK_DEBUG=false`
-- `JWT_SECRET=<secret>`
-- `JWT_ALGORITHM=HS256`
-- `JWT_EXPIRES_HOURS=24`
+- `API_SERVICE_TOKEN=<shared-token-local-cloud>`
 - `VPN_PING_SERVICE_TOKEN=<shared-token>`
 
-Optional (wenn Cloud API auch externen Services spricht):
-- `CHIRPSTACK_*`, `MILESIGHT_*`, `GATEWAY_*`
+Cloud-Scope im Zielzustand:
+- DB API (`/api/db/*`, `/api/sim/*`, `/api/provision`, `/api/confirm`)
+- VPN Ping Service (`/api/network/ping-service`, `/api/network/vpn-check`)
+- interne PostgreSQL-Anbindung
 
 ### 5.2 Lokale App
 Diese setzt du lokal:
@@ -155,9 +158,14 @@ Diese setzt du lokal:
 - `OPEN_BROWSER=true`
 - `VPN_PING_PROVIDER_URL=https://<cloud-api-domain>`
 - `VPN_PING_SERVICE_TOKEN=<same-shared-token-as-cloud>`
+- `DB_API_PROVIDER_URL=https://<cloud-api-domain>`
+- `DB_API_TIMEOUT_SECS=10`
+- `API_SERVICE_TOKEN=<same-shared-token-as-cloud>`
 
-Wenn lokale App direkt zur DB spricht (Uebergangsmodus), dann lokal auch `DB_*`.
-Zielzustand: lokale App soll fuer DB nur noch Cloud API nutzen.
+Zielzustand:
+- Lokale App spricht direkt mit Gateway/ChirpStack/Milesight/Webservice.
+- Lokale App spricht fuer DB-Endpunkte ueber den lokalen Backend-Proxy zur Cloud API.
+- Direkte lokale DB-Verbindung ist nur Fallback/Dev-Modus ohne `DB_API_PROVIDER_URL`.
 
 ### 5.3 Nur fuer Datenmigration (einmalig)
 Nicht fuer normalen Betrieb:
@@ -192,16 +200,16 @@ Pragmatisches Fazit fuer euren Fall:
 
 - `API_SERVICE_TOKEN`:
   - muss in **Lokaler App** und **Cloud API** gleich sein
-  - schuetzt DB-nahe Cloud API Endpunkte (`/api/db*`, `/api/sim*`, `/api/provision`, `/api/confirm`)
+  - in Cloud: schuetzt DB-nahe Endpunkte
+  - in Lokal: wird beim DB-Proxy als `X-API-Token` an Cloud weitergereicht
 
 - `VPN_PING_SERVICE_TOKEN`:
   - muss in **Lokaler App** und **Cloud API** gleich sein
   - schuetzt `/api/network/ping-service`
 
 - `JWT_SECRET`:
-  - ist **separat** und fuer User-Login/JWT-Endpunkte (`/api/auth/*`)
-  - fuer den aktuellen Zielbetrieb (Cloud API nur fuer DB/Ping) optional
-  - muss nicht identisch zwischen Lokal und Cloud sein, solange keine JWTs zwischen beiden Instanzen geteilt werden
+  - betrifft nur lokale Auth-Endpunkte
+  - ist fuer den Cloud-Zielscope (DB API + VPN Ping) nicht erforderlich
 
 ## 8) Checkliste gegen Verwirrung
 
@@ -210,3 +218,49 @@ Pragmatisches Fazit fuer euren Fall:
 - Reverse Proxy exponiert nur API-App, nie DB.
 - `DB_*` fuer Betrieb zeigen auf neue DB.
 - `SOURCE_/TARGET_DATABASE_URL` nur fuer einmaligen Import.
+
+## 9) Legacy-Feldmapping (Vollstaendigkeit)
+
+Quelle Legacy-Felder:
+- SQL-Verwendung in `/Users/jochen/bb/projects/milesight_lora_gw_config/provisioner/routes/db.py`
+- Payload-Verwendung in `static/js/workflow.js` (lokale App)
+
+| Legacy field | New DB column | API endpoint(s) | Used by local app |
+|---|---|---|---|
+| `sim_vendors.id` | `sim_vendors.id` | `GET /api/sim/vendors` | ja (Select value) |
+| `sim_vendors.vendor_name` | `sim_vendors.vendor_name` | `GET /api/sim/vendors` | ja (Anzeige) |
+| `sim_vendors.apn` | `sim_vendors.apn` | `GET /api/sim/vendors`, `POST /api/provision` | ja (APN Zielwert) |
+| `sim_cards.id` | `sim_cards.id` | `POST /api/sim/next`, `POST /api/db/gateway`, `POST /api/db/customer-update`, `POST /api/provision` | ja (`simCardId`) |
+| `sim_cards.vendor_id` | `sim_cards.vendor_id` | `POST /api/sim/next`, `POST /api/db/gateway`, `POST /api/db/customer-update`, `POST /api/provision` | ja (`simVendor`) |
+| `sim_cards.iccid` | `sim_cards.iccid` | `POST /api/sim/next`, `POST /api/db/gateway`, `POST /api/db/customer-update`, `POST /api/provision` | ja (`simIccid`) |
+| `sim_cards.sim_id` | `sim_cards.sim_id` | `POST /api/sim/next`, `POST /api/db/gateway`, `POST /api/db/customer-update` | ja (Webservice payload) |
+| `sim_cards.assigned_gateway_id` | `sim_cards.assigned_gateway_id` | intern in `assign_sim` (Zuordnung) | indirekt |
+| `sim_cards.assigned_at` | `sim_cards.assigned_at` | intern in `assign_sim` (Zeitstempel) | indirekt |
+| `gateway_inventory.vpn_ip` | `gateway_inventory.vpn_ip` | `GET /api/db/fetch-ip`, `POST /api/db/vpn-key`, `POST /api/db/gateway`, `POST /api/db/customer-update`, `POST /api/provision`, `POST /api/confirm` | ja |
+| `gateway_inventory.private_key` | `gateway_inventory.private_key` | `GET /api/db/fetch-ip`, `POST /api/db/vpn-key` | ja (VPN key UI) |
+| `gateway_inventory.eui` | `gateway_inventory.eui` | `POST /api/db/gateway`, `POST /api/provision` | ja |
+| `gateway_inventory.wifi_ssid` | `gateway_inventory.wifi_ssid` | `POST /api/db/gateway`, `POST /api/provision` | ja |
+| `gateway_inventory.serial_number` | `gateway_inventory.serial_number` | `POST /api/db/vpn-key`, `POST /api/db/gateway`, `POST /api/db/customer-update`, `POST /api/provision` | ja |
+| `gateway_inventory.gateway_name` | `gateway_inventory.gateway_name` | `POST /api/db/gateway`, `POST /api/db/customer-update`, `POST /api/provision` | ja |
+| `gateway_inventory.status_overall` | `gateway_inventory.status_overall` | `GET /api/db/fetch-ip`, `POST /api/db/gateway`, `POST /api/db/customer-update`, `POST /api/confirm`, `POST /api/provision` | ja (Anzeige/Gating) |
+| `gateway_inventory.sim_card_id` | `gateway_inventory.sim_card_id` | `POST /api/db/gateway`, `POST /api/db/customer-update`, `POST /api/provision` | ja |
+| `gateway_inventory.wifi_ip` | `gateway_inventory.wifi_ip` | `POST /api/provision` | ja |
+| `gateway_inventory.apn` | `gateway_inventory.apn` | `POST /api/provision` | ja |
+| `gateway_inventory.cellular_status` | `gateway_inventory.cellular_status` | `POST /api/provision` | ja |
+| `gateway_inventory.lte_connected` | `gateway_inventory.lte_connected` | `POST /api/provision` | ja |
+| `gateway_inventory.cellular_ip` | `gateway_inventory.cellular_ip` | `POST /api/provision` | ja |
+| `gateway_inventory.vpn_key_present` | `gateway_inventory.vpn_key_present` | `POST /api/provision` | ja |
+| `gateway_inventory.gateway_vendor` | `gateway_inventory.gateway_vendor` | `POST /api/provision` | ja |
+| `gateway_inventory.gateway_model` | `gateway_inventory.gateway_model` | `POST /api/provision` | ja |
+| `gateway_inventory.lora_gateway_eui` | `gateway_inventory.lora_gateway_eui` | `POST /api/provision` | ja |
+| `gateway_inventory.lora_gateway_id` | `gateway_inventory.lora_gateway_id` | `POST /api/provision` | ja |
+| `gateway_inventory.lora_active_server` | `gateway_inventory.lora_active_server` | `POST /api/provision` | ja |
+| `gateway_inventory.lora_status` | `gateway_inventory.lora_status` | `POST /api/provision` | ja |
+| `gateway_inventory.lora_pending` | `gateway_inventory.lora_pending` | `POST /api/provision` | ja |
+| `gateway_inventory.conf_gateway_done` | `gateway_inventory.conf_gateway_done` | `POST /api/provision` (set true) | indirekt |
+| `gateway_inventory.assigned_at` | `gateway_inventory.assigned_at` | `POST /api/provision` (set now) | indirekt |
+| `gateway_inventory.last_gateway_sync_at` | `gateway_inventory.last_gateway_sync_at` | `POST /api/provision` (set now) | indirekt |
+
+Pruefergebnis:
+- Kein stilles Feld-Dropping zwischen Legacy-Routen und neuem Schema/API festgestellt.
+- `final_check_ok` wird im Payload mitgeschickt, aber wie bereits in der Original-App nicht persistiert.

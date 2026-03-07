@@ -34,7 +34,11 @@ expr = sys.argv[2]
 parts = [p for p in expr.split('.') if p]
 
 with open(file_path, 'r', encoding='utf-8') as f:
-    data = json.load(f)
+    try:
+        data = json.load(f)
+    except Exception:
+        print("")
+        sys.exit(0)
 
 cur = data
 for part in parts:
@@ -89,54 +93,63 @@ ROOT_STATUS=$(request "GET" "/" "" "" "$ROOT_BODY")
 if [[ "$ROOT_STATUS" != "200" ]]; then
   fail "GET / returned status $ROOT_STATUS"
 fi
+APP_MODE=$(json_get "$ROOT_BODY" "mode")
+SKIP_AUTH="false"
+if [[ "$APP_MODE" == "cloud_api" ]]; then
+  SKIP_AUTH="true"
+fi
 echo "[OK] GET / -> 200"
 
-print_step "POST /api/auth/register"
-REGISTER_BODY="$TMP_DIR/register.json"
-REGISTER_PAYLOAD=$(cat <<JSON
+TOKEN=""
+if [[ "$SKIP_AUTH" == "false" ]]; then
+  print_step "POST /api/auth/register"
+  REGISTER_BODY="$TMP_DIR/register.json"
+  REGISTER_PAYLOAD=$(cat <<JSON
 {"email":"$TEST_EMAIL","password":"$TEST_PASSWORD","full_name":"$TEST_FULL_NAME"}
 JSON
-)
-REGISTER_STATUS=$(request "POST" "/api/auth/register" "$REGISTER_PAYLOAD" "" "$REGISTER_BODY")
-TOKEN=""
+  )
+  REGISTER_STATUS=$(request "POST" "/api/auth/register" "$REGISTER_PAYLOAD" "" "$REGISTER_BODY")
 
-if [[ "$REGISTER_STATUS" == "200" ]]; then
-  TOKEN=$(json_get "$REGISTER_BODY" "data.token")
-  [[ -n "$TOKEN" ]] || fail "Register succeeded but token missing"
-  echo "[OK] register -> 200"
-elif [[ "$REGISTER_STATUS" == "409" ]]; then
-  echo "[INFO] register -> 409 (already exists), trying login"
-else
-  cat "$REGISTER_BODY" >&2 || true
-  fail "register returned status $REGISTER_STATUS"
-fi
+  if [[ "$REGISTER_STATUS" == "200" ]]; then
+    TOKEN=$(json_get "$REGISTER_BODY" "data.token")
+    [[ -n "$TOKEN" ]] || fail "Register succeeded but token missing"
+    echo "[OK] register -> 200"
+  elif [[ "$REGISTER_STATUS" == "409" ]]; then
+    echo "[INFO] register -> 409 (already exists), trying login"
+  else
+    cat "$REGISTER_BODY" >&2 || true
+    fail "register returned status $REGISTER_STATUS"
+  fi
 
-print_step "POST /api/auth/login"
-LOGIN_BODY="$TMP_DIR/login.json"
-LOGIN_PAYLOAD=$(cat <<JSON
+  print_step "POST /api/auth/login"
+  LOGIN_BODY="$TMP_DIR/login.json"
+  LOGIN_PAYLOAD=$(cat <<JSON
 {"email":"$TEST_EMAIL","password":"$TEST_PASSWORD"}
 JSON
-)
-LOGIN_STATUS=$(request "POST" "/api/auth/login" "$LOGIN_PAYLOAD" "" "$LOGIN_BODY")
-if [[ "$LOGIN_STATUS" != "200" ]]; then
-  cat "$LOGIN_BODY" >&2 || true
-  fail "login returned status $LOGIN_STATUS"
-fi
-LOGIN_TOKEN=$(json_get "$LOGIN_BODY" "data.token")
-[[ -n "$LOGIN_TOKEN" ]] || fail "login succeeded but token missing"
-TOKEN="$LOGIN_TOKEN"
-echo "[OK] login -> 200"
+  )
+  LOGIN_STATUS=$(request "POST" "/api/auth/login" "$LOGIN_PAYLOAD" "" "$LOGIN_BODY")
+  if [[ "$LOGIN_STATUS" != "200" ]]; then
+    cat "$LOGIN_BODY" >&2 || true
+    fail "login returned status $LOGIN_STATUS"
+  fi
+  LOGIN_TOKEN=$(json_get "$LOGIN_BODY" "data.token")
+  [[ -n "$LOGIN_TOKEN" ]] || fail "login succeeded but token missing"
+  TOKEN="$LOGIN_TOKEN"
+  echo "[OK] login -> 200"
 
-print_step "GET /api/auth/me"
-ME_BODY="$TMP_DIR/me.json"
-ME_STATUS=$(request "GET" "/api/auth/me" "" "$TOKEN" "$ME_BODY")
-if [[ "$ME_STATUS" != "200" ]]; then
-  cat "$ME_BODY" >&2 || true
-  fail "me returned status $ME_STATUS"
+  print_step "GET /api/auth/me"
+  ME_BODY="$TMP_DIR/me.json"
+  ME_STATUS=$(request "GET" "/api/auth/me" "" "$TOKEN" "$ME_BODY")
+  if [[ "$ME_STATUS" != "200" ]]; then
+    cat "$ME_BODY" >&2 || true
+    fail "me returned status $ME_STATUS"
+  fi
+  ME_EMAIL=$(json_get "$ME_BODY" "data.email")
+  [[ "$ME_EMAIL" == "$TEST_EMAIL" ]] || fail "me email mismatch: got '$ME_EMAIL' expected '$TEST_EMAIL'"
+  echo "[OK] me -> 200"
+else
+  echo "[INFO] cloud_api mode erkannt: auth smoke wird uebersprungen."
 fi
-ME_EMAIL=$(json_get "$ME_BODY" "data.email")
-[[ "$ME_EMAIL" == "$TEST_EMAIL" ]] || fail "me email mismatch: got '$ME_EMAIL' expected '$TEST_EMAIL'"
-echo "[OK] me -> 200"
 
 print_step "GET /api/db/fetch-ip"
 FETCH_IP_BODY="$TMP_DIR/fetch_ip.json"

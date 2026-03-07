@@ -5,7 +5,19 @@ import os
 import sys
 from pathlib import Path
 from flask import Flask, render_template
-from config import PORT, HOST, DB_USER, DB_HOST, DB_PORT, DB_NAME, DB_PASSWORD, DATABASE_URL, APP_MODE
+from werkzeug.exceptions import HTTPException
+from config import (
+    PORT,
+    HOST,
+    DB_USER,
+    DB_HOST,
+    DB_PORT,
+    DB_NAME,
+    DB_PASSWORD,
+    DATABASE_URL,
+    APP_MODE,
+    DB_API_PROVIDER_URL,
+)
 from routes.gateway import bp as gateway_bp
 from routes.db import bp as db_bp
 from routes.auth import bp as auth_bp
@@ -32,6 +44,8 @@ def handle_exception(e):
     Return JSON for unhandled exceptions instead of HTML traceback.
     """
     try:
+        if isinstance(e, HTTPException):
+            return error(e.description, e.code)
         return error(str(e), 500)
     except Exception:
         return error("Internal Server Error", 500)
@@ -41,13 +55,20 @@ def handle_exception(e):
 def index():
     if APP_MODE == 'cloud_api':
         return {"ok": True, "service": "gatewaychef-cloud-api", "mode": APP_MODE}
-    return render_template('index.html')
+    return render_template(
+        'index.html',
+        runtime={
+            "app_mode": APP_MODE,
+            "db_api_proxy_enabled": bool(DB_API_PROVIDER_URL),
+            "db_api_provider_url": DB_API_PROVIDER_URL or "",
+        },
+    )
 
 
 app.register_blueprint(db_bp)
-app.register_blueprint(auth_bp)
 app.register_blueprint(network_bp)
 if APP_MODE != 'cloud_api':
+    app.register_blueprint(auth_bp)
     app.register_blueprint(gateway_bp)
     app.register_blueprint(chirpstack_bp)
     app.register_blueprint(milesight_bp)

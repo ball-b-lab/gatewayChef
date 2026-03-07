@@ -83,14 +83,36 @@ Optional:
 -   **Dockerfile:** `Dockerfile`
 -   **Port:** `5000`
 -   **Start Command:** leave default from Dockerfile
--   **Required env vars:** `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`
+-   **Required env vars:** `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
 -   **Mode:** `APP_MODE=cloud_api`
 -   **Recommended service auth:** `API_SERVICE_TOKEN` (protects `/api/db*`, `/api/sim*`, `/api/provision`, `/api/confirm`)
 -   **Recommended env vars:** `OPEN_BROWSER=false`, `FLASK_DEBUG=false`, `HOST=0.0.0.0`, `PORT=5000`
 -   **Optional for VPN reachability from local app:** `VPN_PING_SERVICE_TOKEN`
+-   **Cloud scope only:** DB API + VPN Ping Service (no Gateway/ChirpStack/Milesight/Webservice routes in `cloud_api`)
 
 If you use an external managed PostgreSQL in Coolify, point `DB_*` to that database.  
 If you use the compose file locally, Postgres runs as service `db`.
+
+### Database Configuration Modes (Important)
+
+You can configure DB connection in exactly one of these modes:
+
+1. `DATABASE_URL` mode (single variable):
+```env
+DATABASE_URL=postgres://user:password@host:5432/dbname
+```
+
+2. `DB_*` mode (separate variables):
+```env
+DB_HOST=host
+DB_PORT=5432
+DB_NAME=dbname
+DB_USER=user
+DB_PASSWORD=password
+```
+
+Do not put a full `postgres://...` URL into `DB_HOST`.  
+That causes host resolution errors like `could not translate host name "postgres://..."`.
 
 ### VPN Ping via Cloud API (optional)
 
@@ -103,6 +125,20 @@ Use this if your local workstation cannot reach VPN targets directly:
    - `VPN_PING_SERVICE_TOKEN=<shared-secret>`
 
 Then `/api/network/vpn-check` on local app will forward ping checks to cloud `/api/network/ping-service`.
+
+### DB via Cloud API (recommended for local runner)
+
+Use this to keep PostgreSQL only in cloud/internal network while local app stays main runner:
+
+1. On cloud deployment set:
+   - `APP_MODE=cloud_api`
+   - `API_SERVICE_TOKEN=<shared-secret>`
+2. On local app set:
+   - `APP_MODE=local`
+   - `DB_API_PROVIDER_URL=https://<cloud-app-url>`
+   - `API_SERVICE_TOKEN=<shared-secret>`
+
+Then local `/api/db*`, `/api/sim*`, `/api/provision`, `/api/confirm` are proxied server-side to cloud DB API.
 
 ## Empfohlener Testablauf (2 Phasen)
 
@@ -123,6 +159,9 @@ BASE_URL='http://localhost:5000' ./scripts/smoke_test.sh
 ```bash
 BASE_URL='https://<deine-coolify-app-url>' ./scripts/smoke_test.sh
 ```
+
+Hinweis:
+- In `cloud_api` mode ueberspringt `smoke_test.sh` automatisch `/api/auth/*` und testet nur Root + DB-Endpunkte.
 
 Optionaler Schreibtest (nur mit dedizierter Test-IP):
 ```bash

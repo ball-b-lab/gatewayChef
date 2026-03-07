@@ -50,6 +50,10 @@ CHIRPSTACK_STATS_INTERVAL_SECS = int(os.getenv("CHIRPSTACK_STATS_INTERVAL_SECS",
 VPN_PING_PROVIDER_URL = os.getenv("VPN_PING_PROVIDER_URL", "").rstrip("/")
 VPN_PING_SERVICE_TOKEN = os.getenv("VPN_PING_SERVICE_TOKEN", "")
 
+# Optional cloud DB API proxy (for local app that should not connect to DB directly)
+DB_API_PROVIDER_URL = os.getenv("DB_API_PROVIDER_URL", "").rstrip("/")
+DB_API_TIMEOUT_SECS = int(os.getenv("DB_API_TIMEOUT_SECS", "10"))
+
 # Milesight Developer Platform
 MILESIGHT_URL = os.getenv("MILESIGHT_URL", "https://eu-openapi.milesight.com")
 MILESIGHT_CLIENT_ID = os.getenv("MILESIGHT_CLIENT_ID", "")

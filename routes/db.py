@@ -1,19 +1,62 @@
 import json
 import psycopg2
-from flask import Blueprint, request
+import requests
+from flask import Blueprint, Response, request
 from db.connection import get_db_connection
 from db.sim import assign_sim, SimAssignmentError
 from services.provisioning_service import ProvisioningError, ProvisioningService
 from utils.helpers import derive_wifi_ssid, normalize_vpn_ip
 from utils.api_token import enforce_api_token
 from utils.response import ok, error
+from config import APP_MODE, API_SERVICE_TOKEN, DB_API_PROVIDER_URL, DB_API_TIMEOUT_SECS
 
 bp = Blueprint('db', __name__)
 
 
 @bp.before_request
 def _require_api_token():
-    return enforce_api_token()
+    if APP_MODE == "local" and DB_API_PROVIDER_URL:
+        return _proxy_to_cloud_db_api()
+    if APP_MODE == "cloud_api":
+        return enforce_api_token()
+    return None
+
+
+def _proxy_to_cloud_db_api():
+    provider = (DB_API_PROVIDER_URL or "").rstrip("/")
+    if not provider:
+        return None
+
+    host_candidates = {
+        request.host_url.rstrip("/"),
+        f"http://{request.host}".rstrip("/"),
+        f"https://{request.host}".rstrip("/"),
+    }
+    if provider in host_candidates:
+        return error("DB_API_PROVIDER_URL zeigt auf dieselbe lokale Instanz.", 500)
+
+    target_url = f"{provider}{request.path}"
+    headers = {"Content-Type": request.headers.get("Content-Type", "application/json")}
+    if API_SERVICE_TOKEN:
+        headers["X-API-Token"] = API_SERVICE_TOKEN
+
+    try:
+        upstream = requests.request(
+            method=request.method,
+            url=target_url,
+            params=request.args,
+            data=request.get_data(),
+            headers=headers,
+            timeout=DB_API_TIMEOUT_SECS,
+        )
+    except requests.RequestException as exc:
+        return error(f"DB API Proxy Fehler: {exc}", 502)
+
+    return Response(
+        upstream.content,
+        status=upstream.status_code,
+        content_type=upstream.headers.get("Content-Type", "application/json"),
+    )
 
 
 
