@@ -8,6 +8,10 @@ bp = Blueprint('webservice', __name__)
 WEBSERVICE_BASE_URL = 'https://webservice.ball-b.de'
 
 
+def _normalize_eui(value):
+    return ''.join(ch for ch in str(value or '') if ch in '0123456789abcdefABCDEF').upper()
+
+
 def _auth_from_payload(payload):
     username = (payload or {}).get('username') or ''
     password = (payload or {}).get('password') or ''
@@ -64,9 +68,11 @@ def search_by_eui():
     auth, auth_error = _auth_from_payload(payload)
     if auth_error:
         return auth_error
-    eui = payload.get('eui')
+    eui = _normalize_eui(payload.get('eui'))
     if not eui:
         return error('EUI fehlt.', 400)
+    if len(eui) != 16:
+        return error('Ungueltige EUI.', 400)
     
     # User hint: "WHERE eui LIKE '12345%'"
     url = f"{WEBSERVICE_BASE_URL}/api/v2/gateway"
@@ -96,6 +102,15 @@ def create_gateway():
     if missing:
         return error(f"Fehlende Felder: {', '.join(missing)}", 400)
 
+    gateway_id = _normalize_eui(payload.get('gatewayId'))
+    gateway_eui = _normalize_eui(payload.get('gatewayEui'))
+    if len(gateway_eui) != 16:
+        return error('gatewayEui ist ungueltig.', 400)
+    if gateway_id and gateway_id != gateway_eui:
+        return error('gatewayId und gatewayEui muessen identisch sein.', 400)
+    if not gateway_id:
+        gateway_id = gateway_eui
+
     # Proxy to Webservice
     url = f"{WEBSERVICE_BASE_URL}/api/v2/gateway"
     
@@ -116,8 +131,8 @@ def create_gateway():
         # Backward / provider compatibility aliases.
         'serial': payload['serialNumber'],
         'serial_number': payload['serialNumber'],
-        'gatewayId': payload['gatewayId'],
-        'gatewayEui': payload['gatewayEui'],
+        'gatewayId': gateway_id,
+        'gatewayEui': gateway_eui,
         'simIccid': payload['simIccid'],
         'simId': payload['simId'],
         'manufacturer': payload['manufacturer'],

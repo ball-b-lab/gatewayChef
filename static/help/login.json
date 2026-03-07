@@ -1,9 +1,9 @@
 {
   "title": "Gateway Login",
-  "images": ["step-1.svg", "step-2.svg", "step-3.svg"],
+  "images": [],
   "sections": [
-    {"heading": "Schritt 1", "text": "Gateway UI oeffnen und anmelden."},
-    {"heading": "Schritt 2", "text": "Menue fuer Konfiguration aufrufen."},
-    {"heading": "Schritt 3", "text": "Aenderungen speichern und anwenden."}
+    {"heading": "Schritt 1", "text": "Gateway UI oeffnen."},
+    {"heading": "Schritt 2", "text": "Mit Benutzername/Passwort anmelden."},
+    {"heading": "Schritt 3", "text": "Danach im Tool mit 'Gateway lesen' fortfahren."}
   ]
 }

@@ -309,3 +309,12 @@ API_TOKEN='<token>' BASE_URL='https://<deine-coolify-app-url>' ./scripts/smoke_t
 - `API_SERVICE_TOKEN`: gleich in lokaler App und Cloud API setzen.
 - `VPN_PING_SERVICE_TOKEN`: gleich in lokaler App und Cloud API setzen.
 - `JWT_SECRET`: getrenntes Thema fuer User-Login (`/api/auth/*`), fuer den aktuellen DB/Ping-Betrieb nicht zwingend.
+
+### Optional fuer Local-App Betrieb
+
+- `ENABLE_LOCAL_AUTH=true|false`
+  - `true` (Default): lokale `/api/auth/*` Routen sind aktiv.
+  - `false`: Auth-Routen werden nicht registriert (nuetzlich fuer reinen Local+Cloud-DB-Proxy Betrieb).
+- `SKIP_AUTH=true|false`
+  - Nur Operator-/Testhinweis in der UI (Badge `Auth: SKIP (Test)`).
+  - Veraendert keine API-Security automatisch; ist fuer Smoke/Runtime-Transparenz gedacht.

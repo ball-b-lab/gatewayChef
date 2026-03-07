@@ -1,0 +1,259 @@
+{
+  "runs": {
+    "159372f7-e6e5-4c66-8b94-edf96e5414d9": {
+      "run_id": "159372f7-e6e5-4c66-8b94-edf96e5414d9",
+      "state": "FAILED",
+      "operator_name": "Codex Test",
+      "gateway_name": "v2-test-gw",
+      "serial_number": "SER-V2-001",
+      "sim_vendor_id": "1",
+      "sim_iccid": "8949000000000000001",
+      "client_id": "1",
+      "client_name": null,
+      "lns": "chirpstack",
+      "manufacturer": "Milesight",
+      "gateway_type": "UG67",
+      "requested_by": "Codex Test",
+      "context": {
+        "env_status": {
+          "CHIRPSTACK_URL": true,
+          "CHIRPSTACK_API_TOKEN": true,
+          "CHIRPSTACK_TENANT_ID": true,
+          "MILESIGHT_URL": true,
+          "MILESIGHT_CLIENT_ID": true,
+          "MILESIGHT_CLIENT_SECRET": true,
+          "DATABASE_URL": false,
+          "DB_HOST": false,
+          "DB_PASSWORD": false,
+          "DB_API_PROVIDER_URL": true,
+          "API_SERVICE_TOKEN": true,
+          "VPN_PING_PROVIDER_URL": true
+        }
+      },
+      "status": {
+        "created": true
+      },
+      "report": {},
+      "last_error_code": "precheck_failed",
+      "last_error_message": "Preflight fehlgeschlagen: 404 Client Error: Not Found for url: http://192.168.1.1/status/cellular",
+      "created_at": "2026-03-07T10:20:51.915020+00:00",
+      "updated_at": "2026-03-07T10:21:07.480048+00:00",
+      "completed_at": null
+    },
+    "02686fc2-13e5-4c01-a8b0-f248a1b2f936": {
+      "run_id": "02686fc2-13e5-4c01-a8b0-f248a1b2f936",
+      "state": "PRECHECK_PASSED",
+      "operator_name": "Codex Test",
+      "gateway_name": "v2-test-gw-2",
+      "serial_number": "SER-V2-002",
+      "sim_vendor_id": "1",
+      "sim_iccid": "8949000000000000002",
+      "client_id": "1",
+      "client_name": null,
+      "lns": "chirpstack",
+      "manufacturer": "Milesight",
+      "gateway_type": "UG67",
+      "requested_by": "Codex Test",
+      "context": {
+        "env_status": {
+          "CHIRPSTACK_URL": true,
+          "CHIRPSTACK_API_TOKEN": true,
+          "CHIRPSTACK_TENANT_ID": true,
+          "MILESIGHT_URL": true,
+          "MILESIGHT_CLIENT_ID": true,
+          "MILESIGHT_CLIENT_SECRET": true,
+          "DATABASE_URL": false,
+          "DB_HOST": false,
+          "DB_PASSWORD": false,
+          "DB_API_PROVIDER_URL": true,
+          "API_SERVICE_TOKEN": true,
+          "VPN_PING_PROVIDER_URL": true
+        },
+        "gateway_info": {
+          "status": "online",
+          "device": {
+            "mac": "C0:BA:1F:00:3D:74",
+            "eui": "C0BA1FFFFE003D74",
+            "ssid": "bbdbmon_0.117",
+            "vpn_ip": "172.30.0.117",
+            "interfaces": {
+              "cellular0": {
+                "up": true,
+                "ip": "10.189.131.175",
+                "primary": false
+              },
+              "eth0": {
+                "up": true,
+                "ip": "192.168.0.26",
+                "primary": true
+              },
+              "gre0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "lo": {
+                "up": true,
+                "ip": "127.0.0.1",
+                "primary": false
+              },
+              "sit0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "tunl0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "wg0": {
+                "up": true,
+                "ip": "172.30.0.117",
+                "primary": true
+              },
+              "wlan0": {
+                "up": true,
+                "ip": "192.168.1.1",
+                "primary": true
+              },
+              "wlan1": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              }
+            },
+            "cellular_online": false
+          },
+          "meta": {
+            "timestamp": "2026-03-07T11:40:22.601Z"
+          }
+        },
+        "lora_info": {
+          "gatewayEui": "C0BA1FFFFE003D74",
+          "gatewayId": "C0BA1FFFFE003D74",
+          "radioType": "",
+          "loriotSupport": true,
+          "status": 1,
+          "dataRetransmission": false,
+          "pendingData": 0,
+          "servs": [
+            {
+              "id": 0,
+              "servEnabled": false,
+              "servAddr": "localhost",
+              "servType": "ursalink",
+              "servPortUp": 1700,
+              "servPortDown": 1700,
+              "servMqttPort": 1883,
+              "syncFreqPlan": false,
+              "connected": 0,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            },
+            {
+              "id": 1,
+              "servEnabled": true,
+              "servAddr": "ball-b-cs.cortex-media.de",
+              "servType": "semtech",
+              "servPortUp": 1800,
+              "servPortDown": 1800,
+              "servMqttPort": 0,
+              "syncFreqPlan": false,
+              "connected": 1,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            }
+          ]
+        },
+        "lora_health": {
+          "status": "ONLINE",
+          "lns_connected": true,
+          "last_seen": "2026-03-07T11:40:13.429Z",
+          "seconds_since_ack": 8,
+          "seconds_since_stat": 1
+        },
+        "discovered_eui": "C0BA1FFFFE003D74",
+        "peek_next_ip": "172.30.0.139"
+      },
+      "status": {
+        "created": true,
+        "precheck_gateway_reachable": true,
+        "precheck_inventory_ready": true,
+        "precheck_discovered_eui": "C0BA1FFFFE003D74",
+        "precheck_lora_status": "ONLINE",
+        "precheck_lns_connected": true
+      },
+      "report": {},
+      "last_error_code": null,
+      "last_error_message": null,
+      "created_at": "2026-03-07T11:40:18.339407+00:00",
+      "updated_at": "2026-03-07T11:40:23.214781+00:00",
+      "completed_at": null
+    }
+  },
+  "events": {
+    "159372f7-e6e5-4c66-8b94-edf96e5414d9": [
+      {
+        "stage": "create_run",
+        "severity": "info",
+        "event_type": "run_created",
+        "message": "Provisionierungslauf angelegt.",
+        "payload": {
+          "operator_name": "Codex Test",
+          "gateway_name": "v2-test-gw"
+        },
+        "created_at": "2026-03-07T10:20:51.921021+00:00"
+      },
+      {
+        "stage": "precheck",
+        "severity": "error",
+        "event_type": "failure",
+        "message": "Preflight fehlgeschlagen: 404 Client Error: Not Found for url: http://192.168.1.1/status/cellular",
+        "payload": {
+          "code": "precheck_failed",
+          "details": {}
+        },
+        "created_at": "2026-03-07T10:21:07.480790+00:00"
+      }
+    ],
+    "02686fc2-13e5-4c01-a8b0-f248a1b2f936": [
+      {
+        "stage": "create_run",
+        "severity": "info",
+        "event_type": "run_created",
+        "message": "Provisionierungslauf angelegt.",
+        "payload": {
+          "operator_name": "Codex Test",
+          "gateway_name": "v2-test-gw-2"
+        },
+        "created_at": "2026-03-07T11:40:18.340915+00:00"
+      },
+      {
+        "stage": "precheck",
+        "severity": "info",
+        "event_type": "precheck_passed",
+        "message": "Preflight-Checks erfolgreich.",
+        "payload": {
+          "discovered_eui": "C0BA1FFFFE003D74",
+          "peek_next_ip": "172.30.0.139",
+          "lora_status": "ONLINE",
+          "lns_connected": true
+        },
+        "created_at": "2026-03-07T11:40:23.234633+00:00"
+      }
+    ]
+  }
+}

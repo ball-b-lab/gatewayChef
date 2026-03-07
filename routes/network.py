@@ -126,3 +126,31 @@ def vpn_check():
         return ok(_run_local_ping(host))
     except RuntimeError as exc:
         return error(str(exc), 500)
+
+
+@bp.route('/api/network/gateway-health', methods=['POST'])
+def gateway_health():
+    """
+    Reachability check via HTTP against the gateway's health endpoint over VPN.
+    This avoids relying on the system `ping` binary in restricted runtimes.
+    """
+    data = request.json or {}
+    host, err = _validate_host(data.get('vpn_ip') or data.get('host'))
+    if err:
+        return error(err[0], err[1])
+
+    url = f"http://{host}/node-red/lora/health"
+    try:
+        resp = requests.get(url, timeout=5)
+    except requests.RequestException as exc:
+        return error(f"Gateway Health Fehler: {exc}", 502)
+
+    if resp.status_code != 200:
+        return error(f"Gateway Health Fehler {resp.status_code}", resp.status_code)
+
+    try:
+        payload = resp.json()
+    except ValueError:
+        return error("Gateway Health lieferte ungueltiges JSON.", 502)
+
+    return ok({"ok": True, "via": "http_health", "url": url, "payload": payload})

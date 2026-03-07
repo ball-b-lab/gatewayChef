@@ -1,5 +1,5 @@
 import { state, vars } from './state.js';
-import { refreshTooltips, updateTopStatusBanner, setBadge, setServiceStatus } from './ui.js';
+import { refreshTooltips, updateTopStatusBanner, setBadge, setServiceStatus, setRuntimeHint } from './ui.js';
 import {
     runReadPipeline,
     refreshGatewayStatus,
@@ -107,6 +107,51 @@ function applyDbProxyStatus() {
         badge.classList.add('bg-warning', 'text-dark');
         badge.title = 'Direkte DB-Verbindung (kein DB_API_PROVIDER_URL gesetzt).';
     }
+}
+
+function applyVpnProxyStatus() {
+    const badge = document.getElementById('vpnProxyState');
+    if (!badge) return;
+    const runtime = window.RUNTIME_CONFIG || {};
+    const proxyEnabled = !!runtime.vpn_ping_proxy_enabled;
+    const providerUrl = runtime.vpn_ping_proxy_url || '';
+
+    badge.classList.remove('bg-secondary', 'bg-success', 'bg-warning', 'text-dark');
+    if (proxyEnabled) {
+        badge.textContent = 'VPN: Cloud Ping Proxy';
+        badge.classList.add('bg-success');
+        badge.title = `VPN_PING_PROVIDER_URL: ${providerUrl}`;
+    } else {
+        badge.textContent = 'VPN: lokal';
+        badge.classList.add('bg-warning', 'text-dark');
+        badge.title = 'Lokaler Ping ohne Cloud-Proxy.';
+    }
+}
+
+function applyAuthModeStatus() {
+    const badge = document.getElementById('authModeState');
+    if (!badge) return;
+    const runtime = window.RUNTIME_CONFIG || {};
+    const localAuthEnabled = runtime.local_auth_enabled !== false;
+    const skipAuthMode = !!runtime.skip_auth_mode;
+
+    badge.classList.remove('bg-secondary', 'bg-success', 'bg-warning', 'bg-danger', 'text-dark');
+    if (skipAuthMode) {
+        badge.textContent = 'Auth: SKIP (Test)';
+        badge.classList.add('bg-warning', 'text-dark');
+        badge.title = 'SKIP_AUTH=true: Auth-Smoke ist deaktiviert (nur Testbetrieb).';
+        setRuntimeHint('Testmodus aktiv: SKIP_AUTH=true. Produktivbetrieb nur mit aktivem Auth-Smoke nutzen.', 'warn');
+        return;
+    }
+    if (!localAuthEnabled) {
+        badge.textContent = 'Auth: lokal aus';
+        badge.classList.add('bg-secondary');
+        badge.title = 'ENABLE_LOCAL_AUTH=false: /api/auth/* wird in dieser Instanz nicht registriert.';
+        return;
+    }
+    badge.textContent = 'Auth: lokal an';
+    badge.classList.add('bg-success');
+    badge.title = 'Lokale Auth-Routen sind aktiv.';
 }
 
 function bindAutoRefreshPause() {
@@ -254,6 +299,8 @@ function initStepperObserver() {
 
 window.addEventListener('load', () => {
     applyDbProxyStatus();
+    applyVpnProxyStatus();
+    applyAuthModeStatus();
     const savedUser = localStorage.getItem('wsLastUser');
     const wsUser = document.getElementById('wsUser');
     if (savedUser && wsUser) {
