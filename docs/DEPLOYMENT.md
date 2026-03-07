@@ -84,6 +84,7 @@ Optional:
 -   **Port:** `5000`
 -   **Start Command:** leave default from Dockerfile
 -   **Required env vars:** `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`
+-   **Recommended service auth:** `API_SERVICE_TOKEN` (protects `/api/db*`, `/api/sim*`, `/api/provision`, `/api/confirm`)
 -   **Recommended env vars:** `OPEN_BROWSER=false`, `FLASK_DEBUG=false`, `HOST=0.0.0.0`, `PORT=5000`
 -   **Optional for VPN reachability from local app:** `VPN_PING_SERVICE_TOKEN`
 
@@ -206,3 +207,12 @@ PORT=5000
 
 -   **Missing Data Files:**
     -   If the app crashes saying it can't find `templates` or `static` files, ensure the `gatewaychef.spec` correctly includes them in `datas=[]`. The current spec file expects `templates` and `static` folders in the project root.
+
+
+### Smoke Test with API token
+
+If `API_SERVICE_TOKEN` is set in cloud, run smoke with:
+
+```bash
+API_TOKEN='<token>' BASE_URL='https://<deine-coolify-app-url>' ./scripts/smoke_test.sh
+```

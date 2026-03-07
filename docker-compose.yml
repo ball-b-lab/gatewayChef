@@ -6,7 +6,7 @@ services:
     container_name: gatewaychef_app
     restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "${PORT:-5011}:5000"
     env_file:
       - .env
     environment:
@@ -37,6 +37,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    ports:
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - gatewaychef_pgdata:/var/lib/postgresql/data
 

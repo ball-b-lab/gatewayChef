@@ -5,9 +5,16 @@ from db.connection import get_db_connection
 from db.sim import assign_sim, SimAssignmentError
 from services.provisioning_service import ProvisioningError, ProvisioningService
 from utils.helpers import derive_wifi_ssid, normalize_vpn_ip
+from utils.api_token import enforce_api_token
 from utils.response import ok, error
 
 bp = Blueprint('db', __name__)
+
+
+@bp.before_request
+def _require_api_token():
+    return enforce_api_token()
+
 
 
 @bp.route('/api/db/fetch-ip', methods=['GET'])

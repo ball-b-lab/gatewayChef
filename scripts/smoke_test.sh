@@ -7,6 +7,7 @@ TEST_PASSWORD="${TEST_PASSWORD:-SmokeTest1234!}"
 TEST_FULL_NAME="${TEST_FULL_NAME:-Smoke Test User}"
 RUN_WRITE_SMOKE="${RUN_WRITE_SMOKE:-false}"
 TEST_VPN_IP="${TEST_VPN_IP:-}"
+API_TOKEN="${API_TOKEN:-}"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -62,9 +63,15 @@ request() {
   local url="${BASE_URL}${path}"
   local auth_args=()
   local body_args=()
+  local service_auth_args=()
 
   if [[ -n "$token" ]]; then
     auth_args=(-H "Authorization: Bearer ${token}")
+  fi
+
+
+  if [[ -n "$API_TOKEN" && "$path" == /api/* ]]; then
+    service_auth_args=(-H "X-API-Token: ${API_TOKEN}")
   fi
 
   if [[ -n "$body" ]]; then
@@ -72,7 +79,7 @@ request() {
   fi
 
   local status
-  status=$(curl -sS -o "$out_body" -w "%{http_code}" -X "$method" "$url" "${auth_args[@]}" "${body_args[@]}")
+  status=$(curl -sS -o "$out_body" -w "%{http_code}" -X "$method" "$url" "${service_auth_args[@]}" "${auth_args[@]}" "${body_args[@]}")
   echo "$status"
 }
 

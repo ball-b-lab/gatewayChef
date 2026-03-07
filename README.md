@@ -6,6 +6,8 @@ A robust Flask-based web application for provisioning Milesight LoRa Gateways. I
 
 -   **[Architecture & System Overview](docs/ARCHITECTURE.md)**: Understand the system components, data flow, and file structure.
 -   **[Deployment Guide](docs/DEPLOYMENT.md)**: Instructions for running locally and building standalone executables for Windows, macOS, and Linux.
+-   **[Coolify Runtime Architecture](docs/COOLIFY_RUNTIME_ARCHITECTURE.md)**: What runs where (containers, ports, proxy, envs, migration paths).
+-   **[Target Architecture (Local + Cloud)](docs/TARGET_ARCHITECTURE_LOCAL_CLOUD.md)**: Final operating model with containers, ports, reverse proxy, envs, and migration roles.
 -   **[API Reference](docs/API.md)**: Detailed specification of the backend JSON API.
 
 ## ✨ Features
