@@ -77,6 +77,8 @@ flowchart LR
   - Postgres-Verbindung ueber `DB_*`
 - `config.py`
   - `DB_API_PROVIDER_URL` fuer lokalen Proxy auf Cloud DB API
+- `app.py`
+  - `GET /api/version` fuer Deploy-/Version-Nachweis (`build_sha`, `build_tag`, `build_time`)
 - `repositories/*` und `services/*`
   - Datenzugriff und Business-Logik hinter den DB-Endpunkten
 

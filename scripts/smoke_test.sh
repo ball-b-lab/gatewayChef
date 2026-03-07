@@ -9,6 +9,8 @@ RUN_WRITE_SMOKE="${RUN_WRITE_SMOKE:-false}"
 TEST_VPN_IP="${TEST_VPN_IP:-}"
 API_TOKEN="${API_TOKEN:-}"
 SKIP_AUTH="${SKIP_AUTH:-false}"
+EXPECTED_BUILD_SHA="${EXPECTED_BUILD_SHA:-}"
+EXPECTED_APP_MODE="${EXPECTED_APP_MODE:-}"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -99,6 +101,25 @@ if [[ "$APP_MODE" == "cloud_api" ]]; then
   SKIP_AUTH="true"
 fi
 echo "[OK] GET / -> 200"
+
+print_step "GET /api/version"
+VERSION_BODY="$TMP_DIR/version.json"
+VERSION_STATUS=$(request "GET" "/api/version" "" "" "$VERSION_BODY")
+if [[ "$VERSION_STATUS" != "200" ]]; then
+  cat "$VERSION_BODY" >&2 || true
+  fail "/api/version returned status $VERSION_STATUS"
+fi
+VERSION_MODE=$(json_get "$VERSION_BODY" "data.app_mode")
+VERSION_SHA=$(json_get "$VERSION_BODY" "data.build_sha")
+[[ -n "$VERSION_MODE" ]] || fail "/api/version missing data.app_mode"
+[[ -n "$VERSION_SHA" ]] || fail "/api/version missing data.build_sha"
+if [[ -n "$EXPECTED_APP_MODE" && "$VERSION_MODE" != "$EXPECTED_APP_MODE" ]]; then
+  fail "app_mode mismatch: got '$VERSION_MODE' expected '$EXPECTED_APP_MODE'"
+fi
+if [[ -n "$EXPECTED_BUILD_SHA" && "$VERSION_SHA" != "$EXPECTED_BUILD_SHA" ]]; then
+  fail "build_sha mismatch: got '$VERSION_SHA' expected '$EXPECTED_BUILD_SHA'"
+fi
+echo "[OK] /api/version -> 200 (mode=$VERSION_MODE, sha=$VERSION_SHA)"
 
 TOKEN=""
 if [[ "$SKIP_AUTH" == "false" ]]; then

@@ -3,6 +3,7 @@ import time
 import webbrowser
 import os
 import sys
+import subprocess
 from pathlib import Path
 from flask import Flask, render_template
 from werkzeug.exceptions import HTTPException
@@ -25,11 +26,32 @@ from routes.network import bp as network_bp
 from routes.chirpstack import bp as chirpstack_bp
 from routes.milesight import bp as milesight_bp
 from routes.webservice import bp as webservice_bp
-from utils.response import error
+from utils.response import error, ok
 
 def resource_path(relative):
     base = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)).resolve()
     return str(base / relative)
+
+def _git_sha_fallback():
+    try:
+        output = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        return output.strip()
+    except Exception:
+        return ""
+
+def _version_payload():
+    build_sha = os.getenv("APP_BUILD_SHA", "").strip() or _git_sha_fallback()
+    return {
+        "service": "gatewaychef",
+        "app_mode": APP_MODE,
+        "build_sha": build_sha or "unknown",
+        "build_tag": os.getenv("APP_BUILD_TAG", "").strip() or "unknown",
+        "build_time": os.getenv("APP_BUILD_TIME", "").strip() or "unknown",
+    }
 
 app = Flask(
     __name__,
@@ -63,6 +85,10 @@ def index():
             "db_api_provider_url": DB_API_PROVIDER_URL or "",
         },
     )
+
+@app.route('/api/version', methods=['GET'])
+def version():
+    return ok(_version_payload())
 
 
 app.register_blueprint(db_bp)
