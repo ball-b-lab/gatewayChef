@@ -39,6 +39,8 @@ DB_NAME = os.getenv("DB_NAME", "postgres")
 PORT = int(os.getenv("PORT", 5000))
 HOST = os.getenv("HOST", "0.0.0.0")
 APP_MODE = os.getenv("APP_MODE", "local").strip().lower()
+ENABLE_LOCAL_AUTH = os.getenv("ENABLE_LOCAL_AUTH", "true").strip().lower() == "true"
+SKIP_AUTH = os.getenv("SKIP_AUTH", "false").strip().lower() == "true"
 
 # ChirpStack Configuration
 CHIRPSTACK_URL = os.getenv("CHIRPSTACK_URL", "https://chirpstack.example.com")

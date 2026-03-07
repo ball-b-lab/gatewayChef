@@ -239,6 +239,27 @@ export function updateTopStatusBanner() {
     banner.textContent = text;
 }
 
+export function setRuntimeHint(message, level = 'muted') {
+    const node = document.getElementById('runtimeHintInfo');
+    if (!node) return;
+    node.classList.remove('text-muted', 'text-warning', 'text-danger', 'text-success');
+    if (!message) {
+        node.textContent = '';
+        node.classList.add('text-muted');
+        return;
+    }
+    if (level === 'error') {
+        node.classList.add('text-danger');
+    } else if (level === 'warn') {
+        node.classList.add('text-warning');
+    } else if (level === 'success') {
+        node.classList.add('text-success');
+    } else {
+        node.classList.add('text-muted');
+    }
+    node.textContent = message;
+}
+
 export function setStepStatus(stepKey, stateName, text) {
     const badge = document.getElementById(`step-status-${stepKey}`);
     const status = document.getElementById(`section-status-${stepKey}`);

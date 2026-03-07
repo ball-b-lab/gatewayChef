@@ -17,7 +17,10 @@ from config import (
     DB_PASSWORD,
     DATABASE_URL,
     APP_MODE,
+    ENABLE_LOCAL_AUTH,
+    SKIP_AUTH,
     DB_API_PROVIDER_URL,
+    VPN_PING_PROVIDER_URL,
 )
 from routes.gateway import bp as gateway_bp
 from routes.db import bp as db_bp
@@ -83,6 +86,10 @@ def index():
             "app_mode": APP_MODE,
             "db_api_proxy_enabled": bool(DB_API_PROVIDER_URL),
             "db_api_provider_url": DB_API_PROVIDER_URL or "",
+            "vpn_ping_proxy_enabled": bool(VPN_PING_PROVIDER_URL),
+            "vpn_ping_proxy_url": VPN_PING_PROVIDER_URL or "",
+            "local_auth_enabled": bool(ENABLE_LOCAL_AUTH),
+            "skip_auth_mode": bool(SKIP_AUTH),
         },
     )
 
@@ -94,7 +101,8 @@ def version():
 app.register_blueprint(db_bp)
 app.register_blueprint(network_bp)
 if APP_MODE != 'cloud_api':
-    app.register_blueprint(auth_bp)
+    if ENABLE_LOCAL_AUTH:
+        app.register_blueprint(auth_bp)
     app.register_blueprint(gateway_bp)
     app.register_blueprint(chirpstack_bp)
     app.register_blueprint(milesight_bp)

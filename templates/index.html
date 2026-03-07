@@ -21,12 +21,15 @@
         <div class="d-flex flex-wrap align-items-center gap-2 mt-2 headline-conn">
             <span class="badge bg-secondary" id="gatewayConnectionState">Unbekannt</span>
             <span class="badge bg-secondary" id="dbProxyState">DB: -</span>
+            <span class="badge bg-secondary" id="vpnProxyState">VPN: -</span>
+            <span class="badge bg-secondary" id="authModeState">Auth: -</span>
             <span class="badge bg-warning text-dark" id="gatewayGoldenBadge" style="display:none;">Golden Config erkannt</span>
             <span class="text-muted" id="gatewayConnectionHint">Bitte mit dem Gateway-WLAN verbinden.</span>
             <button class="btn btn-outline-secondary btn-sm" type="button" onclick="runReadPipeline()">Gateway lesen</button>
         </div>
         <div class="small text-danger mt-2" id="gatewayConnectionError" style="display:none;"></div>
         <div class="small text-muted mt-2" id="appStatusInfo">Gateway nicht verbunden. Auto-Refresh aus.</div>
+        <div class="small text-muted mt-1" id="runtimeHintInfo"></div>
     </div>
 
     <ul class="nav nav-tabs mb-3 no-scroll-tabs" id="mainTabs" role="tablist">

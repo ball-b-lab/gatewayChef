@@ -17,7 +17,8 @@ import {
     setTooltip,
     refreshTooltips,
     updateTopStatusBanner,
-    setStepStatus
+    setStepStatus,
+    setRuntimeHint
 } from './ui.js';
 
 function getWebserviceCredentials() {
@@ -43,8 +44,9 @@ async function webserviceRequest(path, payload) {
             const status = res.res?.status;
             const unwrapped = unwrap(res.data);
             if (!unwrapped.ok) {
-                log(`!! Webservice Error (${path}): HTTP ${status || '?'} - ${unwrapped.error}`, 'error');
-                return { ok: false, error: unwrapped.error, data: unwrapped.data, status };
+                const hint = describeWebserviceError(status, unwrapped.error);
+                log(`!! Webservice Error (${path}): HTTP ${status || '?'} - ${hint}`, 'error');
+                return { ok: false, error: hint, data: unwrapped.data, status };
             }
             log(`.. Webservice OK (${path}): HTTP ${status || '?'}`, 'success');
             return { ok: true, data: unwrapped.data };
@@ -54,7 +56,7 @@ async function webserviceRequest(path, payload) {
         }
     }
 
-function normalizeList(payload) {
+    function normalizeList(payload) {
         if (!payload) return [];
         if (Array.isArray(payload)) return payload;
         if (Array.isArray(payload.data)) return payload.data;
@@ -62,6 +64,63 @@ function normalizeList(payload) {
         if (Array.isArray(payload.gateways)) return payload.gateways;
         if (Array.isArray(payload.items)) return payload.items;
         return [];
+    }
+
+function normalizeHexId(value) {
+        const clean = String(value || '').replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+        return clean || '';
+    }
+
+function normalizeIdentity(value) {
+        const hex = normalizeHexId(value);
+        return hex || String(value || '').trim();
+    }
+
+function isMissingValue(value) {
+        if (value === null || value === undefined) return true;
+        const text = String(value).trim();
+        return !text || text === '-';
+    }
+
+function compareStatusValue(currentValue, targetValue, options = {}) {
+        if (isMissingValue(targetValue) || isMissingValue(currentValue)) {
+            return null;
+        }
+        const current = options.normalize ? options.normalize(currentValue) : String(currentValue).trim();
+        const target = options.normalize ? options.normalize(targetValue) : String(targetValue).trim();
+        if (!current || !target) return null;
+        return current === target;
+    }
+
+function describeWebserviceError(status, errorText) {
+        const base = (errorText || '').toString().trim() || 'Webservice Fehler';
+        if (status === 401 || status === 403) {
+            return `${base} (Login/Passwort prüfen)`;
+        }
+        if (status === 404) {
+            return `${base} (Endpoint nicht gefunden)`;
+        }
+        if (status >= 500) {
+            return `${base} (Webservice aktuell nicht verfügbar)`;
+        }
+        return base;
+    }
+
+function setOperatorHintForError(errorText) {
+        const msg = (errorText || '').toString();
+        if (!msg) return;
+        if (msg.includes('DB API Proxy Fehler')) {
+            setRuntimeHint('DB-Proxy nicht erreichbar: DB_API_PROVIDER_URL/API_SERVICE_TOKEN in Local-App prüfen.', 'warn');
+            return;
+        }
+        if (msg.includes('VPN Ping Proxy Fehler')) {
+            setRuntimeHint('VPN-Ping-Proxy nicht erreichbar: VPN_PING_PROVIDER_URL/VPN_PING_SERVICE_TOKEN prüfen.', 'warn');
+            return;
+        }
+        if (msg.includes('Gateway nicht erreichbar')) {
+            setRuntimeHint('Gateway offline oder WLAN falsch: mit Gateway-SSID verbinden und "Gateway lesen" erneut ausführen.', 'warn');
+            return;
+        }
     }
 
 function renderClientSearchResults(items) {
@@ -142,13 +201,14 @@ function renderClientGateways(items) {
 export async function handleClientSearchInput(query) {
         const status = document.getElementById('clientGatewaysStatus');
         const results = document.getElementById('clientSearchResults');
+        const normalizedQuery = String(query || '').trim();
         if (results) results.innerHTML = '';
-        if (!query || query.length < 3) {
+        if (!normalizedQuery || normalizedQuery.length < 3) {
             if (status) status.textContent = 'Bitte mindestens 3 Zeichen eingeben.';
             return;
         }
         if (status) status.textContent = 'Suche...';
-        const res = await webserviceRequest('/api/webservice/clientsearch', { query });
+        const res = await webserviceRequest('/api/webservice/clientsearch', { query: normalizedQuery });
         if (!res.ok) {
             if (status) status.textContent = `Fehler: ${res.error || 'Suche fehlgeschlagen'}`;
             return;
@@ -281,6 +341,7 @@ export async function runReadPipeline(options = {}) {
             state.statuses.gateway = { connected: false, updatedAt: null, error: deviceResult.error };
             setConnectionState(false, 'Bitte mit dem Gateway-WLAN verbinden.');
             setGatewayBlocked(true, deviceResult.error);
+            setOperatorHintForError('Gateway nicht erreichbar');
             log('!! Gateway nicht erreichbar: ' + deviceResult.error, 'error');
             return;
         }
@@ -323,6 +384,7 @@ export async function runReadPipeline(options = {}) {
         if (includeSecondary) {
             await fetchSecondarySources();
         }
+        setRuntimeHint('', 'muted');
         updateGatewayStatus();
         checkVpnReachability();
         updateSectionStatuses();
@@ -332,7 +394,10 @@ export function applyGatewayState(deviceInfo, loraInfo) {
         if (!deviceInfo) return;
         const rawMac = deviceInfo.mac || '';
         const derivedEui = deriveEuiFromMac(rawMac);
-        const rawEui = deviceInfo.eui || derivedEui || '';
+        const loraGatewayEui = normalizeHexId(loraInfo && loraInfo.gatewayEui ? loraInfo.gatewayEui : '');
+        const deviceGatewayEui = normalizeHexId(deviceInfo.eui || '');
+        const derivedGatewayEui = normalizeHexId(derivedEui || '');
+        const rawEui = loraGatewayEui || deviceGatewayEui || derivedGatewayEui || '';
         const gatewayVpnIp = normalizeVpnIp(deviceInfo.vpn_ip || '');
         if ((gatewayVpnIp && gatewayVpnIp !== vars.lastGatewayVpnIp) || (!gatewayVpnIp && vars.lastGatewayVpnIp)) {
             resetGatewayScopedFields();
@@ -362,7 +427,7 @@ export function applyGatewayState(deviceInfo, loraInfo) {
         const statusGatewayIdEl = document.getElementById('statusGatewayId');
         const statusVpnEl = document.getElementById('statusVpnReported');
         const statusWifiEl = document.getElementById('statusWifiSsid');
-        const gatewayIdDisplay = (loraInfo && loraInfo.gatewayId) || rawEui || '';
+        const gatewayIdDisplay = normalizeIdentity((loraInfo && loraInfo.gatewayId) || rawEui || '');
         setText('statusGatewayEui', rawEui);
         setText('statusGatewayId', gatewayIdDisplay);
         setText('statusVpnReported', deviceInfo.vpn_ip);
@@ -371,7 +436,7 @@ export function applyGatewayState(deviceInfo, loraInfo) {
         if (statusGatewayIdEl) setTooltip(statusGatewayIdEl, 'Quelle: device-info-lora');
         if (statusVpnEl) setTooltip(statusVpnEl, 'Quelle: device-info');
         if (statusWifiEl) setTooltip(statusWifiEl, 'Quelle: device-info');
-        const gatewayIdValue = (loraInfo && loraInfo.gatewayId) || deviceInfo.gatewayId || deviceInfo.eui || '';
+        const gatewayIdValue = normalizeIdentity((loraInfo && loraInfo.gatewayId) || deviceInfo.gatewayId || rawEui || '');
         const isGolden = String(gatewayIdValue).toLowerCase() === 'cafe';
         if (isGolden) {
             document.getElementById('gatewayGoldenBadge').style.display = 'inline-block';
@@ -479,6 +544,9 @@ export async function fetchSecondarySources() {
         let dbResult = await DatabaseAdapter.fetch(vpnIp, eui, '');
         if (!dbResult.ok && serialNumber) {
             dbResult = await DatabaseAdapter.fetch('', '', serialNumber);
+        }
+        if (!dbResult.ok) {
+            setOperatorHintForError(dbResult.error);
         }
         state.observed.db = dbResult.ok ? dbResult.data : null;
         if (dbResult.ok && dbResult.data) {
@@ -712,6 +780,9 @@ export function updateConfigTargets() {
 export async function loadDbForGateway(vpnIp, eui, serialNumber) {
         if (!vpnIp && !eui && !serialNumber) return;
         const dbResult = await DatabaseAdapter.fetch(vpnIp, eui, serialNumber);
+        if (!dbResult.ok) {
+            setOperatorHintForError(dbResult.error);
+        }
         state.observed.db = dbResult.ok ? dbResult.data : null;
         if (dbResult.ok && dbResult.data) {
             const vendorSelect = document.getElementById('simVendor');
@@ -764,8 +835,22 @@ export function resetGatewayScopedFields() {
 export function updateGatewayStatus() {
         const gateway = state.observed.gateway || {};
         const lora = state.observed.lora || {};
-        const currentEui = lora.gatewayEui || gateway.eui || document.getElementById('gwEui').value || document.getElementById('loraGatewayEui').value || getText('statusGatewayEui') || '';
-        const currentId = lora.gatewayId || gateway.eui || document.getElementById('gwEui').value || document.getElementById('loraGatewayId').value || getText('statusGatewayId') || '';
+        const currentEui = normalizeIdentity(
+            lora.gatewayEui ||
+            gateway.eui ||
+            document.getElementById('gwEui').value ||
+            document.getElementById('loraGatewayEui').value ||
+            getText('statusGatewayEui') ||
+            ''
+        );
+        const currentId = normalizeIdentity(
+            lora.gatewayId ||
+            gateway.eui ||
+            document.getElementById('gwEui').value ||
+            document.getElementById('loraGatewayId').value ||
+            getText('statusGatewayId') ||
+            currentEui
+        );
         const currentVpn = gateway.vpn_ip || document.getElementById('gwVpnReported').value || getText('statusVpnReported') || '';
         const currentWifiSsid = gateway.wifi_ssid || document.getElementById('gwWifiSsid').value || getText('statusWifiSsid') || '';
         const currentCellularStatus = document.getElementById('gwCellularStatus').value || '';
@@ -778,10 +863,10 @@ export function updateGatewayStatus() {
             const lteConnected = cellularOnline === undefined ? !!cellular.up : (cellularOnline || !!cellular.up);
             currentLteState = formatConnection(lteConnected);
         }
-        const targetEui = getText('targetGatewayEui');
-        const targetId = getText('targetGatewayId');
-        const targetVpn = getText('targetVpnIp');
-        const targetWifiSsid = getText('targetWifiSsid');
+        const targetEui = normalizeIdentity(getText('targetGatewayEui'));
+        const targetId = normalizeIdentity(getText('targetGatewayId'));
+        const targetVpn = normalizeVpnIp(getText('targetVpnIp'));
+        const targetWifiSsid = String(getText('targetWifiSsid') || '').trim();
         const db = state.observed.db || {};
 
         setText('statusGatewayEui', currentEui);
@@ -802,10 +887,10 @@ export function updateGatewayStatus() {
             setTooltip(cellularStatusEl, `Quelle: device-info | IP: ${ipHint} | LTE: ${lteHint}`);
         }
 
-        const matchEui = currentEui && currentEui === targetEui;
-        const matchId = currentId && currentId === targetId;
-        const matchVpn = currentVpn && currentVpn === targetVpn;
-        const matchWifiSsid = currentWifiSsid && currentWifiSsid === targetWifiSsid;
+        const matchEui = compareStatusValue(currentEui, targetEui, { normalize: normalizeIdentity });
+        const matchId = compareStatusValue(currentId, targetId, { normalize: normalizeIdentity });
+        const matchVpn = compareStatusValue(currentVpn, targetVpn, { normalize: normalizeVpnIp });
+        const matchWifiSsid = compareStatusValue(currentWifiSsid, targetWifiSsid);
 
         setMatchStyle('statusGatewayEui', matchEui);
         setMatchStyle('statusGatewayId', matchId);
@@ -816,9 +901,9 @@ export function updateGatewayStatus() {
         setStatusIcon('statusGatewayIdState', matchId);
         setStatusIcon('statusVpnReportedState', matchVpn);
         setStatusIcon('statusWifiSsidState', matchWifiSsid);
-        setRowState('rowGatewayId', matchId ? 'ok' : 'bad');
-        setRowState('rowVpnIp', matchVpn ? 'ok' : 'bad');
-        setRowState('rowWifiSsid', matchWifiSsid ? 'ok' : 'bad');
+        setRowState('rowGatewayId', matchId === null ? 'na' : (matchId ? 'ok' : 'bad'));
+        setRowState('rowVpnIp', matchVpn === null ? 'na' : (matchVpn ? 'ok' : 'bad'));
+        setRowState('rowWifiSsid', matchWifiSsid === null ? 'na' : (matchWifiSsid ? 'ok' : 'bad'));
         if (currentLteState) {
             setRowState('rowCellularStatus', currentLteState === 'connected' ? 'ok' : 'bad');
         } else {
@@ -853,6 +938,7 @@ export async function checkVpnReachability() {
         if (!vpnIp || vpnIp === '-') {
             statusEl.textContent = '-';
             setRowState('rowVpnReach', 'na');
+            setRuntimeHint('VPN-Pruefung ausstehend: zuerst Gateway lesen oder Ziel-VPN-IP setzen.', 'muted');
             return;
         }
         const reportedVpn = normalizeVpnIp(document.getElementById('gwVpnReported').value || '');
@@ -861,12 +947,14 @@ export async function checkVpnReachability() {
             statusEl.textContent = 'disconnected';
             statusEl.title = 'Gateway reports no VPN IP';
             setRowState('rowVpnReach', 'bad');
+            setRuntimeHint('Gateway meldet keine VPN-IP: WireGuard am Gateway pruefen (VPN IP + Private Key + Save/Apply).', 'warn');
         } else {
             statusEl.textContent = reportedMatch ? 'connected' : 'checking...';
         }
         if (reportedMatch) {
             statusEl.title = 'Gateway reports matching VPN IP';
             setRowState('rowVpnReach', 'ok');
+            setRuntimeHint('', 'muted');
         }
         try {
             const res = await fetch('/api/network/vpn-check', {
@@ -877,6 +965,7 @@ export async function checkVpnReachability() {
             const data = await res.json();
             const result = unwrap(data);
             if (!result.ok) {
+                setOperatorHintForError(result.error);
                 if (!reportedMatch) {
                     statusEl.textContent = 'unknown';
                     statusEl.title = result.error;
@@ -889,14 +978,21 @@ export async function checkVpnReachability() {
                 statusEl.textContent = reachable ? 'connected' : 'disconnected';
                 statusEl.title = (result.data && result.data.output) || '';
                 setRowState('rowVpnReach', reachable ? 'ok' : 'bad');
+                if (!reachable) {
+                    setRuntimeHint('VPN nicht erreichbar: Cloud-Ping-Service/Firewall/VPN-Tunnel pruefen.', 'warn');
+                } else {
+                    setRuntimeHint('', 'muted');
+                }
             } else if (reachable) {
                 statusEl.title = (result.data && result.data.output) || statusEl.title;
+                setRuntimeHint('', 'muted');
             }
         } catch (e) {
             if (!reportedMatch) {
                 statusEl.textContent = 'unknown';
                 statusEl.title = String(e);
                 setRowState('rowVpnReach', 'na');
+                setOperatorHintForError(String(e));
             }
         }
     }
@@ -1738,7 +1834,8 @@ export async function checkMilesightConfig() {
         }
     }
 export async function searchWebserviceByEui(eui) {
-        if (!eui) return;
+        const normalizedEui = normalizeHexId(eui);
+        if (!normalizedEui) return;
         
         // Ensure credentials are present (simple check)
         const creds = getWebserviceCredentials();
@@ -1748,7 +1845,7 @@ export async function searchWebserviceByEui(eui) {
         const status = document.getElementById('webserviceStatus');
         if (status) status.textContent = 'Webservice: searching EUI...';
 
-        const res = await webserviceRequest('/api/webservice/search-by-eui', { eui });
+        const res = await webserviceRequest('/api/webservice/search-by-eui', { eui: normalizedEui });
         if (!res.ok) {
             // It's common that it doesn't exist yet, so just info/warn
             // log('Webservice EUI Search failed: ' + res.error, 'warn');
@@ -1763,7 +1860,7 @@ export async function searchWebserviceByEui(eui) {
         }
 
         // Find exact match if possible
-        const match = list.find(g => (g.gatewayEui || g.gateway_eui || '').toLowerCase() === eui.toLowerCase()) || list[0];
+        const match = list.find(g => normalizeIdentity(g.gatewayEui || g.gateway_eui || '') === normalizedEui) || list[0];
 
         if (match) {
             const clientId = match.clientId || match.client_id;
@@ -1790,7 +1887,7 @@ export async function searchWebserviceByEui(eui) {
         }
     }
 export async function checkWebserviceStatus() {
-        const eui = document.getElementById('gwEui')?.value;
+        const eui = normalizeHexId(document.getElementById('gwEui')?.value || '');
         if (!isValidEui(eui)) {
             setServiceStatus('webservice', {
                 connected: false,
@@ -1810,6 +1907,7 @@ export async function checkWebserviceStatus() {
         const res = await webserviceRequest('/api/webservice/search-by-eui', { eui });
         
         if (!res.ok) {
+            setOperatorHintForError(res.error);
             setServiceStatus('webservice', {
                 connected: false,
                 statusText: 'error',
@@ -1824,8 +1922,8 @@ export async function checkWebserviceStatus() {
         const list = normalizeList(res.data);
         // Check exact match on EUI or Gateway ID (as fallback)
         const match = list.find(g => {
-             const gEui = g.gatewayEui || g.gateway_eui || g.gatewayId || g.gateway_id || '';
-             return gEui.toLowerCase() === eui.toLowerCase();
+             const gEui = normalizeIdentity(g.gatewayEui || g.gateway_eui || g.gatewayId || g.gateway_id || '');
+             return gEui === eui;
         });
         const exists = !!match;
 
@@ -1879,11 +1977,11 @@ export function isValidEui(eui) {
 }
 
 export async function createWebserviceGateway() {
-        const clientId = document.getElementById('clientId')?.value;
-        const name = document.getElementById('gwName')?.value;
-        const eui = document.getElementById('gwEui')?.value;
-        const serialNumber = document.getElementById('gwSn')?.value;
-        const simIccid = document.getElementById('simIccid')?.value;
+        const clientId = (document.getElementById('clientId')?.value || '').trim();
+        const name = (document.getElementById('gwName')?.value || '').trim();
+        const eui = normalizeHexId(document.getElementById('gwEui')?.value || '');
+        const serialNumber = (document.getElementById('gwSn')?.value || '').trim();
+        const simIccid = (document.getElementById('simIccid')?.value || '').trim();
         
         if (!isValidEui(eui)) {
             alert('Ungueltige EUI (' + eui + '). Bitte pruefen.');
@@ -1891,11 +1989,11 @@ export async function createWebserviceGateway() {
         }
         
         // Try to get the string ID first (simInventoryId), then fallback to DB ID (simCardId)
-        let simId = document.getElementById('simInventoryId')?.value;
-        if (!simId) simId = document.getElementById('simCardId')?.value;
+        let simId = (document.getElementById('simInventoryId')?.value || '').trim();
+        if (!simId) simId = (document.getElementById('simCardId')?.value || '').trim();
         
         // Get LNS Address
-        const lnsAddress = document.getElementById('loraActiveServer')?.value || '';
+        const lnsAddress = (document.getElementById('loraActiveServer')?.value || '').trim();
 
         // Defaults / Inferred
         const lns = 2; // Chirpstack
@@ -1943,6 +2041,7 @@ export async function createWebserviceGateway() {
         const res = await webserviceRequest('/api/webservice/create-gateway', payload);
         
         if (!res.ok) {
+            setOperatorHintForError(res.error);
             log('!! Webservice Create Failed: ' + res.error, 'error');
             if (statusEl) statusEl.textContent = 'error';
             setServiceStatus('webservice', {
@@ -2158,6 +2257,11 @@ export async function runFinalCheck() {
         const loraActiveServer = document.getElementById('loraActiveServer').value;
         const loraStatus = document.getElementById('loraStatus').value;
 
+        const normalizedLoraGatewayId = normalizeIdentity(loraGatewayId);
+        const normalizedTargetGatewayId = normalizeIdentity(targetGatewayId);
+        const normalizedGwVpnReported = normalizeVpnIp(gwVpnReported);
+        const normalizedTargetVpnIp = normalizeVpnIp(targetVpnIp);
+
         const checks = [
             { label: `Gateway gelesen: ${state.readPhaseComplete ? 'OK' : '-'}`, ok: state.readPhaseComplete },
             { label: `Gateway Name: ${name || '-'}`, ok: !!name },
@@ -2168,8 +2272,8 @@ export async function runFinalCheck() {
             { label: `WiFi SSID: ${currentWifiSsid || '-'} (soll ${targetWifiSsid || '-'})`, ok: !!currentWifiSsid && currentWifiSsid === targetWifiSsid },
             { label: `SIM Vendor: ${simVendor || '-'}`, ok: !!simVendor },
             { label: `SIM ICCID: ${simIccid || '-'}`, ok: !!simIccid },
-            { label: `Gateway VPN-IP reported: ${gwVpnReported || '-'} (soll ${targetVpnIp || '-'})`, ok: !!gwVpnReported && gwVpnReported === targetVpnIp },
-            { label: `LoRa Gateway ID: ${loraGatewayId || '-'} (soll ${targetGatewayId || '-'})`, ok: !!loraGatewayId && loraGatewayId === targetGatewayId },
+            { label: `Gateway VPN-IP reported: ${gwVpnReported || '-'} (soll ${targetVpnIp || '-'})`, ok: !!normalizedGwVpnReported && normalizedGwVpnReported === normalizedTargetVpnIp },
+            { label: `LoRa Gateway ID: ${loraGatewayId || '-'} (soll ${targetGatewayId || '-'})`, ok: !!normalizedLoraGatewayId && normalizedLoraGatewayId === normalizedTargetGatewayId },
             { label: `LoRa Active Server: ${loraActiveServer || '-'}`, ok: !!loraActiveServer },
             { label: `LoRa Status: ${loraStatus || '-'}`, ok: String(loraStatus) === '1' },
             { label: `ChirpStack: ${chirpStatus}`, ok: chirpStatus.includes('not found') || chirpStatus.includes('exists') },
