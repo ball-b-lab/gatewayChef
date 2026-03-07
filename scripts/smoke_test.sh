@@ -8,6 +8,7 @@ TEST_FULL_NAME="${TEST_FULL_NAME:-Smoke Test User}"
 RUN_WRITE_SMOKE="${RUN_WRITE_SMOKE:-false}"
 TEST_VPN_IP="${TEST_VPN_IP:-}"
 API_TOKEN="${API_TOKEN:-}"
+SKIP_AUTH="${SKIP_AUTH:-false}"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -94,7 +95,6 @@ if [[ "$ROOT_STATUS" != "200" ]]; then
   fail "GET / returned status $ROOT_STATUS"
 fi
 APP_MODE=$(json_get "$ROOT_BODY" "mode")
-SKIP_AUTH="false"
 if [[ "$APP_MODE" == "cloud_api" ]]; then
   SKIP_AUTH="true"
 fi
@@ -148,7 +148,7 @@ JSON
   [[ "$ME_EMAIL" == "$TEST_EMAIL" ]] || fail "me email mismatch: got '$ME_EMAIL' expected '$TEST_EMAIL'"
   echo "[OK] me -> 200"
 else
-  echo "[INFO] cloud_api mode erkannt: auth smoke wird uebersprungen."
+  echo "[INFO] auth smoke wird uebersprungen (SKIP_AUTH=$SKIP_AUTH)."
 fi
 
 print_step "GET /api/db/fetch-ip"
