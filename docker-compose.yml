@@ -1,0 +1,46 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gatewaychef_app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-5011}:5000"
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 5000
+      OPEN_BROWSER: "false"
+      FLASK_DEBUG: "false"
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: gatewaychef
+      DB_USER: gateway_admin
+      DB_PASSWORD: gateway_secret
+      JWT_SECRET: local-dev-secret
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    container_name: gatewaychef_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gatewaychef
+      POSTGRES_USER: gateway_admin
+      POSTGRES_PASSWORD: gateway_secret
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gateway_admin -d gatewaychef"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - gatewaychef_pgdata:/var/lib/postgresql/data
+
+volumes:
+  gatewaychef_pgdata:

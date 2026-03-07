@@ -1,0 +1,9 @@
+{
+  "title": "Gateway Login",
+  "images": [],
+  "sections": [
+    {"heading": "Schritt 1", "text": "Gateway UI oeffnen."},
+    {"heading": "Schritt 2", "text": "Mit Benutzername/Passwort anmelden."},
+    {"heading": "Schritt 3", "text": "Danach im Tool mit 'Gateway lesen' fortfahren."}
+  ]
+}
