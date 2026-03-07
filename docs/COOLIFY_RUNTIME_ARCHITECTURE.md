@@ -57,6 +57,9 @@ Diese Variablen gehoeren in die Coolify-App (laufender Betrieb):
 - `FLASK_DEBUG=false`
 - `API_SERVICE_TOKEN=<shared-token-local-cloud>`
 - `VPN_PING_SERVICE_TOKEN=<shared-token>`
+- `APP_BUILD_SHA=<git-sha>`
+- `APP_BUILD_TAG=<release-tag>`
+- `APP_BUILD_TIME=<utc-timestamp>`
 
 Wichtig:
 - `DB_*` in der App zeigen nach Cutover immer auf die neue DB.
@@ -132,3 +135,24 @@ Lokaler Runner kann DB-Aufrufe an die Cloud API weiterreichen:
 - Migration: alte DB -> neue DB (einmalig)
 - Proxy: Internet -> Coolify Proxy -> App:5000
 - DB bleibt intern, API ist die einzige Boundary
+
+## 11) Versionsnachweis (Cloud)
+
+Die Cloud API liefert `GET /api/version` mit Build-Metadaten.
+
+Beispiel:
+```bash
+curl -sS 'https://<deine-domain>/api/version'
+```
+
+Erwartung:
+- `data.app_mode=cloud_api`
+- `data.build_sha` entspricht deployed Commit
+
+Hinweis zu Build-Metadaten:
+- Du kannst `APP_BUILD_SHA/APP_BUILD_TAG/APP_BUILD_TIME` in Coolify setzen.
+- Wenn sie leer bleiben, ist das ok:
+  - `build_sha` faellt auf Git SHA zurueck
+  - `build_tag` und `build_time` bleiben `unknown`
+- Vorteil mit gesetzten Werten: besserer Deploy-Nachweis.
+- Nachteil: zusaetzlicher Pflegeaufwand pro Deploy.

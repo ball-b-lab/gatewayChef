@@ -88,6 +88,7 @@ Optional:
 -   **Recommended service auth:** `API_SERVICE_TOKEN` (protects `/api/db*`, `/api/sim*`, `/api/provision`, `/api/confirm`)
 -   **Recommended env vars:** `OPEN_BROWSER=false`, `FLASK_DEBUG=false`, `HOST=0.0.0.0`, `PORT=5000`
 -   **Optional for VPN reachability from local app:** `VPN_PING_SERVICE_TOKEN`
+-   **Recommended build metadata:** `APP_BUILD_SHA`, `APP_BUILD_TAG`, `APP_BUILD_TIME`
 -   **Cloud scope only:** DB API + VPN Ping Service (no Gateway/ChirpStack/Milesight/Webservice routes in `cloud_api`)
 
 If you use an external managed PostgreSQL in Coolify, point `DB_*` to that database.  
@@ -140,6 +141,47 @@ Use this to keep PostgreSQL only in cloud/internal network while local app stays
 
 Then local `/api/db*`, `/api/sim*`, `/api/provision`, `/api/confirm` are proxied server-side to cloud DB API.
 
+### Deploy Version Check (recommended)
+
+The app exposes `GET /api/version` and returns:
+- `data.app_mode`
+- `data.build_sha`
+- `data.build_tag`
+- `data.build_time`
+
+Suggested post-deploy check:
+```bash
+curl -sS 'https://<deine-coolify-app-url>/api/version'
+```
+
+Build metadata behavior:
+- `build_sha`: uses `APP_BUILD_SHA` if set, otherwise falls back to Git SHA.
+- `build_tag` / `build_time`: use `APP_BUILD_TAG` / `APP_BUILD_TIME` if set, otherwise `unknown`.
+
+Pros/Cons of filling build metadata envs:
+- Pros:
+  - exact deploy traceability (especially for rollback/hotfix scenarios)
+  - clearer audits (`which image was deployed when`)
+  - no ambiguity if multiple deploys use similar code state
+- Cons:
+  - extra release discipline (you must set/update values per deploy)
+  - mismatch risk if values are copied manually and not automated
+
+If you want to fill them in Coolify:
+1. In the app environment set:
+   - `APP_BUILD_SHA=<short-git-sha>`
+   - `APP_BUILD_TAG=<release-tag>`
+   - `APP_BUILD_TIME=<UTC timestamp, e.g. 2026-03-07T11:30:00Z>`
+2. Redeploy.
+3. Verify:
+```bash
+curl -sS 'https://<deine-coolify-app-url>/api/version'
+```
+4. Optional strict smoke check:
+```bash
+EXPECTED_APP_MODE='cloud_api' EXPECTED_BUILD_SHA='<short-sha>' BASE_URL='https://<deine-coolify-app-url>' ./scripts/smoke_test.sh
+```
+
 ## Empfohlener Testablauf (2 Phasen)
 
 1. Lokal komplett testen (inkl. Datenmigration):
@@ -162,6 +204,10 @@ BASE_URL='https://<deine-coolify-app-url>' ./scripts/smoke_test.sh
 
 Hinweis:
 - In `cloud_api` mode ueberspringt `smoke_test.sh` automatisch `/api/auth/*` und testet nur Root + DB-Endpunkte.
+- Optional strict check:
+```bash
+EXPECTED_APP_MODE='cloud_api' EXPECTED_BUILD_SHA='<short-sha>' BASE_URL='https://<deine-coolify-app-url>' ./scripts/smoke_test.sh
+```
 
 Optionaler Schreibtest (nur mit dedizierter Test-IP):
 ```bash
