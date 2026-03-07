@@ -84,6 +84,7 @@ Optional:
 -   **Port:** `5000`
 -   **Start Command:** leave default from Dockerfile
 -   **Required env vars:** `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`
+-   **Mode:** `APP_MODE=cloud_api`
 -   **Recommended service auth:** `API_SERVICE_TOKEN` (protects `/api/db*`, `/api/sim*`, `/api/provision`, `/api/confirm`)
 -   **Recommended env vars:** `OPEN_BROWSER=false`, `FLASK_DEBUG=false`, `HOST=0.0.0.0`, `PORT=5000`
 -   **Optional for VPN reachability from local app:** `VPN_PING_SERVICE_TOKEN`
@@ -216,3 +217,10 @@ If `API_SERVICE_TOKEN` is set in cloud, run smoke with:
 ```bash
 API_TOKEN='<token>' BASE_URL='https://<deine-coolify-app-url>' ./scripts/smoke_test.sh
 ```
+
+
+### Token Klarstellung
+
+- `API_SERVICE_TOKEN`: gleich in lokaler App und Cloud API setzen.
+- `VPN_PING_SERVICE_TOKEN`: gleich in lokaler App und Cloud API setzen.
+- `JWT_SECRET`: getrenntes Thema fuer User-Login (`/api/auth/*`), fuer den aktuellen DB/Ping-Betrieb nicht zwingend.

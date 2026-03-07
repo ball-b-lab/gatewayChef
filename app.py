@@ -5,7 +5,7 @@ import os
 import sys
 from pathlib import Path
 from flask import Flask, render_template
-from config import PORT, HOST, DB_USER, DB_HOST, DB_PORT, DB_NAME, DB_PASSWORD, DATABASE_URL
+from config import PORT, HOST, DB_USER, DB_HOST, DB_PORT, DB_NAME, DB_PASSWORD, DATABASE_URL, APP_MODE
 from routes.gateway import bp as gateway_bp
 from routes.db import bp as db_bp
 from routes.auth import bp as auth_bp
@@ -39,16 +39,19 @@ def handle_exception(e):
 
 @app.route('/')
 def index():
+    if APP_MODE == 'cloud_api':
+        return {"ok": True, "service": "gatewaychef-cloud-api", "mode": APP_MODE}
     return render_template('index.html')
 
 
-app.register_blueprint(gateway_bp)
 app.register_blueprint(db_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(network_bp)
-app.register_blueprint(chirpstack_bp)
-app.register_blueprint(milesight_bp)
-app.register_blueprint(webservice_bp)
+if APP_MODE != 'cloud_api':
+    app.register_blueprint(gateway_bp)
+    app.register_blueprint(chirpstack_bp)
+    app.register_blueprint(milesight_bp)
+    app.register_blueprint(webservice_bp)
 
 
 def open_browser():
@@ -60,6 +63,7 @@ def open_browser():
 if __name__ == '__main__':
     print(f"--- Startup Configuration ---")
     print(f"Database: {DB_USER}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+    print(f"App mode: {APP_MODE}")
     if DATABASE_URL:
         print("Using DATABASE_URL from environment.")
     print(f"App Port: {PORT}")

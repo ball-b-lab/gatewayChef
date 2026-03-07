@@ -38,6 +38,7 @@ DB_NAME = os.getenv("DB_NAME", "postgres")
 # Port Configuration
 PORT = int(os.getenv("PORT", 5000))
 HOST = os.getenv("HOST", "0.0.0.0")
+APP_MODE = os.getenv("APP_MODE", "local").strip().lower()
 
 # ChirpStack Configuration
 CHIRPSTACK_URL = os.getenv("CHIRPSTACK_URL", "https://chirpstack.example.com")

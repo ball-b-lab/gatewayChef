@@ -55,6 +55,54 @@ flowchart LR
 - PostgreSQL als eigene Coolify DB-Resource
 - Reverse Proxy (TLS / Domain Routing)
 
+## 3.1 Code-Mapping im Repository (wo liegt was?)
+
+### Gemeinsamer App-Entry (lokal + cloud)
+- `app.py`
+  - startet Flask
+  - registriert alle Blueprints (`routes/*`)
+  - gleiches Entry fuer lokalen und cloud Betrieb
+
+### Cloud API relevante Teile (DB + VPN service)
+- `routes/db.py`
+  - DB-Endpunkte (`/api/db/*`, `/api/sim/*`, `/api/provision`, `/api/confirm`)
+  - ist der zentrale DB-API Layer
+- `routes/network.py`
+  - `/api/network/ping-service` (cloud ping endpoint)
+  - `/api/network/vpn-check` (proxy/local fallback logic)
+- `utils/api_token.py`
+  - `X-API-Token` Guard fuer Service-zu-Service Schutz
+- `db/connection.py`
+  - Postgres-Verbindung ueber `DB_*`
+- `repositories/*` und `services/*`
+  - Datenzugriff und Business-Logik hinter den DB-Endpunkten
+
+### Lokale App relevante Teile (direkt mit Gateway/Services)
+- `templates/index.html`
+  - UI
+- `static/js/workflow.js`, `static/js/main.js`, `static/js/ui.js`, `static/js/api.js`
+  - Frontend-Workflow, Statusanzeige, API calls
+- `routes/gateway.py`
+  - direkte Kommunikation zum Gateway (`192.168.1.1`)
+- `routes/chirpstack.py`
+  - direkte ChirpStack API Aufrufe
+- `routes/milesight.py`
+  - direkte Milesight API Aufrufe
+- `routes/webservice.py`
+  - direkte Webservice API Aufrufe
+
+### Deployment/Operations
+- `Dockerfile`
+  - cloud container build/start
+- `docker-compose.yml`
+  - lokale Container-Entwicklung (app + db)
+- `scripts/migrate.py`
+  - DB schema migration
+- `scripts/import_legacy_dump.sh`
+  - einmaliger Datenimport alt -> neu
+- `scripts/smoke_test.sh`
+  - API smoke tests
+
 ## 4) Docker/Coolify Umsetzung
 
 ## 4.1 App-Container (Cloud API)
@@ -80,6 +128,7 @@ flowchart LR
 
 ### 5.1 Cloud API (Coolify App)
 Diese setzt du in der Cloud-App:
+- `APP_MODE=cloud_api`
 - `DB_HOST=<interner coolify-db-service-name>`
 - `DB_PORT=5432`
 - `DB_NAME=<new_db_name>`
@@ -99,6 +148,7 @@ Optional (wenn Cloud API auch externen Services spricht):
 
 ### 5.2 Lokale App
 Diese setzt du lokal:
+- `APP_MODE=local`
 - `PORT=5011` (oder dein lokaler Wunschport)
 - `HOST=0.0.0.0`
 - `FLASK_DEBUG=true`
@@ -136,6 +186,22 @@ Empfehlung:
 Pragmatisches Fazit fuer euren Fall:
 - Ja, Token-first ist hier der richtige Start.
 - Volles User-Management nur einfuehren, wenn echte Benutzerkonten, Rollen und Self-Service noetig werden.
+
+
+## 7.1 Token-Regeln (kurz und eindeutig)
+
+- `API_SERVICE_TOKEN`:
+  - muss in **Lokaler App** und **Cloud API** gleich sein
+  - schuetzt DB-nahe Cloud API Endpunkte (`/api/db*`, `/api/sim*`, `/api/provision`, `/api/confirm`)
+
+- `VPN_PING_SERVICE_TOKEN`:
+  - muss in **Lokaler App** und **Cloud API** gleich sein
+  - schuetzt `/api/network/ping-service`
+
+- `JWT_SECRET`:
+  - ist **separat** und fuer User-Login/JWT-Endpunkte (`/api/auth/*`)
+  - fuer den aktuellen Zielbetrieb (Cloud API nur fuer DB/Ping) optional
+  - muss nicht identisch zwischen Lokal und Cloud sein, solange keine JWTs zwischen beiden Instanzen geteilt werden
 
 ## 8) Checkliste gegen Verwirrung
 
