@@ -32,7 +32,7 @@ class WebserviceRouteTest(unittest.TestCase):
         self.client = app.test_client()
 
     @patch("routes.webservice.requests.post")
-    def test_create_gateway_sends_serial_aliases(self, post_mock):
+    def test_create_gateway_sends_serial_number_only(self, post_mock):
         post_mock.return_value = FakeResponse(status_code=200, payload={"status": "ok"})
 
         payload = {
@@ -54,9 +54,11 @@ class WebserviceRouteTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         sent_data = post_mock.call_args.kwargs["data"]
+        self.assertEqual(sent_data["gatewayId"], "a1b2c3d4e5f6a7b8")
+        self.assertEqual(sent_data["gatewayEui"], "a1b2c3d4e5f6a7b8")
         self.assertEqual(sent_data["serialNumber"], "SER-123")
-        self.assertEqual(sent_data["serial"], "SER-123")
-        self.assertEqual(sent_data["serial_number"], "SER-123")
+        self.assertNotIn("serial", sent_data)
+        self.assertNotIn("serial_number", sent_data)
 
 
 if __name__ == "__main__":

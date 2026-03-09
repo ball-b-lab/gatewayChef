@@ -49,6 +49,13 @@ class ProvisioningOrchestrator:
         device = gateway_info.get("device", {}) if isinstance(gateway_info, dict) else {}
         current_vpn_ip = (device.get("vpn_ip") or gateway_info.get("vpn_ip") or "").strip()
         current_ssid = (device.get("wifi_ssid") or device.get("ssid") or gateway_info.get("wifi_ssid") or "").strip()
+        discovered_serial = (
+            device.get("serial_number")
+            or device.get("sn")
+            or gateway_info.get("serial_number")
+            or gateway_info.get("sn")
+            or ""
+        ).strip()
         discovered_eui = (
             device.get("eui")
             or gateway_info.get("eui")
@@ -66,7 +73,7 @@ class ProvisioningOrchestrator:
         phase = "NEEDS_CONFIGURATION" if is_golden else ("CONFIGURED" if is_configured else "IN_SERVICE_OR_PARTIAL")
         suggested = {
             "gateway_name": (db_record or {}).get("gateway_name") or "",
-            "serial_number": (db_record or {}).get("serial_number") or "",
+            "serial_number": (db_record or {}).get("serial_number") or discovered_serial,
             "sim_vendor_id": str((db_record or {}).get("sim_vendor_id") or ""),
             "sim_iccid": (db_record or {}).get("sim_iccid") or "",
             "current_vpn_ip": current_vpn_ip,
@@ -110,8 +117,10 @@ class ProvisioningOrchestrator:
         }
 
     def create_run(self, payload):
-        required = ["operator_name", "gateway_name", "serial_number", "sim_vendor_id", "sim_iccid"]
+        required = ["gateway_name", "serial_number", "sim_vendor_id", "sim_iccid"]
         missing = [field for field in required if not str(payload.get(field) or "").strip()]
+        if not str(payload.get("webservice_username") or payload.get("operator_name") or "").strip():
+            missing.append("webservice_username")
         if missing:
             raise GatewayChefV2Error(
                 "Pflichtfelder fehlen.",
@@ -121,10 +130,17 @@ class ProvisioningOrchestrator:
                 stage="create_run",
             )
 
+        operator_name = (
+            payload.get("webservice_username")
+            or payload.get("requested_by")
+            or payload.get("operator_name")
+            or "unknown"
+        ).strip()
+
         run_id = self.repository.create_run(
             {
                 "state": STATE_DRAFT,
-                "operator_name": payload["operator_name"].strip(),
+                "operator_name": operator_name,
                 "gateway_name": payload["gateway_name"].strip(),
                 "serial_number": payload["serial_number"].strip(),
                 "sim_vendor_id": str(payload["sim_vendor_id"]).strip(),
@@ -134,10 +150,11 @@ class ProvisioningOrchestrator:
                 "lns": (payload.get("lns") or "chirpstack").strip(),
                 "manufacturer": (payload.get("manufacturer") or "Milesight").strip(),
                 "gateway_type": (payload.get("gateway_type") or "UG67").strip(),
-                "requested_by": payload.get("requested_by") or payload["operator_name"].strip(),
+                "requested_by": payload.get("requested_by") or operator_name,
                 "context": {
                     "env_status": current_env_status(),
                     "operation_mode": (payload.get("operation_mode") or "reconcile").strip(),
+                    "cleanup_confirmed": str(payload.get("cleanup_confirmed") or "").strip().lower() == "true",
                     "current_vpn_ip": (payload.get("current_vpn_ip") or "").strip() or None,
                     "current_ssid": (payload.get("current_ssid") or "").strip() or None,
                     "current_eui": (payload.get("discovered_eui") or "").strip() or None,
@@ -152,7 +169,7 @@ class ProvisioningOrchestrator:
                 "stage": "create_run",
                 "event_type": "run_created",
                 "message": "Provisionierungslauf angelegt.",
-                "payload": {"operator_name": payload["operator_name"], "gateway_name": payload["gateway_name"]},
+                "payload": {"operator_name": operator_name, "gateway_name": payload["gateway_name"]},
             },
         )
         return self.get_run(run_id)
@@ -161,6 +178,48 @@ class ProvisioningOrchestrator:
         run = self.repository.get_run(run_id)
         run["events"] = self.repository.list_events(run_id)
         return run
+
+    def update_run_details(self, run_id, payload):
+        run = self.repository.get_run(run_id)
+        fields = {
+            "operator_name": (
+                payload.get("webservice_username")
+                or payload.get("requested_by")
+                or payload.get("operator_name")
+                or run["operator_name"]
+            ).strip(),
+            "gateway_name": (payload.get("gateway_name") or run["gateway_name"]).strip(),
+            "serial_number": (payload.get("serial_number") or run["serial_number"]).strip(),
+            "sim_vendor_id": str(payload.get("sim_vendor_id") or run["sim_vendor_id"]).strip(),
+            "sim_iccid": (payload.get("sim_iccid") or run["sim_iccid"]).strip(),
+            "client_id": (payload.get("client_id") or "").strip() or None,
+            "client_name": (payload.get("client_name") or "").strip() or None,
+            "lns": (payload.get("lns") or run.get("lns") or "chirpstack").strip(),
+            "manufacturer": (payload.get("manufacturer") or run.get("manufacturer") or "Milesight").strip(),
+            "gateway_type": (payload.get("gateway_type") or run.get("gateway_type") or "UG67").strip(),
+            "requested_by": (
+                payload.get("requested_by")
+                or payload.get("webservice_username")
+                or run.get("requested_by")
+                or run["operator_name"]
+            ).strip(),
+        }
+        self.repository.update_run(run_id, fields=fields)
+        self.repository.append_event(
+            run_id,
+            {
+                "stage": "update_context",
+                "event_type": "run_details_updated",
+                "message": "Laufdetails aus aktuellem Formularstand aktualisiert.",
+                "payload": {
+                    "gateway_name": fields["gateway_name"],
+                    "serial_number": fields["serial_number"],
+                    "client_id": fields["client_id"],
+                    "lns": fields["lns"],
+                },
+            },
+        )
+        return self.get_run(run_id)
 
     def precheck(self, run_id):
         run = self.repository.get_run(run_id)
@@ -261,9 +320,25 @@ class ProvisioningOrchestrator:
         try:
             operation_mode = (run.get("context", {}).get("operation_mode") or "reconcile").strip()
             current_vpn_ip = run.get("context", {}).get("current_vpn_ip")
+            current_eui = run.get("context", {}).get("current_eui")
+            cleanup_confirmed = bool(run.get("context", {}).get("cleanup_confirmed"))
             existing = None
             if current_vpn_ip:
                 existing = self.inventory.fetch_gateway_record(vpn_ip=current_vpn_ip)
+            elif current_eui:
+                existing = self.inventory.fetch_gateway_record(eui=current_eui)
+            if operation_mode == "new_config" and existing and not cleanup_confirmed:
+                raise GatewayChefV2Error(
+                    "Neu konfigurieren ist fuer diesen Gateway nur nach bestaetigtem Cleanup erlaubt.",
+                    code="cleanup_confirmation_required",
+                    status_code=409,
+                    stage="reserve",
+                    details={
+                        "existing_vpn_ip": existing.get("vpn_ip"),
+                        "existing_gateway_name": existing.get("gateway_name"),
+                        "required": "cleanup_confirmed",
+                    },
+                )
             if operation_mode != "new_config" and existing:
                 vpn_key = self.inventory.fetch_vpn_key(existing["vpn_ip"]) or {}
                 reserved = {
@@ -367,7 +442,7 @@ class ProvisioningOrchestrator:
         )
         return self.get_run(run_id)
 
-    def sync_cloud(self, run_id, *, webservice_credentials=None):
+    def sync_cloud(self, run_id, *, webservice_credentials=None, force_draft=False):
         run = self.repository.get_run(run_id)
         if run["state"] not in {STATE_CONFIG_APPLIED, STATE_FAILED, STATE_CLOUD_SYNCED}:
             raise StateTransitionError(
@@ -403,15 +478,33 @@ class ProvisioningOrchestrator:
             sync_status["milesight_created"] = False
         sync_status["milesight_exists"] = True
 
-        if run.get("client_id"):
+        if run.get("client_id") and not force_draft:
             credentials = self._ensure_webservice_credentials(webservice_credentials)
             web = self.webservice.search_gateway(eui, credentials)
             if not web.get("exists"):
+                gateway_context = run.get("context", {}).get("gateway_info") or {}
+                gateway_device = gateway_context.get("device", {}) if isinstance(gateway_context, dict) else {}
+                vpn_ip = run.get("context", {}).get("vpn_ip")
+                db_before = self.inventory.fetch_gateway_record(vpn_ip=vpn_ip)
+                vpn_secret = self.inventory.fetch_vpn_key(vpn_ip) if vpn_ip else {}
+                serial_number = (
+                    run["serial_number"]
+                    or gateway_device.get("serial_number")
+                    or gateway_device.get("serialNumber")
+                    or gateway_device.get("sn")
+                    or gateway_context.get("serial_number")
+                    or gateway_context.get("serialNumber")
+                    or gateway_context.get("sn")
+                    or (db_before or {}).get("serial_number")
+                    or (vpn_secret or {}).get("serial_number")
+                    or ""
+                ).strip()
                 payload = {
                     "client_id": run["client_id"],
                     "lns": run["lns"],
+                    "lns_address": ((run.get("context", {}).get("lora_info") or {}).get("active_server") or run["lns"]),
                     "gateway_name": run["gateway_name"],
-                    "serial_number": run["serial_number"],
+                    "serial_number": serial_number,
                     "eui": eui,
                     "sim_iccid": run["sim_iccid"],
                     "sim_id": run.get("context", {}).get("db_sim_id") or "pending",
@@ -420,12 +513,31 @@ class ProvisioningOrchestrator:
                 }
                 self.webservice.create_gateway(payload, credentials)
                 sync_status["webservice_created"] = True
+                sync_status["webservice_serial_number"] = serial_number
             else:
                 sync_status["webservice_created"] = False
             sync_status["webservice_exists"] = True
         else:
             sync_status["webservice_exists"] = False
             sync_status["webservice_skipped"] = True
+            if force_draft:
+                sync_status["forced_draft"] = True
+            gateway_info = self.gateway.fetch_device_info()
+            lora_info = self.gateway.fetch_lora_info()
+            lora_health = self.gateway.fetch_lora_health()
+            vpn_ip = run.get("context", {}).get("vpn_ip")
+            db_before = self.inventory.fetch_gateway_record(vpn_ip=vpn_ip)
+            snapshot = self._build_snapshot(
+                run,
+                gateway_info=gateway_info,
+                lora_info=lora_info,
+                lora_health=lora_health,
+                db_before=db_before,
+                status_overall="IN_PROGRESS",
+                conf_gateway_done=False,
+            )
+            self.inventory.save_final_snapshot(snapshot)
+            sync_status["draft_saved"] = True
 
         self.repository.update_run(
             run_id,
@@ -463,6 +575,7 @@ class ProvisioningOrchestrator:
             ping = self.network.ping(vpn_ip)
             db_before = self.inventory.fetch_gateway_record(vpn_ip=vpn_ip)
 
+            has_customer_assignment = bool(run.get("client_id"))
             report = {
                 "gateway_configured": self._gateway_matches(gateway_info, eui=eui, vpn_ip=vpn_ip, wifi_ssid=wifi_ssid),
                 "vpn_reachable": bool(ping.get("ok")),
@@ -470,8 +583,9 @@ class ProvisioningOrchestrator:
                 "cloud_sync": {
                     "chirpstack": self.chirpstack.check_gateway(eui).get("exists", False),
                     "milesight": self.milesight.check_device(eui).get("exists", False),
-                    "webservice": True,
+                    "webservice": False,
                 },
+                "customer_assigned": has_customer_assignment,
                 "database": False,
                 "observed": {
                     "gateway": gateway_info,
@@ -482,47 +596,37 @@ class ProvisioningOrchestrator:
                 },
                 "checks": [],
             }
-            if run.get("client_id"):
+            if has_customer_assignment:
                 credentials = self._ensure_webservice_credentials(webservice_credentials)
                 report["cloud_sync"]["webservice"] = self.webservice.search_gateway(eui, credentials).get("exists", False)
-
-            snapshot = {
-                "vpn_ip": vpn_ip,
-                "eui": eui,
-                "serial_number": run["serial_number"],
-                "gateway_name": run["gateway_name"],
-                "wifi_ssid": wifi_ssid,
-                "apn": apn,
-                "cellular_status": lora_health.get("status"),
-                "lte_connected": bool(gateway_info.get("device", {}).get("cellular_online", True)),
-                "cellular_ip": None,
-                "vpn_key_present": True,
-                "gateway_vendor": run["manufacturer"],
-                "gateway_model": run["gateway_type"],
-                "lora_gateway_eui": eui,
-                "lora_gateway_id": lora_info.get("gateway_id") or eui,
-                "lora_active_server": lora_info.get("active_server") or run["lns"],
-                "lora_status": lora_info.get("status"),
-                "lora_pending": bool(lora_info.get("pending")),
-                "status_overall": "VERIFIED",
-                "conf_gateway_done": True,
-                "sim_iccid": run["sim_iccid"],
-                "sim_vendor_id": run["sim_vendor_id"],
-                "sim_id": (db_before or {}).get("sim_id") or run.get("context", {}).get("db_sim_id"),
-            }
-            self.inventory.save_final_snapshot(snapshot)
-            db_after = self.inventory.fetch_gateway_record(vpn_ip=vpn_ip)
-            report["database"] = self._db_matches(db_after, snapshot)
-            report["observed"]["db_after"] = db_after
             report["checks"] = [
                 self._check_item("Gateway Konfiguration", report["gateway_configured"]),
                 self._check_item("VPN Erreichbarkeit", report["vpn_reachable"]),
                 self._check_item("LoRa Health", report["lora_health"]),
                 self._check_item("ChirpStack", report["cloud_sync"]["chirpstack"]),
                 self._check_item("Milesight", report["cloud_sync"]["milesight"]),
+                self._check_item("Kunde zugeordnet", report["customer_assigned"]),
                 self._check_item("Webservice", report["cloud_sync"]["webservice"]),
-                self._check_item("Datenbank", report["database"]),
             ]
+            pre_database_ready = all(item["ok"] for item in report["checks"])
+            if pre_database_ready:
+                snapshot = self._build_snapshot(
+                    run,
+                    gateway_info=gateway_info,
+                    lora_info=lora_info,
+                    lora_health=lora_health,
+                    db_before=db_before,
+                    status_overall="VERIFIED",
+                    conf_gateway_done=True,
+                )
+                self.inventory.save_final_snapshot(snapshot)
+                db_after = self.inventory.fetch_gateway_record(vpn_ip=vpn_ip)
+                report["database"] = self._db_matches(db_after, snapshot)
+                report["observed"]["db_after"] = db_after
+            else:
+                report["database"] = False
+                report["observed"]["db_after"] = db_before
+            report["checks"].append(self._check_item("Datenbank", report["database"]))
             report["ready"] = all(item["ok"] for item in report["checks"])
             report["release_gate"] = "PASS" if report["ready"] else "BLOCK"
             if not report["ready"]:
@@ -648,6 +752,36 @@ class ProvisioningOrchestrator:
         observed_ssid = (device.get("wifi_ssid") or gateway_info.get("wifi_ssid") or "").strip()
         return observed_eui == eui and observed_vpn == vpn_ip and observed_ssid == wifi_ssid
 
+    def _build_snapshot(self, run, *, gateway_info, lora_info, lora_health, db_before, status_overall, conf_gateway_done):
+        eui = self._run_eui(run)
+        vpn_ip = run.get("context", {}).get("vpn_ip")
+        wifi_ssid = run.get("context", {}).get("wifi_ssid")
+        apn = run.get("context", {}).get("apn")
+        return {
+            "vpn_ip": vpn_ip,
+            "eui": eui,
+            "serial_number": run["serial_number"],
+            "gateway_name": run["gateway_name"],
+            "wifi_ssid": wifi_ssid,
+            "apn": apn,
+            "cellular_status": lora_health.get("status"),
+            "lte_connected": bool(gateway_info.get("device", {}).get("cellular_online", True)),
+            "cellular_ip": None,
+            "vpn_key_present": True,
+            "gateway_vendor": run["manufacturer"],
+            "gateway_model": run["gateway_type"],
+            "lora_gateway_eui": eui,
+            "lora_gateway_id": lora_info.get("gateway_id") or eui,
+            "lora_active_server": lora_info.get("active_server") or run["lns"],
+            "lora_status": lora_info.get("status"),
+            "lora_pending": bool(lora_info.get("pending")),
+            "status_overall": status_overall,
+            "conf_gateway_done": bool(conf_gateway_done),
+            "sim_iccid": run["sim_iccid"],
+            "sim_vendor_id": run["sim_vendor_id"],
+            "sim_id": (db_before or {}).get("sim_id") or run.get("context", {}).get("db_sim_id"),
+        }
+
     def _db_matches(self, record, snapshot):
         if not record:
             return False
@@ -657,7 +791,7 @@ class ProvisioningOrchestrator:
             record.get("wifi_ssid") == snapshot["wifi_ssid"],
             record.get("serial_number") == snapshot["serial_number"],
             record.get("gateway_name") == snapshot["gateway_name"],
-            record.get("status_overall") in {"VERIFIED", "DEPLOYED"},
+            record.get("status_overall") == snapshot["status_overall"],
         ]
         return all(checks)
 
@@ -729,6 +863,15 @@ class ProvisioningOrchestrator:
                         "ok": db.get("eui") == discovered_eui,
                         "detail": f"Gateway {discovered_eui or '-'} / DB {db.get('eui') or '-'}",
                     },
+                    {
+                        "label": "DB Freigabe erfolgt",
+                        "ok": (db.get("status_overall") or "").upper() == "DEPLOYED",
+                        "detail": (
+                            "Cloud DB ist final bestaetigt."
+                            if (db.get("status_overall") or "").upper() == "DEPLOYED"
+                            else f"Cloud DB Status: {(db.get('status_overall') or 'OFFEN')}. Gateway technisch konfiguriert, aber noch nicht freigegeben."
+                        ),
+                    },
                 ]
             )
         else:
@@ -742,7 +885,7 @@ class ProvisioningOrchestrator:
         if current_vpn_ip:
             items.append(
                 {
-                    "label": "VPN Ping ueber Cloud API",
+                    "label": "VPN Health Check",
                     "ok": bool((ping_result or {}).get("ok")),
                     "detail": (
                         f"VPN {current_vpn_ip} / via {(ping_result or {}).get('via') or 'lokal'} / "

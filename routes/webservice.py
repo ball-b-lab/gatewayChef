@@ -9,7 +9,7 @@ WEBSERVICE_BASE_URL = 'https://webservice.ball-b.de'
 
 
 def _normalize_eui(value):
-    return ''.join(ch for ch in str(value or '') if ch in '0123456789abcdefABCDEF').upper()
+    return ''.join(ch for ch in str(value or '') if ch in '0123456789abcdefABCDEF').lower()
 
 
 def _auth_from_payload(payload):
@@ -18,6 +18,29 @@ def _auth_from_payload(payload):
     if not username or not password:
         return None, error('Webservice Login fehlt (Benutzer/Passwort).', 401)
     return (username, password), None
+
+
+def _extract_webservice_error(resp):
+    try:
+        payload = resp.json()
+    except ValueError:
+        return None
+    if isinstance(payload, dict):
+        return payload.get('message') or payload.get('error')
+    return None
+
+
+def _webservice_failure(resp, default_message):
+    message = _extract_webservice_error(resp) or default_message
+    return error(
+        message,
+        resp.status_code,
+        data={
+            "service": "webservice",
+            "http_status": resp.status_code,
+            "response_body": resp.text[:800],
+        },
+    )
 
 
 @bp.route('/api/webservice/clientsearch', methods=['POST'])
@@ -37,7 +60,7 @@ def client_search():
         return error('Webservice Anfrage fehlgeschlagen.', 502)
     if resp.status_code >= 400:
         print(f"[webservice/clientsearch] status={resp.status_code} body={resp.text[:400]}", flush=True)
-        return error('Webservice Zugriff fehlgeschlagen.', resp.status_code)
+        return _webservice_failure(resp, 'Webservice Zugriff fehlgeschlagen.')
     return ok(resp.json())
 
 
@@ -58,7 +81,7 @@ def gateway_list():
         return error('Webservice Anfrage fehlgeschlagen.', 502)
     if resp.status_code >= 400:
         print(f"[webservice/gateways] status={resp.status_code} body={resp.text[:400]}", flush=True)
-        return error('Webservice Zugriff fehlgeschlagen.', resp.status_code)
+        return _webservice_failure(resp, 'Webservice Zugriff fehlgeschlagen.')
     return ok(resp.json())
 
 
@@ -84,7 +107,7 @@ def search_by_eui():
     
     if resp.status_code >= 400:
         print(f"[webservice/search-by-eui] status={resp.status_code} body={resp.text[:400]}", flush=True)
-        return error('Webservice Zugriff fehlgeschlagen.', resp.status_code)
+        return _webservice_failure(resp, 'Webservice Zugriff fehlgeschlagen.')
     
     return ok(resp.json())
 
@@ -128,9 +151,6 @@ def create_gateway():
         'lnsAddress': payload.get('lnsAddress'),
         'name': payload['name'],
         'serialNumber': payload['serialNumber'],
-        # Backward / provider compatibility aliases.
-        'serial': payload['serialNumber'],
-        'serial_number': payload['serialNumber'],
         'gatewayId': gateway_id,
         'gatewayEui': gateway_eui,
         'simIccid': payload['simIccid'],
@@ -169,11 +189,16 @@ def create_gateway():
     if resp.status_code >= 400:
         print(f"[webservice/create-gateway] status={resp.status_code} body={resp.text[:400]}", flush=True)
         # Try to pass through the specific error message from webservice if JSON
-        try:
-            err_body = resp.json()
-            msg = err_body.get('message') or err_body.get('error') or 'Webservice Fehler'
-            return error(msg, resp.status_code)
-        except:
-            return error('Webservice Zugriff fehlgeschlagen.', resp.status_code)
+        return error(
+            _extract_webservice_error(resp) or 'Webservice Zugriff fehlgeschlagen.',
+            resp.status_code,
+            data={
+                "service": "webservice",
+                "http_status": resp.status_code,
+                "response_body": resp.text[:800],
+                "request_payload": data,
+                "request_params": params,
+            },
+        )
             
     return ok(resp.json())

@@ -45,6 +45,47 @@ def _parse_error_body(resp):
     return _trim_text(str(payload))
 
 
+def _normalize_list_payload(payload):
+    if not payload:
+        return []
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        for key in ("data", "clients", "gateways", "items"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return value
+    return []
+
+
+def _normalize_webservice_lns(value):
+    if value is None:
+        return 2
+    text = str(value).strip()
+    if not text:
+        return 2
+    if text.isdigit():
+        return int(text)
+    lowered = text.lower()
+    mapping = {
+        "chirpstack": 2,
+        "chirp": 2,
+        "2": 2,
+    }
+    return mapping.get(lowered, text)
+
+
+def _normalize_eui(value):
+    return "".join(ch for ch in str(value or "") if ch in "0123456789abcdefABCDEF").upper()
+
+
+def _normalize_client_id(value):
+    text = str(value or "").strip()
+    if text.isdigit():
+        return str(int(text))
+    return text
+
+
 def _request_json(method, url, *, service, timeout=8, **kwargs):
     try:
         resp = requests.request(method=method, url=url, timeout=timeout, **kwargs)
@@ -301,9 +342,10 @@ class InventoryConnector:
                         """
                         SELECT gi.vpn_ip, gi.eui, gi.wifi_ssid, gi.serial_number, gi.gateway_name,
                                gi.status_overall, gi.apn, gi.lora_gateway_id,
-                               sc.iccid, gi.sim_card_id, sc.sim_id
+                               sc.iccid, sc.vendor_id, sv.vendor_name, gi.sim_card_id, sc.sim_id
                         FROM gateway_inventory gi
                         LEFT JOIN sim_cards sc ON sc.id = gi.sim_card_id
+                        LEFT JOIN sim_vendors sv ON sv.id = sc.vendor_id
                         WHERE gi.vpn_ip = %s
                         """,
                         (vpn_ip,),
@@ -313,9 +355,10 @@ class InventoryConnector:
                         """
                         SELECT gi.vpn_ip, gi.eui, gi.wifi_ssid, gi.serial_number, gi.gateway_name,
                                gi.status_overall, gi.apn, gi.lora_gateway_id,
-                               sc.iccid, gi.sim_card_id, sc.sim_id
+                               sc.iccid, sc.vendor_id, sv.vendor_name, gi.sim_card_id, sc.sim_id
                         FROM gateway_inventory gi
                         LEFT JOIN sim_cards sc ON sc.id = gi.sim_card_id
+                        LEFT JOIN sim_vendors sv ON sv.id = sc.vendor_id
                         WHERE gi.eui = %s
                         """,
                         (eui,),
@@ -325,9 +368,10 @@ class InventoryConnector:
                         """
                         SELECT gi.vpn_ip, gi.eui, gi.wifi_ssid, gi.serial_number, gi.gateway_name,
                                gi.status_overall, gi.apn, gi.lora_gateway_id,
-                               sc.iccid, gi.sim_card_id, sc.sim_id
+                               sc.iccid, sc.vendor_id, sv.vendor_name, gi.sim_card_id, sc.sim_id
                         FROM gateway_inventory gi
                         LEFT JOIN sim_cards sc ON sc.id = gi.sim_card_id
+                        LEFT JOIN sim_vendors sv ON sv.id = sc.vendor_id
                         WHERE gi.serial_number = %s
                         """,
                         (serial_number,),
@@ -345,8 +389,10 @@ class InventoryConnector:
                     "apn": row[6],
                     "lora_gateway_id": row[7],
                     "sim_iccid": row[8],
-                    "sim_card_id": row[9],
-                    "sim_id": row[10],
+                    "sim_vendor_id": row[9],
+                    "sim_vendor_name": row[10],
+                    "sim_card_id": row[11],
+                    "sim_id": row[12],
                 }
         finally:
             conn.close()
@@ -567,55 +613,255 @@ class WebserviceConnector:
     def _auth(self, credentials):
         return (credentials.get("username") or "", credentials.get("password") or "")
 
+    def _request(self, method, path, *, credentials, params=None, data=None, timeout=8):
+        url = f"{WEBSERVICE_BASE_URL}{path}"
+        safe_payload = data or {}
+        safe_params = params or {}
+        should_log = method.upper() == "POST" and path == "/api/v2/gateway"
+        if should_log:
+            print(
+                f"[gatewaychef_v2/webservice] request method={method} url={url} params={json.dumps(safe_params, ensure_ascii=True)} payload={json.dumps(safe_payload, ensure_ascii=True)}",
+                flush=True,
+            )
+        try:
+            resp = requests.request(
+                method=method,
+                url=url,
+                params=params,
+                data=data,
+                auth=self._auth(credentials),
+                timeout=timeout,
+            )
+        except requests.RequestException as exc:
+            if should_log:
+                print(
+                    f"[gatewaychef_v2/webservice] request_error method={method} url={url} error={exc}",
+                    flush=True,
+                )
+            raise ExternalServiceError(
+                "webservice",
+                f"webservice Anfrage fehlgeschlagen: {exc}",
+                code="request_failed",
+                details={"url": url, "request_params": safe_params, "request_payload": safe_payload},
+            ) from exc
+
+        response_body = _trim_text(resp.text)
+        if should_log:
+            print(
+                f"[gatewaychef_v2/webservice] response method={method} url={resp.request.url} status={resp.status_code} body={response_body}",
+                flush=True,
+            )
+
+        if resp.status_code >= 400:
+            raise ExternalServiceError(
+                "webservice",
+                f"webservice Fehler {resp.status_code}: {_parse_error_body(resp)}",
+                code="http_error",
+                status_code=502,
+                details={
+                    "url": url,
+                    "http_status": resp.status_code,
+                    "response_body": _parse_error_body(resp),
+                    "request_params": safe_params,
+                    "request_payload": safe_payload,
+                },
+            )
+        if not resp.content:
+            return {}
+        try:
+            return resp.json()
+        except ValueError as exc:
+            raise ExternalServiceError(
+                "webservice",
+                "webservice lieferte ungueltiges JSON.",
+                code="invalid_json",
+                details={
+                    "url": url,
+                    "response_body": response_body,
+                    "request_params": safe_params,
+                    "request_payload": safe_payload,
+                },
+            ) from exc
+
+    def _extract_client(self, item):
+        if not isinstance(item, dict):
+            return {}
+        client = item.get("client") or item.get("customer") or {}
+        return {
+            "client_id": (
+                item.get("clientId")
+                or item.get("client_id")
+                or item.get("customerId")
+                or client.get("id")
+                or client.get("clientId")
+                or client.get("customerId")
+                or ""
+            ),
+            "client_name": (
+                item.get("clientName")
+                or item.get("client_name")
+                or item.get("customerName")
+                or client.get("name")
+                or client.get("clientName")
+                or client.get("customerName")
+                or ""
+            ),
+            "gateway_name": item.get("name") or item.get("gatewayName") or "",
+            "serial_number": item.get("serialNumber") or item.get("serial_number") or item.get("serial") or "",
+            "lns": item.get("lns") or "",
+        }
+
+    def _extract_client_search_item(self, item):
+        if not isinstance(item, dict):
+            return {}
+        client = item.get("client") or item.get("customer") or {}
+        client_id = str(
+            item.get("clientId")
+            or item.get("client_id")
+            or item.get("id")
+            or item.get("customerId")
+            or item.get("customer_id")
+            or item.get("number")
+            or client.get("id")
+            or client.get("clientId")
+            or client.get("customerId")
+            or ""
+        ).strip()
+        return {
+            "client_id": client_id,
+            "client_name": (
+                item.get("name")
+                or item.get("clientName")
+                or item.get("client_name")
+                or item.get("customerName")
+                or item.get("customer_name")
+                or item.get("title")
+                or client.get("name")
+                or client.get("clientName")
+                or client.get("customerName")
+                or client_id
+            ),
+        }
+
     def search_gateway(self, eui, credentials):
-        data = _request_json(
+        data = self._request(
             "GET",
-            f"{WEBSERVICE_BASE_URL}/api/v2/gateway",
-            service="webservice",
+            "/api/v2/gateway",
+            credentials=credentials,
             params={"gatewayEui": eui},
-            auth=self._auth(credentials),
             timeout=8,
         )
-        items = data if isinstance(data, list) else data.get("data") or data.get("items") or []
+        items = _normalize_list_payload(data)
         return {"exists": bool(items), "payload": items}
 
+    def lookup_gateway(self, eui, credentials):
+        result = self.search_gateway(eui, credentials)
+        items = result.get("payload") or []
+        first = items[0] if items else {}
+        return {
+            "exists": bool(items),
+            "payload": items,
+            "match": self._extract_client(first),
+        }
+
+    def lookup_client(self, client_id, credentials):
+        query = str(client_id or "").strip()
+        if not query:
+            return None
+        data = self._request(
+            "GET",
+            "/api/v2/clientsearch",
+            credentials=credentials,
+            params={"query": query},
+            timeout=8,
+        )
+        items = _normalize_list_payload(data)
+        extracted = [self._extract_client_search_item(item) for item in items]
+        normalized_query = _normalize_client_id(query)
+        exact = next((item for item in extracted if _normalize_client_id(item.get("client_id")) == normalized_query), None)
+        return {
+            "exists": bool(exact),
+            "payload": items,
+            "match": exact or {},
+        }
+
+    def search_clients(self, query, credentials):
+        term = str(query or "").strip()
+        if len(term) < 3:
+            return {"items": []}
+        data = self._request(
+            "GET",
+            "/api/v2/clientsearch",
+            credentials=credentials,
+            params={"query": term},
+            timeout=8,
+        )
+        items = _normalize_list_payload(data)
+        return {
+            "items": [item for item in (self._extract_client_search_item(entry) for entry in items) if item.get("client_id")],
+        }
+
     def create_gateway(self, payload, credentials):
-        data = {
-            "clientId": payload["client_id"],
-            "lns": payload["lns"],
+        gateway_id = _normalize_eui(payload.get("eui"))
+        gateway_eui = _normalize_eui(payload.get("eui"))
+        client_id_value = payload["client_id"]
+        try:
+            client_id_value = int(client_id_value)
+        except (ValueError, TypeError):
+            pass
+        request_data = {
+            "clientId": client_id_value,
+            "lns": _normalize_webservice_lns(payload.get("lns")),
+            "lnsAddress": payload.get("lns_address"),
             "name": payload["gateway_name"],
             "serialNumber": payload["serial_number"],
             "serial": payload["serial_number"],
             "serial_number": payload["serial_number"],
-            "gatewayId": payload["eui"],
-            "gatewayEui": payload["eui"],
+            "gatewayId": gateway_id,
+            "gatewayEui": gateway_eui,
             "simIccid": payload["sim_iccid"],
             "simId": payload["sim_id"],
             "manufacturer": payload["manufacturer"],
             "type": payload["gateway_type"],
+            "nfc": payload.get("nfc"),
             "active": True,
         }
-        result = _request_json(
-            "POST",
-            f"{WEBSERVICE_BASE_URL}/api/v2/gateway",
-            service="webservice",
-            params={"clientId": payload["client_id"]},
-            data=data,
-            auth=self._auth(credentials),
-            timeout=10,
-        )
-        return result
+        data = {
+            **request_data,
+        }
+        try:
+            result = self._request(
+                "POST",
+                "/api/v2/gateway",
+                credentials=credentials,
+                params={"clientId": client_id_value},
+                data=data,
+                timeout=10,
+            )
+            return result
+        except ExternalServiceError as exc:
+            details = dict(exc.details or {})
+            details["request_params"] = {"clientId": client_id_value}
+            details["request_payload"] = request_data
+            raise ExternalServiceError(
+                "webservice",
+                exc.message,
+                code=exc.code,
+                status_code=exc.status_code,
+                details=details,
+                stage=exc.stage,
+                retryable=exc.retryable,
+            ) from exc
 
     def connection_status(self, credentials=None):
         if not credentials or not credentials.get("username") or not credentials.get("password"):
             return {"ok": None, "service": "webservice", "message": "Webservice Zugangsdaten fehlen", "details": {}}
         try:
-            _request_json(
+            self._request(
                 "GET",
-                f"{WEBSERVICE_BASE_URL}/api/v2/clientsearch",
-                service="webservice",
+                "/api/v2/clientsearch",
+                credentials=credentials,
                 params={"query": "tes"},
-                auth=self._auth(credentials),
                 timeout=8,
             )
             return {"ok": True, "service": "webservice", "message": "Webservice erreichbar", "details": {}}

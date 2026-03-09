@@ -96,16 +96,51 @@ def connection_status():
     chirpstack = overrides.get("chirpstack") or ChirpStackConnector()
     milesight = overrides.get("milesight") or MilesightConnector()
     webservice = overrides.get("webservice") or WebserviceConnector()
+    payload = request.json or {}
+    credentials = _webservice_credentials()
+    discovered_eui = (payload.get("discovered_eui") or "").strip().upper()
+    client_id = (payload.get("client_id") or "").strip()
+    webservice_lookup = None
+    client_lookup = None
+    if credentials.get("username") and credentials.get("password") and discovered_eui:
+        try:
+            webservice_lookup = webservice.lookup_gateway(discovered_eui, credentials)
+        except GatewayChefV2Error:
+            raise
+        except Exception:
+            webservice_lookup = None
+    if credentials.get("username") and credentials.get("password") and client_id:
+        try:
+            client_lookup = webservice.lookup_client(client_id, credentials)
+        except GatewayChefV2Error:
+            raise
+        except Exception:
+            client_lookup = None
     data = {
         "connections": [
             gateway.connection_status(),
             inventory.connection_status(),
             chirpstack.connection_status(),
             milesight.connection_status(),
-            webservice.connection_status(_webservice_credentials()),
-        ]
+            webservice.connection_status(credentials),
+        ],
+        "webservice_lookup": webservice_lookup,
+        "client_lookup": client_lookup,
     }
     return ok(data)
+
+
+@bp.route("/api/client-search", methods=["POST"])
+def client_search():
+    overrides = current_app.config.get("GATEWAYCHEF_V2_RUNTIME", {})
+    webservice = overrides.get("webservice") or WebserviceConnector()
+    payload = request.json or {}
+    try:
+        return ok(
+            webservice.search_clients((payload.get("query") or "").strip(), _webservice_credentials())
+        )
+    except GatewayChefV2Error as exc:
+        return fail(exc, trace_id=_trace_id())
 
 
 @bp.route("/api/discovery", methods=["GET"])
@@ -145,6 +180,17 @@ def get_run(run_id):
         return fail(exc, trace_id=run_id)
 
 
+@bp.route("/api/runs/<run_id>", methods=["PATCH"])
+def patch_run(run_id):
+    runtime = _runtime()
+    try:
+        payload = request.json or {}
+        payload["requested_by"] = request.headers.get("X-Operator-Id") or payload.get("operator_name")
+        return ok(runtime.update_run_details(run_id, payload), trace_id=run_id)
+    except GatewayChefV2Error as exc:
+        return fail(exc, trace_id=run_id)
+
+
 @bp.route("/api/runs/<run_id>/precheck", methods=["POST"])
 def run_precheck(run_id):
     runtime = _runtime()
@@ -176,7 +222,15 @@ def confirm_config(run_id):
 def cloud_sync(run_id):
     runtime = _runtime()
     try:
-        return ok(runtime.sync_cloud(run_id, webservice_credentials=_webservice_credentials()), trace_id=run_id)
+        payload = request.json or {}
+        return ok(
+            runtime.sync_cloud(
+                run_id,
+                webservice_credentials=_webservice_credentials(),
+                force_draft=bool(payload.get("force_draft")),
+            ),
+            trace_id=run_id,
+        )
     except GatewayChefV2Error as exc:
         return fail(exc, trace_id=run_id)
 

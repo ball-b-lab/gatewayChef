@@ -81,6 +81,7 @@ class JsonProvisioningRepository:
         run_id,
         *,
         next_state=None,
+        fields=None,
         context=None,
         status=None,
         report=None,
@@ -100,6 +101,9 @@ class JsonProvisioningRepository:
             if next_state:
                 ensure_transition(run["state"], next_state)
                 run["state"] = next_state
+            if fields:
+                for key, value in fields.items():
+                    run[key] = value
             if context:
                 merged = dict(run.get("context") or {})
                 merged.update(context)
@@ -255,6 +259,7 @@ class PostgresProvisioningRepository:
         run_id,
         *,
         next_state=None,
+        fields=None,
         context=None,
         status=None,
         report=None,
@@ -269,6 +274,21 @@ class PostgresProvisioningRepository:
         merged_context = dict(run.get("context") or {})
         merged_status = dict(run.get("status") or {})
         merged_report = dict(run.get("report") or {})
+        merged_fields = {
+            "operator_name": run["operator_name"],
+            "gateway_name": run["gateway_name"],
+            "serial_number": run["serial_number"],
+            "sim_vendor_id": run["sim_vendor_id"],
+            "sim_iccid": run["sim_iccid"],
+            "client_id": run.get("client_id"),
+            "client_name": run.get("client_name"),
+            "lns": run.get("lns"),
+            "manufacturer": run.get("manufacturer"),
+            "gateway_type": run.get("gateway_type"),
+            "requested_by": run.get("requested_by"),
+        }
+        if fields:
+            merged_fields.update(fields)
         if context:
             merged_context.update(context)
         if status:
@@ -292,6 +312,17 @@ class PostgresProvisioningRepository:
                     """
                     UPDATE provisioning_v2_runs
                     SET state = %s,
+                        operator_name = %s,
+                        gateway_name = %s,
+                        serial_number = %s,
+                        sim_vendor_id = %s,
+                        sim_iccid = %s,
+                        client_id = %s,
+                        client_name = %s,
+                        lns = %s,
+                        manufacturer = %s,
+                        gateway_type = %s,
+                        requested_by = %s,
                         context_json = %s,
                         status_json = %s,
                         report_json = %s,
@@ -303,6 +334,17 @@ class PostgresProvisioningRepository:
                     """,
                     (
                         next_state or current_state,
+                        merged_fields["operator_name"],
+                        merged_fields["gateway_name"],
+                        merged_fields["serial_number"],
+                        merged_fields["sim_vendor_id"],
+                        merged_fields["sim_iccid"],
+                        merged_fields["client_id"],
+                        merged_fields["client_name"],
+                        merged_fields["lns"],
+                        merged_fields["manufacturer"],
+                        merged_fields["gateway_type"],
+                        merged_fields["requested_by"],
                         json.dumps(merged_context),
                         json.dumps(merged_status),
                         json.dumps(merged_report),
@@ -420,6 +462,7 @@ class InMemoryProvisioningRepository:
         run_id,
         *,
         next_state=None,
+        fields=None,
         context=None,
         status=None,
         report=None,
@@ -431,6 +474,9 @@ class InMemoryProvisioningRepository:
         if next_state:
             ensure_transition(run["state"], next_state)
             run["state"] = next_state
+        if fields:
+            for key, value in fields.items():
+                run[key] = value
         if context:
             merged = dict(run.get("context") or {})
             merged.update(context)

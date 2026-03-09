@@ -65,6 +65,12 @@ docker compose up --build
 - Import-Script: `scripts/import_legacy_dump.sh`
 - Checkliste: `docs/CUTOVER_CHECKLIST.md`
 
+## WireGuard Pool Expansion
+
+- Generator fuer neue WG-Peers plus `gateway_inventory`-SQL: `scripts/generate_wireguard_inventory.py`
+- Kurz-Anleitung: `docs/WIREGUARD_POOL_EXPANSION.md`
+- Bestehende `wg0.conf` erweitern: `docs/WIREGUARD_EXISTING_CONFIG_UPDATE.md`
+
 ## 📦 Building Executables
 
 To build a standalone executable for your current platform:

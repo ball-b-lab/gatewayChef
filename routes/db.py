@@ -118,37 +118,29 @@ def fetch_gateway_record():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        if vpn_ip:
-            cur.execute("""
-                SELECT gi.vpn_ip, gi.eui, gi.wifi_ssid, gi.serial_number, gi.gateway_name,
-                       gi.status_overall,
-                       sc.iccid, sc.vendor_id, sv.vendor_name, gi.sim_card_id, sc.sim_id
-                FROM gateway_inventory gi
-                LEFT JOIN sim_cards sc ON sc.id = gi.sim_card_id
-                LEFT JOIN sim_vendors sv ON sv.id = sc.vendor_id
-                WHERE gi.vpn_ip = %s
-            """, (vpn_ip,))
-        elif eui:
-            cur.execute("""
-                SELECT gi.vpn_ip, gi.eui, gi.wifi_ssid, gi.serial_number, gi.gateway_name,
-                       gi.status_overall,
-                       sc.iccid, sc.vendor_id, sv.vendor_name, gi.sim_card_id, sc.sim_id
-                FROM gateway_inventory gi
-                LEFT JOIN sim_cards sc ON sc.id = gi.sim_card_id
-                LEFT JOIN sim_vendors sv ON sv.id = sc.vendor_id
-                WHERE gi.eui = %s
-            """, (eui,))
-        else:
-            cur.execute("""
-                SELECT gi.vpn_ip, gi.eui, gi.wifi_ssid, gi.serial_number, gi.gateway_name,
-                       gi.status_overall,
-                       sc.iccid, sc.vendor_id, sv.vendor_name, gi.sim_card_id, sc.sim_id
-                FROM gateway_inventory gi
-                LEFT JOIN sim_cards sc ON sc.id = gi.sim_card_id
-                LEFT JOIN sim_vendors sv ON sv.id = sc.vendor_id
-                WHERE gi.serial_number = %s
-            """, (serial_number,))
-        row = cur.fetchone()
+        query = """
+            SELECT gi.vpn_ip, gi.eui, gi.wifi_ssid, gi.serial_number, gi.gateway_name,
+                   gi.status_overall,
+                   sc.iccid, sc.vendor_id, sv.vendor_name, gi.sim_card_id, sc.sim_id
+            FROM gateway_inventory gi
+            LEFT JOIN sim_cards sc ON sc.id = gi.sim_card_id
+            LEFT JOIN sim_vendors sv ON sv.id = sc.vendor_id
+            WHERE {where_clause}
+        """
+
+        row = None
+        normalized_vpn = normalize_vpn_ip(vpn_ip)
+        vpn_lookup_allowed = bool(normalized_vpn and normalized_vpn != "0.0.0.0")
+
+        if vpn_lookup_allowed:
+            cur.execute(query.format(where_clause="gi.vpn_ip = %s"), (normalized_vpn,))
+            row = cur.fetchone()
+        if not row and eui:
+            cur.execute(query.format(where_clause="gi.eui = %s"), (eui,))
+            row = cur.fetchone()
+        if not row and serial_number:
+            cur.execute(query.format(where_clause="gi.serial_number = %s"), (serial_number,))
+            row = cur.fetchone()
         if not row:
             return error("Gateway nicht gefunden.", 404)
         return ok({
@@ -163,6 +155,100 @@ def fetch_gateway_record():
             "sim_vendor_name": row[8],
             "sim_card_id": row[9],
             "sim_id": row[10]
+        })
+    except psycopg2.Error as e:
+        return error(f"Datenbank Fehler: {e}", 500)
+    finally:
+        if conn:
+            conn.close()
+
+
+@bp.route('/api/db/table-view', methods=['GET'])
+def view_gateway_table():
+    """
+    List gateway inventory rows for a simple cloud table viewer.
+    """
+    search_term = (request.args.get('q') or '').strip()
+    raw_limit = request.args.get('limit', '50')
+    try:
+        limit = int(raw_limit)
+    except (TypeError, ValueError):
+        return error("Limit muss eine Zahl sein.", 400)
+
+    limit = max(1, min(limit, 200))
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        params = []
+        where_clause = ""
+        if search_term:
+            like_term = f"%{search_term}%"
+            where_clause = """
+                WHERE (
+                    gi.vpn_ip ILIKE %s OR
+                    gi.eui ILIKE %s OR
+                    gi.wifi_ssid ILIKE %s OR
+                    gi.serial_number ILIKE %s OR
+                    gi.gateway_name ILIKE %s OR
+                    gi.status_overall ILIKE %s OR
+                    COALESCE(sc.iccid, '') ILIKE %s OR
+                    COALESCE(sc.sim_id, '') ILIKE %s OR
+                    COALESCE(sv.vendor_name, '') ILIKE %s
+                )
+            """
+            params.extend([like_term] * 9)
+
+        params.append(limit)
+        cur.execute(
+            f"""
+                SELECT
+                    gi.id,
+                    gi.vpn_ip,
+                    gi.gateway_name,
+                    gi.serial_number,
+                    gi.eui,
+                    gi.wifi_ssid,
+                    gi.status_overall,
+                    sc.iccid,
+                    sc.sim_id,
+                    sv.vendor_name,
+                    gi.assigned_at,
+                    gi.last_gateway_sync_at
+                FROM gateway_inventory gi
+                LEFT JOIN sim_cards sc ON sc.id = gi.sim_card_id
+                LEFT JOIN sim_vendors sv ON sv.id = sc.vendor_id
+                {where_clause}
+                ORDER BY gi.assigned_at DESC NULLS LAST, gi.id DESC
+                LIMIT %s
+            """,
+            params
+        )
+
+        rows = []
+        for row in cur.fetchall():
+            rows.append({
+                "id": row[0],
+                "vpn_ip": row[1],
+                "gateway_name": row[2],
+                "serial_number": row[3],
+                "eui": row[4],
+                "wifi_ssid": row[5],
+                "status_overall": row[6],
+                "sim_iccid": row[7],
+                "sim_id": row[8],
+                "sim_vendor_name": row[9],
+                "assigned_at": row[10].isoformat() if row[10] else None,
+                "last_gateway_sync_at": row[11].isoformat() if row[11] else None,
+            })
+
+        return ok({
+            "rows": rows,
+            "count": len(rows),
+            "query": search_term,
+            "limit": limit,
         })
     except psycopg2.Error as e:
         return error(f"Datenbank Fehler: {e}", 500)
@@ -304,8 +390,8 @@ def provision():
             conn.rollback()
             return error(e.message, e.status_code)
 
-        status_value = 'DEPLOYED'
-        conf_done_value = True
+        status_value = 'IN_PROGRESS'
+        conf_done_value = False
 
         cur.execute("""
             UPDATE gateway_inventory
@@ -343,7 +429,12 @@ def provision():
             return error(f"IP {vpn_ip} nicht gefunden oder update fehlgeschlagen.", 404)
 
         conn.commit()
-        return ok({"status": "success", "message": f"Gateway {gateway_name} erfolgreich provisioniert."})
+        return ok({
+            "status": "success",
+            "message": f"Gateway {gateway_name} in Cloud DB gespeichert.",
+            "status_overall": status_value,
+            "conf_gateway_done": conf_done_value,
+        })
 
     except psycopg2.Error as e:
         if conn:
@@ -424,7 +515,9 @@ def confirm_provision():
 
         cur.execute("""
             UPDATE gateway_inventory
-            SET status_overall = 'DEPLOYED'
+            SET status_overall = 'DEPLOYED',
+                conf_gateway_done = TRUE,
+                last_gateway_sync_at = NOW()
             WHERE vpn_ip = %s
         """, (vpn_ip,))
 

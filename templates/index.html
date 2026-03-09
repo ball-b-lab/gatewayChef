@@ -49,9 +49,8 @@
                     <a class="list-group-item list-group-item-action" id="step-link-customer" href="#step-customer">1 Kundendaten <span class="badge bg-secondary ms-2" id="step-status-customer">-</span></a>
                     <a class="list-group-item list-group-item-action" id="step-link-gateway-data" href="#step-gateway-data">2 Gateway-Daten <span class="badge bg-secondary ms-2" id="step-status-gateway-data">-</span></a>
                     <a class="list-group-item list-group-item-action" id="step-link-config" href="#step-config">3 Gateway Konfiguration <span class="badge bg-secondary ms-2" id="step-status-config">-</span></a>
-                    <a class="list-group-item list-group-item-action" id="step-link-gateway-status" href="#step-gateway-status">4 Gateway Status <span class="badge bg-secondary ms-2" id="step-status-gateway-status">-</span></a>
-                    <a class="list-group-item list-group-item-action" id="step-link-external" href="#step-external">5 Externe Services <span class="badge bg-secondary ms-2" id="step-status-external">-</span></a>
-                    <a class="list-group-item list-group-item-action" id="step-link-final" href="#step-final">6 Final <span class="badge bg-secondary ms-2" id="step-status-final">-</span></a>
+                    <a class="list-group-item list-group-item-action" id="step-link-inspection" href="#step-inspection">4 Pruefung &amp; Integrationen <span class="badge bg-secondary ms-2" id="step-status-inspection">-</span></a>
+                    <a class="list-group-item list-group-item-action" id="step-link-final" href="#step-final">5 Final <span class="badge bg-secondary ms-2" id="step-status-final">-</span></a>
                 </div>
             </div>
             <div class="col-lg-9 workflow-scroll">
@@ -150,6 +149,21 @@
                                 <div class="col-12">
                                     <button class="btn btn-outline-primary" type="button" onclick="saveCustomerData()">Zuordnung speichern</button>
                                     <span class="small text-muted ms-2">Speichert Name/Serial (und optional SIM) in der DB nach VPN IP.</span>
+                                </div>
+                                <div class="col-12">
+                                    <div class="alert alert-warning d-none mb-0" id="knownGatewayNotice">
+                                        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+                                            <div>
+                                                <div class="fw-semibold">Gateway ist in der DB bereits bekannt.</div>
+                                                <div class="small mb-1" id="knownGatewayNoticeText">-</div>
+                                                <div class="small text-muted" id="knownGatewayNoticeMeta">-</div>
+                                            </div>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="badge bg-warning text-dark" id="knownGatewayNoticeState">Bestaetigung offen</span>
+                                                <button class="btn btn-sm btn-outline-dark" type="button" onclick="acknowledgeKnownGateway()">Bestaetigen</button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -260,57 +274,91 @@
 
                 </section>
 
-                <section id="step-gateway-status" data-step="gateway-status" class="section-block">
+                <section id="step-inspection" data-step="inspection" class="section-block">
                     <div class="section-header">
                         <div>
-                            <h5 class="section-title">4 Gateway Status</h5>
-                            <div class="section-status small text-muted" id="section-status-gateway-status">Status: -</div>
+                            <h5 class="section-title">4 Pruefung &amp; Integrationen</h5>
+                            <div class="section-status small text-muted" id="section-status-inspection">Status: -</div>
                         </div>
                     </div>
                     <div class="card">
                         <div class="card-body">
-                            <h5 class="card-title"><span class="step-num">4</span>Gateway Status</h5>
+                            <h5 class="card-title"><span class="step-num">4</span>Gateway Pruefung &amp; Integrationen</h5>
+                            <div class="small text-muted mb-3">Gateway-Zustand und Cloud-Dienste werden gemeinsam bewertet.</div>
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle status-table">
                                     <thead>
                                         <tr>
+                                            <th>Bereich</th>
                                             <th>Status</th>
-                                            <th>Aktuell</th>
+                                            <th>Details</th>
+                                            <th>Aktion</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr id="rowCellularStatus">
-                                            <td>Cellular Status</td>
+                                            <td>Cellular</td>
                                             <td id="statusCellularStatus">-</td>
+                                            <td id="statusCellularDetails">Quelle Gateway</td>
+                                            <td>-</td>
                                         </tr>
                                         <tr id="rowVpnReach">
-                                            <td>VPN Connected</td>
+                                            <td>VPN Health</td>
                                             <td id="statusVpnReach">-</td>
+                                            <td id="statusVpnReachDetails">VPN ueber Cloud API</td>
+                                            <td>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="checkVpnReachability()">Pruefen</button>
+                                            </td>
                                         </tr>
                                         <tr id="rowLoraStatus">
-                                            <td>LoRa Network Server</td>
+                                            <td>LoRa</td>
                                             <td id="statusLns">-</td>
+                                            <td id="statusLoraDetails">Gateway / Node-RED</td>
+                                            <td>-</td>
                                         </tr>
                                         <tr id="rowGatewayEuiStatus">
                                             <td>Gateway EUI</td>
                                             <td id="statusGatewayEui">-</td>
+                                            <td id="statusGatewayEuiDetails">Quelle device-info-lora</td>
+                                            <td>-</td>
                                         </tr>
                                         <tr id="rowMacAddress">
                                             <td>MAC Adresse</td>
                                             <td id="statusMacAddress">-</td>
+                                            <td id="statusMacDetails">Quelle device-info</td>
+                                            <td>-</td>
                                         </tr>
                                         <tr id="rowSerialNumber">
                                             <td>Serial Number</td>
+                                            <td id="statusSerialNumber">-</td>
+                                            <td id="statusSerialDetails">Fix im Gateway</td>
+                                            <td>-</td>
+                                        </tr>
+                                        <tr id="rowChirpstackService">
+                                            <td>ChirpStack</td>
+                                            <td id="chirpstackStatus">-</td>
+                                            <td id="serviceDetailsChirpstack">-</td>
                                             <td>
-                                                <div class="d-flex flex-wrap align-items-center gap-2">
-                                                    <span id="statusSerialNumber">-</span>
-                                                    <button class="btn btn-outline-primary btn-sm" type="button" onclick="toggleSerialNumberEdit()">Set</button>
-                                                </div>
-                                                <div class="input-group input-group-sm mt-2 d-none" id="serialNumberEditGroup">
-                                                    <input type="text" class="form-control" id="serialNumberInput" placeholder="Serial Number eingeben">
-                                                    <button class="btn btn-outline-primary" type="button" onclick="setSerialNumberFromStatus()">Confirm</button>
-                                                    <button class="btn btn-outline-secondary" type="button" onclick="toggleSerialNumberEdit(false)">Cancel</button>
-                                                </div>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="checkChirpstackExists()">Pruefen</button>
+                                                <button class="btn btn-outline-primary btn-sm" type="button" id="btnChirpstackCreate" onclick="createChirpstackDevice()">Anlegen</button>
+                                            </td>
+                                        </tr>
+                                        <tr id="rowMilesightService">
+                                            <td>Milesight</td>
+                                            <td id="milesightStatus">-</td>
+                                            <td id="serviceDetailsMilesight">-</td>
+                                            <td>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="checkMilesightExists()">Pruefen</button>
+                                                <button class="btn btn-outline-primary btn-sm" type="button" id="btnMilesightCreate" onclick="createMilesightDevice()">Anlegen</button>
+                                            </td>
+                                        </tr>
+                                        <tr id="rowWebserviceService">
+                                            <td>Webservice</td>
+                                            <td id="webserviceStatus">-</td>
+                                            <td id="serviceDetailsWebservice">-</td>
+                                            <td>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="checkWebserviceStatus()">Pruefen</button>
+                                                <button class="btn btn-outline-primary btn-sm" type="button" onclick="createWebserviceGateway()">Anlegen</button>
                                             </td>
                                         </tr>
                                     </tbody>
@@ -345,117 +393,22 @@
                     </div>
                 </section>
 
-                <section id="step-external" data-step="external" class="section-block">
-                    <div class="section-header">
-                        <div>
-                            <h5 class="section-title">5 Externe Services</h5>
-                            <div class="section-status small text-muted" id="section-status-external">Status: -</div>
-                        </div>
-                    </div>
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title"><span class="step-num">5</span>ChirpStack + Milesight + Webservice</h5>
-                            <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-                                <span class="badge bg-secondary" id="badgeChirpstack">ChirpStack: -</span>
-                                <span class="badge bg-secondary" id="badgeMilesight">Milesight: -</span>
-                            </div>
-                            <div class="table-responsive">
-                                <table class="table table-sm align-middle external-table">
-                                    <thead>
-                                        <tr>
-                                            <th>System</th>
-                                            <th>Name</th>
-                                            <th>Verbindung</th>
-                                            <th>Status / Fehler</th>
-                                            <th>Letztes Update</th>
-                                            <th>Aktion</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td>ChirpStack</td>
-                                            <td id="serviceNameChirpstack">-</td>
-                                            <td id="serviceConnChirpstack">-</td>
-                                            <td id="chirpstackStatus">ChirpStack Status: -</td>
-                                            <td id="serviceUpdatedChirpstack">-</td>
-                                            <td>
-                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="checkChirpstackExists()">Aktualisieren</button>
-                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="dryRunChirpstack()">Dry Run</button>
-                                                <button class="btn btn-outline-primary btn-sm" type="button" id="btnChirpstackCreate" onclick="createChirpstackDevice()">Device anlegen</button>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>Milesight Developer Platform</td>
-                                            <td id="serviceNameMilesight">-</td>
-                                            <td id="serviceConnMilesight">-</td>
-                                            <td id="milesightStatus">Milesight Status: -</td>
-                                            <td id="serviceUpdatedMilesight">-</td>
-                                            <td>
-                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="checkMilesightExists()">Aktualisieren</button>
-                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="dryRunMilesightCreate()">Dry Run</button>
-                                                <button class="btn btn-outline-primary btn-sm" type="button" id="btnMilesightCreate" onclick="createMilesightDevice()">Device anlegen</button>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>Webservice</td>
-                                            <td id="serviceNameWebservice">-</td>
-                                            <td id="serviceConnWebservice">-</td>
-                                            <td id="webserviceStatus">Webservice Status: -</td>
-                                            <td id="serviceUpdatedWebservice">-</td>
-                                            <td>
-                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="checkWebserviceStatus()">Aktualisieren</button>
-                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="dryRunWebservice()">Dry Run</button>
-                                                <button class="btn btn-outline-primary btn-sm" type="button" onclick="createWebserviceGateway()">Device anlegen</button>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div class="mt-3 p-3 border rounded bg-light">
-                                <div class="small text-muted mb-2">Abweichungen (Gateway vs. Integrationen)</div>
-                                <ul class="small mb-0" id="mismatchList"></ul>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
                 <section id="step-final" data-step="final" class="section-block">
                     <div class="section-header">
                         <div>
-                            <h5 class="section-title">6 Final</h5>
+                            <h5 class="section-title">5 Cloud DB + Freigabe</h5>
                             <div class="section-status small text-muted" id="section-status-final">Status: -</div>
                         </div>
                     </div>
                     <div class="card">
                         <div class="card-body">
-                            <h5 class="card-title"><span class="step-num">6</span>DB Update</h5>
-                            <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-                                <span class="badge bg-secondary" id="badgeFinalCheck">Konfigurations Check: -</span>
-                            </div>
-                            <div class="mt-3 p-3 border rounded bg-light">
-                                <div class="small text-muted mb-2">Geplante Aenderungen (Gateway -> Gewuenscht)</div>
-                                <ul class="small mb-0" id="desiredDiffList"></ul>
-                            </div>
-                            <div class="mt-3">
-                                <div class="small text-muted mb-2">Write-Modus</div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="writeMode" id="writeModeAll" value="all" checked>
-                                    <label class="form-check-label" for="writeModeAll">Alle Aenderungen anwenden</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="writeMode" id="writeModeStep" value="step" disabled>
-                                    <label class="form-check-label" for="writeModeStep">Schrittweise anwenden (geplant)</label>
-                                </div>
-                            </div>
+                            <h5 class="card-title"><span class="step-num">5</span>Cloud DB + Freigabe</h5>
                             <div class="d-grid gap-2 mt-3">
-                                <button class="btn btn-outline-dark btn-lg" type="button" onclick="runFinalCheck()">Konfigurations Check</button>
-                                <button class="btn btn-success btn-lg" id="btnPush" onclick="pushData()" disabled>In DB speichern</button>
+                                <button class="btn btn-success btn-lg" id="btnPush" onclick="pushData()" disabled>In Cloud DB speichern</button>
+                                <button class="btn btn-primary btn-lg" id="btnConfirmProvision" onclick="confirmProvisioning()" disabled>Final freigeben</button>
+                                <button class="btn btn-outline-secondary btn-lg" type="button" onclick="openCloudTableViewer()">Cloud Tabelle ansehen</button>
                             </div>
-                            <div class="mt-3 small text-muted" id="finalCheckResult">Konfigurations Check: -</div>
-                            <div class="mt-3 p-3 border rounded bg-light">
-                                <div class="small text-muted mb-2">Konfigurations Check Details</div>
-                                <ul class="small mb-3" id="finalCheckReasons"></ul>
-                            </div>
+                            <div class="small text-muted mt-1" id="finalActionHint">Erst speichern, dann final freigeben.</div>
                         </div>
                     </div>
                 </section>
@@ -483,9 +436,63 @@
                 </div>
                 <div class="modal-body">
                     <div id="helpModalBody">Lade...</div>
+    </div>
+</div>
+
+<div class="modal fade" id="cloudTableModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Cloud Tabelle</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-2 align-items-end mb-3">
+                    <div class="col-md-8">
+                        <label for="cloudTableSearch" class="form-label">Suche</label>
+                        <input type="text" class="form-control" id="cloudTableSearch" placeholder="VPN IP, Name, Serial, EUI, ICCID">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="cloudTableLimit" class="form-label">Limit</label>
+                        <select class="form-select" id="cloudTableLimit">
+                            <option value="25">25</option>
+                            <option value="50" selected>50</option>
+                            <option value="100">100</option>
+                            <option value="200">200</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-grid">
+                        <button class="btn btn-outline-primary" type="button" onclick="loadCloudTableViewer()">Aktualisieren</button>
+                    </div>
+                </div>
+                <div class="small text-muted mb-2" id="cloudTableStatus">Bereit.</div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>VPN IP</th>
+                                <th>Name</th>
+                                <th>Serial</th>
+                                <th>EUI</th>
+                                <th>SSID</th>
+                                <th>Status</th>
+                                <th>SIM ICCID</th>
+                                <th>Provider</th>
+                                <th>Zuletzt Sync</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cloudTableBody">
+                            <tr>
+                                <td colspan="9" class="text-muted">Noch keine Daten geladen.</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
+    </div>
+</div>
+</div>
     </div>
 </div>
 

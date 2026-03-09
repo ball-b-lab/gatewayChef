@@ -202,6 +202,1857 @@
       "created_at": "2026-03-07T11:40:18.339407+00:00",
       "updated_at": "2026-03-07T11:40:23.214781+00:00",
       "completed_at": null
+    },
+    "79c341f7-22a1-4e75-abb6-f121869312be": {
+      "run_id": "79c341f7-22a1-4e75-abb6-f121869312be",
+      "state": "DRAFT",
+      "operator_name": "j.kilian@ball-b.de",
+      "gateway_name": "0.117 461 - Taubertalhausen",
+      "serial_number": "6221F3784131",
+      "sim_vendor_id": "1",
+      "sim_iccid": "89462038066011551499",
+      "client_id": null,
+      "client_name": null,
+      "lns": "chirpstack",
+      "manufacturer": "Milesight",
+      "gateway_type": "UG67",
+      "requested_by": "j.kilian@ball-b.de",
+      "context": {
+        "env_status": {
+          "CHIRPSTACK_URL": true,
+          "CHIRPSTACK_API_TOKEN": true,
+          "CHIRPSTACK_TENANT_ID": true,
+          "MILESIGHT_URL": true,
+          "MILESIGHT_CLIENT_ID": true,
+          "MILESIGHT_CLIENT_SECRET": true,
+          "DATABASE_URL": false,
+          "DB_HOST": false,
+          "DB_PASSWORD": false,
+          "DB_API_PROVIDER_URL": true,
+          "API_SERVICE_TOKEN": true,
+          "VPN_PING_PROVIDER_URL": true
+        },
+        "operation_mode": "reconcile",
+        "cleanup_confirmed": false,
+        "current_vpn_ip": "172.30.0.117",
+        "current_ssid": "bbdbmon_0.117",
+        "current_eui": "C0BA1FFFFE003D74"
+      },
+      "status": {
+        "created": true,
+        "operation_mode": "reconcile"
+      },
+      "report": {},
+      "last_error_code": null,
+      "last_error_message": null,
+      "created_at": "2026-03-07T14:10:10.792508+00:00",
+      "updated_at": "2026-03-07T14:10:10.792508+00:00",
+      "completed_at": null
+    },
+    "86b0adb8-c4b4-4e04-b4b0-d3ab4e5302f2": {
+      "run_id": "86b0adb8-c4b4-4e04-b4b0-d3ab4e5302f2",
+      "state": "CLOUD_SYNCED",
+      "operator_name": "j.kilian@ball-b.de",
+      "gateway_name": "0.117 461 - Taubertalhausen",
+      "serial_number": "6221F3784131",
+      "sim_vendor_id": "1",
+      "sim_iccid": "89462038066011551499",
+      "client_id": null,
+      "client_name": null,
+      "lns": "chirpstack",
+      "manufacturer": "Milesight",
+      "gateway_type": "UG67",
+      "requested_by": "j.kilian@ball-b.de",
+      "context": {
+        "env_status": {
+          "CHIRPSTACK_URL": true,
+          "CHIRPSTACK_API_TOKEN": true,
+          "CHIRPSTACK_TENANT_ID": true,
+          "MILESIGHT_URL": true,
+          "MILESIGHT_CLIENT_ID": true,
+          "MILESIGHT_CLIENT_SECRET": true,
+          "DATABASE_URL": false,
+          "DB_HOST": false,
+          "DB_PASSWORD": false,
+          "DB_API_PROVIDER_URL": true,
+          "API_SERVICE_TOKEN": true,
+          "VPN_PING_PROVIDER_URL": true
+        },
+        "operation_mode": "reconcile",
+        "cleanup_confirmed": false,
+        "current_vpn_ip": "172.30.0.117",
+        "current_ssid": "bbdbmon_0.117",
+        "current_eui": "C0BA1FFFFE003D74",
+        "gateway_info": {
+          "status": "online",
+          "device": {
+            "mac": "C0:BA:1F:00:3D:74",
+            "eui": "C0BA1FFFFE003D74",
+            "ssid": "bbdbmon_0.117",
+            "vpn_ip": "172.30.0.117",
+            "interfaces": {
+              "cellular0": {
+                "up": true,
+                "ip": "10.189.131.175",
+                "primary": false
+              },
+              "eth0": {
+                "up": true,
+                "ip": "192.168.0.26",
+                "primary": true
+              },
+              "gre0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "lo": {
+                "up": true,
+                "ip": "127.0.0.1",
+                "primary": false
+              },
+              "sit0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "tunl0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "wg0": {
+                "up": true,
+                "ip": "172.30.0.117",
+                "primary": true
+              },
+              "wlan0": {
+                "up": true,
+                "ip": "192.168.1.1",
+                "primary": true
+              },
+              "wlan1": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              }
+            },
+            "cellular_online": false
+          },
+          "meta": {
+            "timestamp": "2026-03-07T14:28:11.376Z"
+          }
+        },
+        "lora_info": {
+          "gatewayEui": "C0BA1FFFFE003D74",
+          "gatewayId": "C0BA1FFFFE003D74",
+          "radioType": "",
+          "loriotSupport": true,
+          "status": 1,
+          "dataRetransmission": false,
+          "pendingData": 0,
+          "servs": [
+            {
+              "id": 0,
+              "servEnabled": false,
+              "servAddr": "localhost",
+              "servType": "ursalink",
+              "servPortUp": 1700,
+              "servPortDown": 1700,
+              "servMqttPort": 1883,
+              "syncFreqPlan": false,
+              "connected": 0,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            },
+            {
+              "id": 1,
+              "servEnabled": true,
+              "servAddr": "ball-b-cs.cortex-media.de",
+              "servType": "semtech",
+              "servPortUp": 1800,
+              "servPortDown": 1800,
+              "servMqttPort": 0,
+              "syncFreqPlan": false,
+              "connected": 1,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            }
+          ]
+        },
+        "lora_health": {
+          "status": "ONLINE",
+          "lns_connected": true,
+          "last_seen": "2026-03-07T14:28:09.939Z",
+          "seconds_since_ack": 0,
+          "seconds_since_stat": 19
+        },
+        "discovered_eui": "C0BA1FFFFE003D74",
+        "peek_next_ip": "172.30.0.139",
+        "reserved_inventory": {
+          "vpn_ip": "172.30.0.117",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "private_key_masked": "***",
+          "sim_id": null,
+          "source": "existing_record"
+        },
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "apn": null,
+        "db_sim_id": null,
+        "db_sim_card_id": 1,
+        "operator_confirmation": {
+          "confirm_apply": true,
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        },
+        "cloud_sync": {
+          "chirpstack_created": false,
+          "chirpstack_exists": true,
+          "milesight_created": false,
+          "milesight_exists": true,
+          "webservice_exists": false,
+          "webservice_skipped": true
+        }
+      },
+      "status": {
+        "created": true,
+        "operation_mode": "reconcile",
+        "precheck_gateway_reachable": true,
+        "precheck_inventory_ready": true,
+        "precheck_discovered_eui": "C0BA1FFFFE003D74",
+        "precheck_lora_status": "ONLINE",
+        "precheck_lns_connected": true,
+        "inventory_reserved": true,
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "inventory_source": "existing_record",
+        "config_applied": true,
+        "chirpstack_created": false,
+        "chirpstack_exists": true,
+        "milesight_created": false,
+        "milesight_exists": true,
+        "webservice_exists": false,
+        "webservice_skipped": true
+      },
+      "report": {},
+      "last_error_code": null,
+      "last_error_message": null,
+      "created_at": "2026-03-07T14:28:11.152338+00:00",
+      "updated_at": "2026-03-07T14:28:47.650741+00:00",
+      "completed_at": null
+    },
+    "ee5690ab-0941-4ac8-87a9-b0b2c21710f7": {
+      "run_id": "ee5690ab-0941-4ac8-87a9-b0b2c21710f7",
+      "state": "CONFIG_APPLIED",
+      "operator_name": "j.kilian@ball-b.de",
+      "gateway_name": "0.117 461 - Taubertalhausen",
+      "serial_number": "6221F3784131",
+      "sim_vendor_id": "1",
+      "sim_iccid": "89462038066011551499",
+      "client_id": "124124",
+      "client_name": null,
+      "lns": "chirpstack",
+      "manufacturer": "Milesight",
+      "gateway_type": "UG67",
+      "requested_by": "j.kilian@ball-b.de",
+      "context": {
+        "env_status": {
+          "CHIRPSTACK_URL": true,
+          "CHIRPSTACK_API_TOKEN": true,
+          "CHIRPSTACK_TENANT_ID": true,
+          "MILESIGHT_URL": true,
+          "MILESIGHT_CLIENT_ID": true,
+          "MILESIGHT_CLIENT_SECRET": true,
+          "DATABASE_URL": false,
+          "DB_HOST": false,
+          "DB_PASSWORD": false,
+          "DB_API_PROVIDER_URL": true,
+          "API_SERVICE_TOKEN": true,
+          "VPN_PING_PROVIDER_URL": true
+        },
+        "operation_mode": "reconcile",
+        "cleanup_confirmed": false,
+        "current_vpn_ip": "172.30.0.117",
+        "current_ssid": "bbdbmon_0.117",
+        "current_eui": "C0BA1FFFFE003D74",
+        "gateway_info": {
+          "status": "online",
+          "device": {
+            "mac": "C0:BA:1F:00:3D:74",
+            "eui": "C0BA1FFFFE003D74",
+            "ssid": "bbdbmon_0.117",
+            "vpn_ip": "172.30.0.117",
+            "interfaces": {
+              "cellular0": {
+                "up": true,
+                "ip": "10.189.131.175",
+                "primary": false
+              },
+              "eth0": {
+                "up": true,
+                "ip": "192.168.0.26",
+                "primary": true
+              },
+              "gre0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "lo": {
+                "up": true,
+                "ip": "127.0.0.1",
+                "primary": false
+              },
+              "sit0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "tunl0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "wg0": {
+                "up": true,
+                "ip": "172.30.0.117",
+                "primary": true
+              },
+              "wlan0": {
+                "up": true,
+                "ip": "192.168.1.1",
+                "primary": true
+              },
+              "wlan1": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              }
+            },
+            "cellular_online": false
+          },
+          "meta": {
+            "timestamp": "2026-03-07T16:55:51.937Z"
+          }
+        },
+        "lora_info": {
+          "gatewayEui": "C0BA1FFFFE003D74",
+          "gatewayId": "C0BA1FFFFE003D74",
+          "radioType": "",
+          "loriotSupport": true,
+          "status": 1,
+          "dataRetransmission": false,
+          "pendingData": 0,
+          "servs": [
+            {
+              "id": 0,
+              "servEnabled": false,
+              "servAddr": "localhost",
+              "servType": "ursalink",
+              "servPortUp": 1700,
+              "servPortDown": 1700,
+              "servMqttPort": 1883,
+              "syncFreqPlan": false,
+              "connected": 0,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            },
+            {
+              "id": 1,
+              "servEnabled": true,
+              "servAddr": "ball-b-cs.cortex-media.de",
+              "servType": "semtech",
+              "servPortUp": 1800,
+              "servPortDown": 1800,
+              "servMqttPort": 0,
+              "syncFreqPlan": false,
+              "connected": 1,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            }
+          ]
+        },
+        "lora_health": {
+          "status": "ONLINE",
+          "lns_connected": true,
+          "last_seen": "2026-03-07T16:55:48.663Z",
+          "seconds_since_ack": 0,
+          "seconds_since_stat": 29
+        },
+        "discovered_eui": "C0BA1FFFFE003D74",
+        "peek_next_ip": "172.30.0.139",
+        "reserved_inventory": {
+          "vpn_ip": "172.30.0.117",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "private_key_masked": "***",
+          "sim_id": null,
+          "source": "existing_record"
+        },
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "apn": null,
+        "db_sim_id": null,
+        "db_sim_card_id": 1,
+        "operator_confirmation": {
+          "confirm_apply": true,
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        }
+      },
+      "status": {
+        "created": true,
+        "operation_mode": "reconcile",
+        "precheck_gateway_reachable": true,
+        "precheck_inventory_ready": true,
+        "precheck_discovered_eui": "C0BA1FFFFE003D74",
+        "precheck_lora_status": "ONLINE",
+        "precheck_lns_connected": true,
+        "inventory_reserved": true,
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "inventory_source": "existing_record",
+        "config_applied": true
+      },
+      "report": {},
+      "last_error_code": null,
+      "last_error_message": null,
+      "created_at": "2026-03-07T16:55:51.755444+00:00",
+      "updated_at": "2026-03-07T16:55:52.423914+00:00",
+      "completed_at": null
+    },
+    "0e8bc416-f771-498f-b5d8-abadde934990": {
+      "run_id": "0e8bc416-f771-498f-b5d8-abadde934990",
+      "state": "CONFIG_APPLIED",
+      "operator_name": "j.kilian@ball-b.de",
+      "gateway_name": "0.117 461 - Taubertalhausen",
+      "serial_number": "6221F3784131",
+      "sim_vendor_id": "1",
+      "sim_iccid": "89462038066011551499",
+      "client_id": null,
+      "client_name": null,
+      "lns": "chirpstack",
+      "manufacturer": "Milesight",
+      "gateway_type": "UG67",
+      "requested_by": "j.kilian@ball-b.de",
+      "context": {
+        "env_status": {
+          "CHIRPSTACK_URL": true,
+          "CHIRPSTACK_API_TOKEN": true,
+          "CHIRPSTACK_TENANT_ID": true,
+          "MILESIGHT_URL": true,
+          "MILESIGHT_CLIENT_ID": true,
+          "MILESIGHT_CLIENT_SECRET": true,
+          "DATABASE_URL": false,
+          "DB_HOST": false,
+          "DB_PASSWORD": false,
+          "DB_API_PROVIDER_URL": true,
+          "API_SERVICE_TOKEN": true,
+          "VPN_PING_PROVIDER_URL": true
+        },
+        "operation_mode": "reconcile",
+        "cleanup_confirmed": false,
+        "current_vpn_ip": "172.30.0.117",
+        "current_ssid": "bbdbmon_0.117",
+        "current_eui": "C0BA1FFFFE003D74",
+        "gateway_info": {
+          "status": "online",
+          "device": {
+            "mac": "C0:BA:1F:00:3D:74",
+            "eui": "C0BA1FFFFE003D74",
+            "ssid": "bbdbmon_0.117",
+            "vpn_ip": "172.30.0.117",
+            "interfaces": {
+              "cellular0": {
+                "up": true,
+                "ip": "10.189.131.175",
+                "primary": false
+              },
+              "eth0": {
+                "up": true,
+                "ip": "192.168.0.26",
+                "primary": true
+              },
+              "gre0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "lo": {
+                "up": true,
+                "ip": "127.0.0.1",
+                "primary": false
+              },
+              "sit0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "tunl0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "wg0": {
+                "up": true,
+                "ip": "172.30.0.117",
+                "primary": true
+              },
+              "wlan0": {
+                "up": true,
+                "ip": "192.168.1.1",
+                "primary": true
+              },
+              "wlan1": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              }
+            },
+            "cellular_online": false
+          },
+          "meta": {
+            "timestamp": "2026-03-07T17:22:01.952Z"
+          }
+        },
+        "lora_info": {
+          "gatewayEui": "C0BA1FFFFE003D74",
+          "gatewayId": "C0BA1FFFFE003D74",
+          "radioType": "",
+          "loriotSupport": true,
+          "status": 1,
+          "dataRetransmission": false,
+          "pendingData": 0,
+          "servs": [
+            {
+              "id": 0,
+              "servEnabled": false,
+              "servAddr": "localhost",
+              "servType": "ursalink",
+              "servPortUp": 1700,
+              "servPortDown": 1700,
+              "servMqttPort": 1883,
+              "syncFreqPlan": false,
+              "connected": 0,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            },
+            {
+              "id": 1,
+              "servEnabled": true,
+              "servAddr": "ball-b-cs.cortex-media.de",
+              "servType": "semtech",
+              "servPortUp": 1800,
+              "servPortDown": 1800,
+              "servMqttPort": 0,
+              "syncFreqPlan": false,
+              "connected": 1,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            }
+          ]
+        },
+        "lora_health": {
+          "status": "ONLINE",
+          "lns_connected": true,
+          "last_seen": "2026-03-07T17:21:59.056Z",
+          "seconds_since_ack": 0,
+          "seconds_since_stat": 9
+        },
+        "discovered_eui": "C0BA1FFFFE003D74",
+        "peek_next_ip": "172.30.0.139",
+        "reserved_inventory": {
+          "vpn_ip": "172.30.0.117",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "private_key_masked": "***",
+          "sim_id": null,
+          "source": "existing_record"
+        },
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "apn": null,
+        "db_sim_id": null,
+        "db_sim_card_id": 1,
+        "operator_confirmation": {
+          "confirm_apply": true,
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        }
+      },
+      "status": {
+        "created": true,
+        "operation_mode": "reconcile",
+        "precheck_gateway_reachable": true,
+        "precheck_inventory_ready": true,
+        "precheck_discovered_eui": "C0BA1FFFFE003D74",
+        "precheck_lora_status": "ONLINE",
+        "precheck_lns_connected": true,
+        "inventory_reserved": true,
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "inventory_source": "existing_record",
+        "config_applied": true
+      },
+      "report": {},
+      "last_error_code": null,
+      "last_error_message": null,
+      "created_at": "2026-03-07T17:22:01.769955+00:00",
+      "updated_at": "2026-03-07T17:22:02.560693+00:00",
+      "completed_at": null
+    },
+    "7726fcae-c7d9-49af-8836-568b0c45be84": {
+      "run_id": "7726fcae-c7d9-49af-8836-568b0c45be84",
+      "state": "CONFIG_APPLIED",
+      "operator_name": "j.kilian@ball-b.de",
+      "gateway_name": "0.117 461 - Taubertalhausen",
+      "serial_number": "6221F3784131",
+      "sim_vendor_id": "1",
+      "sim_iccid": "89462038066011551499",
+      "client_id": "461",
+      "client_name": null,
+      "lns": "chirpstack",
+      "manufacturer": "Milesight",
+      "gateway_type": "UG67",
+      "requested_by": "j.kilian@ball-b.de",
+      "context": {
+        "env_status": {
+          "CHIRPSTACK_URL": true,
+          "CHIRPSTACK_API_TOKEN": true,
+          "CHIRPSTACK_TENANT_ID": true,
+          "MILESIGHT_URL": true,
+          "MILESIGHT_CLIENT_ID": true,
+          "MILESIGHT_CLIENT_SECRET": true,
+          "DATABASE_URL": false,
+          "DB_HOST": false,
+          "DB_PASSWORD": false,
+          "DB_API_PROVIDER_URL": true,
+          "API_SERVICE_TOKEN": true,
+          "VPN_PING_PROVIDER_URL": true
+        },
+        "operation_mode": "reconcile",
+        "cleanup_confirmed": false,
+        "current_vpn_ip": "172.30.0.117",
+        "current_ssid": "bbdbmon_0.117",
+        "current_eui": "C0BA1FFFFE003D74",
+        "gateway_info": {
+          "status": "online",
+          "device": {
+            "mac": "C0:BA:1F:00:3D:74",
+            "eui": "C0BA1FFFFE003D74",
+            "ssid": "bbdbmon_0.117",
+            "vpn_ip": "172.30.0.117",
+            "interfaces": {
+              "cellular0": {
+                "up": true,
+                "ip": "10.189.131.175",
+                "primary": false
+              },
+              "eth0": {
+                "up": true,
+                "ip": "192.168.0.26",
+                "primary": true
+              },
+              "gre0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "lo": {
+                "up": true,
+                "ip": "127.0.0.1",
+                "primary": false
+              },
+              "sit0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "tunl0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "wg0": {
+                "up": true,
+                "ip": "172.30.0.117",
+                "primary": true
+              },
+              "wlan0": {
+                "up": true,
+                "ip": "192.168.1.1",
+                "primary": true
+              },
+              "wlan1": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              }
+            },
+            "cellular_online": false
+          },
+          "meta": {
+            "timestamp": "2026-03-07T17:30:20.228Z"
+          }
+        },
+        "lora_info": {
+          "gatewayEui": "C0BA1FFFFE003D74",
+          "gatewayId": "C0BA1FFFFE003D74",
+          "radioType": "",
+          "loriotSupport": true,
+          "status": 1,
+          "dataRetransmission": false,
+          "pendingData": 0,
+          "servs": [
+            {
+              "id": 0,
+              "servEnabled": false,
+              "servAddr": "localhost",
+              "servType": "ursalink",
+              "servPortUp": 1700,
+              "servPortDown": 1700,
+              "servMqttPort": 1883,
+              "syncFreqPlan": false,
+              "connected": 0,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            },
+            {
+              "id": 1,
+              "servEnabled": true,
+              "servAddr": "ball-b-cs.cortex-media.de",
+              "servType": "semtech",
+              "servPortUp": 1800,
+              "servPortDown": 1800,
+              "servMqttPort": 0,
+              "syncFreqPlan": false,
+              "connected": 1,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            }
+          ]
+        },
+        "lora_health": {
+          "status": "ONLINE",
+          "lns_connected": true,
+          "last_seen": "2026-03-07T17:30:12.337Z",
+          "seconds_since_ack": 7,
+          "seconds_since_stat": 27
+        },
+        "discovered_eui": "C0BA1FFFFE003D74",
+        "peek_next_ip": "172.30.0.139",
+        "reserved_inventory": {
+          "vpn_ip": "172.30.0.117",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "private_key_masked": "***",
+          "sim_id": null,
+          "source": "existing_record"
+        },
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "apn": null,
+        "db_sim_id": null,
+        "db_sim_card_id": 1,
+        "operator_confirmation": {
+          "confirm_apply": true,
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        }
+      },
+      "status": {
+        "created": true,
+        "operation_mode": "reconcile",
+        "precheck_gateway_reachable": true,
+        "precheck_inventory_ready": true,
+        "precheck_discovered_eui": "C0BA1FFFFE003D74",
+        "precheck_lora_status": "ONLINE",
+        "precheck_lns_connected": true,
+        "inventory_reserved": true,
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "inventory_source": "existing_record",
+        "config_applied": true
+      },
+      "report": {},
+      "last_error_code": null,
+      "last_error_message": null,
+      "created_at": "2026-03-07T17:30:20.002360+00:00",
+      "updated_at": "2026-03-07T17:30:20.820326+00:00",
+      "completed_at": null
+    },
+    "a87b355d-ac70-430f-a31d-83cd10bcbb39": {
+      "run_id": "a87b355d-ac70-430f-a31d-83cd10bcbb39",
+      "state": "CLOUD_SYNCED",
+      "operator_name": "j.kilian@ball-b.de",
+      "gateway_name": "0.117 461 - Taubertalhausen",
+      "serial_number": "6221F3784131",
+      "sim_vendor_id": "1",
+      "sim_iccid": "89462038066011551499",
+      "client_id": "461",
+      "client_name": null,
+      "lns": "chirpstack",
+      "manufacturer": "Milesight",
+      "gateway_type": "UG67",
+      "requested_by": "j.kilian@ball-b.de",
+      "context": {
+        "env_status": {
+          "CHIRPSTACK_URL": true,
+          "CHIRPSTACK_API_TOKEN": true,
+          "CHIRPSTACK_TENANT_ID": true,
+          "MILESIGHT_URL": true,
+          "MILESIGHT_CLIENT_ID": true,
+          "MILESIGHT_CLIENT_SECRET": true,
+          "DATABASE_URL": false,
+          "DB_HOST": false,
+          "DB_PASSWORD": false,
+          "DB_API_PROVIDER_URL": true,
+          "API_SERVICE_TOKEN": true,
+          "VPN_PING_PROVIDER_URL": true
+        },
+        "operation_mode": "reconcile",
+        "cleanup_confirmed": false,
+        "current_vpn_ip": "172.30.0.117",
+        "current_ssid": "bbdbmon_0.117",
+        "current_eui": "C0BA1FFFFE003D74",
+        "gateway_info": {
+          "status": "online",
+          "device": {
+            "mac": "C0:BA:1F:00:3D:74",
+            "eui": "C0BA1FFFFE003D74",
+            "ssid": "bbdbmon_0.117",
+            "vpn_ip": "172.30.0.117",
+            "interfaces": {
+              "cellular0": {
+                "up": true,
+                "ip": "10.189.131.175",
+                "primary": false
+              },
+              "eth0": {
+                "up": true,
+                "ip": "192.168.0.26",
+                "primary": true
+              },
+              "gre0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "lo": {
+                "up": true,
+                "ip": "127.0.0.1",
+                "primary": false
+              },
+              "sit0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "tunl0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "wg0": {
+                "up": true,
+                "ip": "172.30.0.117",
+                "primary": true
+              },
+              "wlan0": {
+                "up": true,
+                "ip": "192.168.1.1",
+                "primary": true
+              },
+              "wlan1": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              }
+            },
+            "cellular_online": false
+          },
+          "meta": {
+            "timestamp": "2026-03-07T17:35:15.468Z"
+          }
+        },
+        "lora_info": {
+          "gatewayEui": "C0BA1FFFFE003D74",
+          "gatewayId": "C0BA1FFFFE003D74",
+          "radioType": "",
+          "loriotSupport": true,
+          "status": 1,
+          "dataRetransmission": false,
+          "pendingData": 0,
+          "servs": [
+            {
+              "id": 0,
+              "servEnabled": false,
+              "servAddr": "localhost",
+              "servType": "ursalink",
+              "servPortUp": 1700,
+              "servPortDown": 1700,
+              "servMqttPort": 1883,
+              "syncFreqPlan": false,
+              "connected": 0,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            },
+            {
+              "id": 1,
+              "servEnabled": true,
+              "servAddr": "ball-b-cs.cortex-media.de",
+              "servType": "semtech",
+              "servPortUp": 1800,
+              "servPortDown": 1800,
+              "servMqttPort": 0,
+              "syncFreqPlan": false,
+              "connected": 1,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            }
+          ]
+        },
+        "lora_health": {
+          "status": "ONLINE",
+          "lns_connected": true,
+          "last_seen": "2026-03-07T17:35:14.289Z",
+          "seconds_since_ack": 0,
+          "seconds_since_stat": 22
+        },
+        "discovered_eui": "C0BA1FFFFE003D74",
+        "peek_next_ip": "172.30.0.139",
+        "reserved_inventory": {
+          "vpn_ip": "172.30.0.117",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "private_key_masked": "***",
+          "sim_id": null,
+          "source": "existing_record"
+        },
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "apn": null,
+        "db_sim_id": null,
+        "db_sim_card_id": 1,
+        "operator_confirmation": {
+          "confirm_apply": true,
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        },
+        "cloud_sync": {
+          "chirpstack_created": false,
+          "chirpstack_exists": true,
+          "milesight_created": false,
+          "milesight_exists": true,
+          "webservice_created": true,
+          "webservice_exists": true
+        }
+      },
+      "status": {
+        "created": true,
+        "operation_mode": "reconcile",
+        "precheck_gateway_reachable": true,
+        "precheck_inventory_ready": true,
+        "precheck_discovered_eui": "C0BA1FFFFE003D74",
+        "precheck_lora_status": "ONLINE",
+        "precheck_lns_connected": true,
+        "inventory_reserved": true,
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "inventory_source": "existing_record",
+        "config_applied": true,
+        "chirpstack_created": false,
+        "chirpstack_exists": true,
+        "milesight_created": false,
+        "milesight_exists": true,
+        "webservice_created": true,
+        "webservice_exists": true
+      },
+      "report": {},
+      "last_error_code": null,
+      "last_error_message": null,
+      "created_at": "2026-03-07T17:35:15.260503+00:00",
+      "updated_at": "2026-03-07T17:35:16.662727+00:00",
+      "completed_at": null
+    },
+    "6a824234-8906-40f4-a38b-7acb046e1987": {
+      "run_id": "6a824234-8906-40f4-a38b-7acb046e1987",
+      "state": "CLOUD_SYNCED",
+      "operator_name": "j.kilian@ball-b.de",
+      "gateway_name": "0.117 461 - Taubertalhausen",
+      "serial_number": "6221F3784131",
+      "sim_vendor_id": "1",
+      "sim_iccid": "89462038066011551499",
+      "client_id": "461",
+      "client_name": null,
+      "lns": "chirpstack",
+      "manufacturer": "Milesight",
+      "gateway_type": "UG67",
+      "requested_by": "j.kilian@ball-b.de",
+      "context": {
+        "env_status": {
+          "CHIRPSTACK_URL": true,
+          "CHIRPSTACK_API_TOKEN": true,
+          "CHIRPSTACK_TENANT_ID": true,
+          "MILESIGHT_URL": true,
+          "MILESIGHT_CLIENT_ID": true,
+          "MILESIGHT_CLIENT_SECRET": true,
+          "DATABASE_URL": false,
+          "DB_HOST": false,
+          "DB_PASSWORD": false,
+          "DB_API_PROVIDER_URL": true,
+          "API_SERVICE_TOKEN": true,
+          "VPN_PING_PROVIDER_URL": true
+        },
+        "operation_mode": "reconcile",
+        "cleanup_confirmed": false,
+        "current_vpn_ip": "172.30.0.117",
+        "current_ssid": "bbdbmon_0.117",
+        "current_eui": "C0BA1FFFFE003D74",
+        "gateway_info": {
+          "status": "online",
+          "device": {
+            "mac": "C0:BA:1F:00:3D:74",
+            "eui": "C0BA1FFFFE003D74",
+            "ssid": "bbdbmon_0.117",
+            "vpn_ip": "172.30.0.117",
+            "interfaces": {
+              "cellular0": {
+                "up": true,
+                "ip": "10.189.131.175",
+                "primary": false
+              },
+              "eth0": {
+                "up": true,
+                "ip": "192.168.0.26",
+                "primary": true
+              },
+              "gre0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "lo": {
+                "up": true,
+                "ip": "127.0.0.1",
+                "primary": false
+              },
+              "sit0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "tunl0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "wg0": {
+                "up": true,
+                "ip": "172.30.0.117",
+                "primary": true
+              },
+              "wlan0": {
+                "up": true,
+                "ip": "192.168.1.1",
+                "primary": true
+              },
+              "wlan1": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              }
+            },
+            "cellular_online": false
+          },
+          "meta": {
+            "timestamp": "2026-03-07T17:39:32.768Z"
+          }
+        },
+        "lora_info": {
+          "gatewayEui": "C0BA1FFFFE003D74",
+          "gatewayId": "C0BA1FFFFE003D74",
+          "radioType": "",
+          "loriotSupport": true,
+          "status": 1,
+          "dataRetransmission": false,
+          "pendingData": 0,
+          "servs": [
+            {
+              "id": 0,
+              "servEnabled": false,
+              "servAddr": "localhost",
+              "servType": "ursalink",
+              "servPortUp": 1700,
+              "servPortDown": 1700,
+              "servMqttPort": 1883,
+              "syncFreqPlan": false,
+              "connected": 0,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            },
+            {
+              "id": 1,
+              "servEnabled": true,
+              "servAddr": "ball-b-cs.cortex-media.de",
+              "servType": "semtech",
+              "servPortUp": 1800,
+              "servPortDown": 1800,
+              "servMqttPort": 0,
+              "syncFreqPlan": false,
+              "connected": 1,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            }
+          ]
+        },
+        "lora_health": {
+          "status": "ONLINE",
+          "lns_connected": true,
+          "last_seen": "2026-03-07T17:39:25.958Z",
+          "seconds_since_ack": 4,
+          "seconds_since_stat": 9
+        },
+        "discovered_eui": "C0BA1FFFFE003D74",
+        "peek_next_ip": "172.30.0.139",
+        "reserved_inventory": {
+          "vpn_ip": "172.30.0.117",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "private_key_masked": "***",
+          "sim_id": null,
+          "source": "existing_record"
+        },
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "apn": null,
+        "db_sim_id": null,
+        "db_sim_card_id": 1,
+        "operator_confirmation": {
+          "confirm_apply": true,
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        },
+        "cloud_sync": {
+          "chirpstack_created": false,
+          "chirpstack_exists": true,
+          "milesight_created": false,
+          "milesight_exists": true,
+          "webservice_created": true,
+          "webservice_exists": true
+        }
+      },
+      "status": {
+        "created": true,
+        "operation_mode": "reconcile",
+        "precheck_gateway_reachable": true,
+        "precheck_inventory_ready": true,
+        "precheck_discovered_eui": "C0BA1FFFFE003D74",
+        "precheck_lora_status": "ONLINE",
+        "precheck_lns_connected": true,
+        "inventory_reserved": true,
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "inventory_source": "existing_record",
+        "config_applied": true,
+        "chirpstack_created": false,
+        "chirpstack_exists": true,
+        "milesight_created": false,
+        "milesight_exists": true,
+        "webservice_created": true,
+        "webservice_exists": true
+      },
+      "report": {},
+      "last_error_code": null,
+      "last_error_message": null,
+      "created_at": "2026-03-07T17:39:32.533742+00:00",
+      "updated_at": "2026-03-07T17:39:34.034074+00:00",
+      "completed_at": null
+    },
+    "154ee7f5-507f-4d0e-a76d-15bb0c39f571": {
+      "run_id": "154ee7f5-507f-4d0e-a76d-15bb0c39f571",
+      "state": "CLOUD_SYNCED",
+      "operator_name": "j.kilian@ball-b.de",
+      "gateway_name": "0.117 461 - Taubertalhausen",
+      "serial_number": "6221F3784131",
+      "sim_vendor_id": "1",
+      "sim_iccid": "89462038066011551499",
+      "client_id": "461",
+      "client_name": null,
+      "lns": "chirpstack",
+      "manufacturer": "Milesight",
+      "gateway_type": "UG67",
+      "requested_by": "j.kilian@ball-b.de",
+      "context": {
+        "env_status": {
+          "CHIRPSTACK_URL": true,
+          "CHIRPSTACK_API_TOKEN": true,
+          "CHIRPSTACK_TENANT_ID": true,
+          "MILESIGHT_URL": true,
+          "MILESIGHT_CLIENT_ID": true,
+          "MILESIGHT_CLIENT_SECRET": true,
+          "DATABASE_URL": false,
+          "DB_HOST": false,
+          "DB_PASSWORD": false,
+          "DB_API_PROVIDER_URL": true,
+          "API_SERVICE_TOKEN": true,
+          "VPN_PING_PROVIDER_URL": true
+        },
+        "operation_mode": "reconcile",
+        "cleanup_confirmed": false,
+        "current_vpn_ip": "172.30.0.117",
+        "current_ssid": "bbdbmon_0.117",
+        "current_eui": "C0BA1FFFFE003D74",
+        "gateway_info": {
+          "status": "online",
+          "device": {
+            "mac": "C0:BA:1F:00:3D:74",
+            "eui": "C0BA1FFFFE003D74",
+            "ssid": "bbdbmon_0.117",
+            "vpn_ip": "172.30.0.117",
+            "interfaces": {
+              "cellular0": {
+                "up": true,
+                "ip": "10.189.131.175",
+                "primary": false
+              },
+              "eth0": {
+                "up": true,
+                "ip": "192.168.0.26",
+                "primary": true
+              },
+              "gre0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "lo": {
+                "up": true,
+                "ip": "127.0.0.1",
+                "primary": false
+              },
+              "sit0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "tunl0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "wg0": {
+                "up": true,
+                "ip": "172.30.0.117",
+                "primary": true
+              },
+              "wlan0": {
+                "up": true,
+                "ip": "192.168.1.1",
+                "primary": true
+              },
+              "wlan1": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              }
+            },
+            "cellular_online": false
+          },
+          "meta": {
+            "timestamp": "2026-03-07T17:44:22.716Z"
+          }
+        },
+        "lora_info": {
+          "gatewayEui": "C0BA1FFFFE003D74",
+          "gatewayId": "C0BA1FFFFE003D74",
+          "radioType": "",
+          "loriotSupport": true,
+          "status": 1,
+          "dataRetransmission": false,
+          "pendingData": 0,
+          "servs": [
+            {
+              "id": 0,
+              "servEnabled": false,
+              "servAddr": "localhost",
+              "servType": "ursalink",
+              "servPortUp": 1700,
+              "servPortDown": 1700,
+              "servMqttPort": 1883,
+              "syncFreqPlan": false,
+              "connected": 0,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            },
+            {
+              "id": 1,
+              "servEnabled": true,
+              "servAddr": "ball-b-cs.cortex-media.de",
+              "servType": "semtech",
+              "servPortUp": 1800,
+              "servPortDown": 1800,
+              "servMqttPort": 0,
+              "syncFreqPlan": false,
+              "connected": 1,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            }
+          ]
+        },
+        "lora_health": {
+          "status": "ONLINE",
+          "lns_connected": true,
+          "last_seen": "2026-03-07T17:44:17.862Z",
+          "seconds_since_ack": 2,
+          "seconds_since_stat": 29
+        },
+        "discovered_eui": "C0BA1FFFFE003D74",
+        "peek_next_ip": "172.30.0.139",
+        "reserved_inventory": {
+          "vpn_ip": "172.30.0.117",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "private_key_masked": "***",
+          "sim_id": null,
+          "source": "existing_record"
+        },
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "apn": null,
+        "db_sim_id": null,
+        "db_sim_card_id": 1,
+        "operator_confirmation": {
+          "confirm_apply": true,
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        },
+        "cloud_sync": {
+          "chirpstack_created": false,
+          "chirpstack_exists": true,
+          "milesight_created": false,
+          "milesight_exists": true,
+          "webservice_created": true,
+          "webservice_exists": true
+        }
+      },
+      "status": {
+        "created": true,
+        "operation_mode": "reconcile",
+        "precheck_gateway_reachable": true,
+        "precheck_inventory_ready": true,
+        "precheck_discovered_eui": "C0BA1FFFFE003D74",
+        "precheck_lora_status": "ONLINE",
+        "precheck_lns_connected": true,
+        "inventory_reserved": true,
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "inventory_source": "existing_record",
+        "config_applied": true,
+        "chirpstack_created": false,
+        "chirpstack_exists": true,
+        "milesight_created": false,
+        "milesight_exists": true,
+        "webservice_created": true,
+        "webservice_exists": true
+      },
+      "report": {},
+      "last_error_code": null,
+      "last_error_message": null,
+      "created_at": "2026-03-07T17:44:22.486422+00:00",
+      "updated_at": "2026-03-07T17:44:24.075955+00:00",
+      "completed_at": null
+    },
+    "41a63ac4-ccd2-4921-8c42-d0216a6f6de2": {
+      "run_id": "41a63ac4-ccd2-4921-8c42-d0216a6f6de2",
+      "state": "CLOUD_SYNCED",
+      "operator_name": "j.kilian@ball-b.de",
+      "gateway_name": "0.117 461 - Taubertalhausen",
+      "serial_number": "6221F3784131",
+      "sim_vendor_id": "1",
+      "sim_iccid": "89462038066011551499",
+      "client_id": "461",
+      "client_name": null,
+      "lns": "chirpstack",
+      "manufacturer": "Milesight",
+      "gateway_type": "UG67",
+      "requested_by": "j.kilian@ball-b.de",
+      "context": {
+        "env_status": {
+          "CHIRPSTACK_URL": true,
+          "CHIRPSTACK_API_TOKEN": true,
+          "CHIRPSTACK_TENANT_ID": true,
+          "MILESIGHT_URL": true,
+          "MILESIGHT_CLIENT_ID": true,
+          "MILESIGHT_CLIENT_SECRET": true,
+          "DATABASE_URL": false,
+          "DB_HOST": false,
+          "DB_PASSWORD": false,
+          "DB_API_PROVIDER_URL": true,
+          "API_SERVICE_TOKEN": true,
+          "VPN_PING_PROVIDER_URL": true
+        },
+        "operation_mode": "reconcile",
+        "cleanup_confirmed": false,
+        "current_vpn_ip": "172.30.0.117",
+        "current_ssid": "bbdbmon_0.117",
+        "current_eui": "C0BA1FFFFE003D74",
+        "gateway_info": {
+          "status": "online",
+          "device": {
+            "mac": "C0:BA:1F:00:3D:74",
+            "eui": "C0BA1FFFFE003D74",
+            "ssid": "bbdbmon_0.117",
+            "vpn_ip": "172.30.0.117",
+            "interfaces": {
+              "cellular0": {
+                "up": true,
+                "ip": "10.189.131.175",
+                "primary": false
+              },
+              "eth0": {
+                "up": true,
+                "ip": "192.168.0.26",
+                "primary": true
+              },
+              "gre0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "lo": {
+                "up": true,
+                "ip": "127.0.0.1",
+                "primary": false
+              },
+              "sit0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "tunl0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "wg0": {
+                "up": true,
+                "ip": "172.30.0.117",
+                "primary": true
+              },
+              "wlan0": {
+                "up": true,
+                "ip": "192.168.1.1",
+                "primary": true
+              },
+              "wlan1": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              }
+            },
+            "cellular_online": false
+          },
+          "meta": {
+            "timestamp": "2026-03-07T17:46:23.343Z"
+          }
+        },
+        "lora_info": {
+          "gatewayEui": "C0BA1FFFFE003D74",
+          "gatewayId": "C0BA1FFFFE003D74",
+          "radioType": "",
+          "loriotSupport": true,
+          "status": 1,
+          "dataRetransmission": false,
+          "pendingData": 0,
+          "servs": [
+            {
+              "id": 0,
+              "servEnabled": false,
+              "servAddr": "localhost",
+              "servType": "ursalink",
+              "servPortUp": 1700,
+              "servPortDown": 1700,
+              "servMqttPort": 1883,
+              "syncFreqPlan": false,
+              "connected": 0,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            },
+            {
+              "id": 1,
+              "servEnabled": true,
+              "servAddr": "ball-b-cs.cortex-media.de",
+              "servType": "semtech",
+              "servPortUp": 1800,
+              "servPortDown": 1800,
+              "servMqttPort": 0,
+              "syncFreqPlan": false,
+              "connected": 1,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            }
+          ]
+        },
+        "lora_health": {
+          "status": "ONLINE",
+          "lns_connected": true,
+          "last_seen": "2026-03-07T17:46:18.669Z",
+          "seconds_since_ack": 1,
+          "seconds_since_stat": 30
+        },
+        "discovered_eui": "C0BA1FFFFE003D74",
+        "peek_next_ip": "172.30.0.139",
+        "reserved_inventory": {
+          "vpn_ip": "172.30.0.117",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "private_key_masked": "***",
+          "sim_id": null,
+          "source": "existing_record"
+        },
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "apn": null,
+        "db_sim_id": null,
+        "db_sim_card_id": 1,
+        "operator_confirmation": {
+          "confirm_apply": true,
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        },
+        "cloud_sync": {
+          "chirpstack_created": false,
+          "chirpstack_exists": true,
+          "milesight_created": false,
+          "milesight_exists": true,
+          "webservice_created": true,
+          "webservice_exists": true
+        }
+      },
+      "status": {
+        "created": true,
+        "operation_mode": "reconcile",
+        "precheck_gateway_reachable": true,
+        "precheck_inventory_ready": true,
+        "precheck_discovered_eui": "C0BA1FFFFE003D74",
+        "precheck_lora_status": "ONLINE",
+        "precheck_lns_connected": true,
+        "inventory_reserved": true,
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "inventory_source": "existing_record",
+        "config_applied": true,
+        "chirpstack_created": false,
+        "chirpstack_exists": true,
+        "milesight_created": false,
+        "milesight_exists": true,
+        "webservice_created": true,
+        "webservice_exists": true
+      },
+      "report": {},
+      "last_error_code": null,
+      "last_error_message": null,
+      "created_at": "2026-03-07T17:46:23.090964+00:00",
+      "updated_at": "2026-03-07T17:46:24.637672+00:00",
+      "completed_at": null
+    },
+    "1598f591-afce-4bf5-98e9-ff702e25ba23": {
+      "run_id": "1598f591-afce-4bf5-98e9-ff702e25ba23",
+      "state": "CLOUD_SYNCED",
+      "operator_name": "j.kilian@ball-b.de",
+      "gateway_name": "0.117 461 - Taubertalhausen",
+      "serial_number": "6221F3784131",
+      "sim_vendor_id": "1",
+      "sim_iccid": "89462038066011551499",
+      "client_id": "461",
+      "client_name": null,
+      "lns": "chirpstack",
+      "manufacturer": "Milesight",
+      "gateway_type": "UG67",
+      "requested_by": "j.kilian@ball-b.de",
+      "context": {
+        "env_status": {
+          "CHIRPSTACK_URL": true,
+          "CHIRPSTACK_API_TOKEN": true,
+          "CHIRPSTACK_TENANT_ID": true,
+          "MILESIGHT_URL": true,
+          "MILESIGHT_CLIENT_ID": true,
+          "MILESIGHT_CLIENT_SECRET": true,
+          "DATABASE_URL": false,
+          "DB_HOST": false,
+          "DB_PASSWORD": false,
+          "DB_API_PROVIDER_URL": true,
+          "API_SERVICE_TOKEN": true,
+          "VPN_PING_PROVIDER_URL": true
+        },
+        "operation_mode": "reconcile",
+        "cleanup_confirmed": false,
+        "current_vpn_ip": "172.30.0.117",
+        "current_ssid": "bbdbmon_0.117",
+        "current_eui": "C0BA1FFFFE003D74",
+        "gateway_info": {
+          "status": "online",
+          "device": {
+            "mac": "C0:BA:1F:00:3D:74",
+            "eui": "C0BA1FFFFE003D74",
+            "ssid": "bbdbmon_0.117",
+            "vpn_ip": "172.30.0.117",
+            "interfaces": {
+              "cellular0": {
+                "up": true,
+                "ip": "10.189.131.175",
+                "primary": false
+              },
+              "eth0": {
+                "up": true,
+                "ip": "192.168.0.26",
+                "primary": true
+              },
+              "gre0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "lo": {
+                "up": true,
+                "ip": "127.0.0.1",
+                "primary": false
+              },
+              "sit0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "tunl0": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              },
+              "wg0": {
+                "up": true,
+                "ip": "172.30.0.117",
+                "primary": true
+              },
+              "wlan0": {
+                "up": true,
+                "ip": "192.168.1.1",
+                "primary": true
+              },
+              "wlan1": {
+                "up": true,
+                "ip": null,
+                "primary": false
+              }
+            },
+            "cellular_online": false
+          },
+          "meta": {
+            "timestamp": "2026-03-07T18:01:08.740Z"
+          }
+        },
+        "lora_info": {
+          "gatewayEui": "C0BA1FFFFE003D74",
+          "gatewayId": "C0BA1FFFFE003D74",
+          "radioType": "",
+          "loriotSupport": true,
+          "status": 1,
+          "dataRetransmission": false,
+          "pendingData": 0,
+          "servs": [
+            {
+              "id": 0,
+              "servEnabled": false,
+              "servAddr": "localhost",
+              "servType": "ursalink",
+              "servPortUp": 1700,
+              "servPortDown": 1700,
+              "servMqttPort": 1883,
+              "syncFreqPlan": false,
+              "connected": 0,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            },
+            {
+              "id": 1,
+              "servEnabled": true,
+              "servAddr": "ball-b-cs.cortex-media.de",
+              "servType": "semtech",
+              "servPortUp": 1800,
+              "servPortDown": 1800,
+              "servMqttPort": 0,
+              "syncFreqPlan": false,
+              "connected": 1,
+              "servGwKey": "",
+              "Region": "",
+              "Band": "",
+              "username": "",
+              "password": "",
+              "CupsUri": "",
+              "TcUri": "",
+              "gpsEnable": false
+            }
+          ]
+        },
+        "lora_health": {
+          "status": "ONLINE",
+          "lns_connected": true,
+          "last_seen": "2026-03-07T18:01:04.547Z",
+          "seconds_since_ack": 1,
+          "seconds_since_stat": 15
+        },
+        "discovered_eui": "C0BA1FFFFE003D74",
+        "peek_next_ip": "172.30.0.139",
+        "reserved_inventory": {
+          "vpn_ip": "172.30.0.117",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "private_key_masked": "***",
+          "sim_id": null,
+          "source": "existing_record"
+        },
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "apn": null,
+        "db_sim_id": null,
+        "db_sim_card_id": 1,
+        "operator_confirmation": {
+          "confirm_apply": true,
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        },
+        "cloud_sync": {
+          "chirpstack_created": false,
+          "chirpstack_exists": true,
+          "milesight_created": false,
+          "milesight_exists": true,
+          "webservice_created": true,
+          "webservice_serial_number": "6221F3784131",
+          "webservice_exists": true
+        }
+      },
+      "status": {
+        "created": true,
+        "operation_mode": "reconcile",
+        "precheck_gateway_reachable": true,
+        "precheck_inventory_ready": true,
+        "precheck_discovered_eui": "C0BA1FFFFE003D74",
+        "precheck_lora_status": "ONLINE",
+        "precheck_lns_connected": true,
+        "inventory_reserved": true,
+        "vpn_ip": "172.30.0.117",
+        "wifi_ssid": "bbdbmon_0.117",
+        "inventory_source": "existing_record",
+        "config_applied": true,
+        "chirpstack_created": false,
+        "chirpstack_exists": true,
+        "milesight_created": false,
+        "milesight_exists": true,
+        "webservice_created": true,
+        "webservice_serial_number": "6221F3784131",
+        "webservice_exists": true
+      },
+      "report": {},
+      "last_error_code": null,
+      "last_error_message": null,
+      "created_at": "2026-03-07T18:01:08.539928+00:00",
+      "updated_at": "2026-03-07T18:01:10.224779+00:00",
+      "completed_at": null
     }
   },
   "events": {
@@ -253,6 +2104,690 @@
           "lns_connected": true
         },
         "created_at": "2026-03-07T11:40:23.234633+00:00"
+      }
+    ],
+    "79c341f7-22a1-4e75-abb6-f121869312be": [
+      {
+        "stage": "create_run",
+        "severity": "info",
+        "event_type": "run_created",
+        "message": "Provisionierungslauf angelegt.",
+        "payload": {
+          "operator_name": "j.kilian@ball-b.de",
+          "gateway_name": "0.117 461 - Taubertalhausen"
+        },
+        "created_at": "2026-03-07T14:10:10.797643+00:00"
+      }
+    ],
+    "86b0adb8-c4b4-4e04-b4b0-d3ab4e5302f2": [
+      {
+        "stage": "create_run",
+        "severity": "info",
+        "event_type": "run_created",
+        "message": "Provisionierungslauf angelegt.",
+        "payload": {
+          "operator_name": "j.kilian@ball-b.de",
+          "gateway_name": "0.117 461 - Taubertalhausen"
+        },
+        "created_at": "2026-03-07T14:28:11.154337+00:00"
+      },
+      {
+        "stage": "precheck",
+        "severity": "info",
+        "event_type": "precheck_passed",
+        "message": "Preflight-Checks erfolgreich.",
+        "payload": {
+          "discovered_eui": "C0BA1FFFFE003D74",
+          "peek_next_ip": "172.30.0.139",
+          "lora_status": "ONLINE",
+          "lns_connected": true
+        },
+        "created_at": "2026-03-07T14:28:11.696098+00:00"
+      },
+      {
+        "stage": "reserve",
+        "severity": "info",
+        "event_type": "inventory_reserved",
+        "message": "Zielwerte fuer das Gateway vorbereitet.",
+        "payload": {
+          "vpn_ip": "172.30.0.117",
+          "private_key": "***",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "sim_id": null,
+          "sim_card_id": 1,
+          "source": "existing_record"
+        },
+        "created_at": "2026-03-07T14:28:11.853795+00:00"
+      },
+      {
+        "stage": "confirm_config",
+        "severity": "info",
+        "event_type": "config_confirmed",
+        "message": "Gateway-Konfiguration durch Mitarbeiter bestaetigt.",
+        "payload": {
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        },
+        "created_at": "2026-03-07T14:28:11.866530+00:00"
+      },
+      {
+        "stage": "cloud_sync",
+        "severity": "info",
+        "event_type": "cloud_synced",
+        "message": "Cloud-Eintraege synchronisiert.",
+        "payload": {
+          "chirpstack_created": false,
+          "chirpstack_exists": true,
+          "milesight_created": false,
+          "milesight_exists": true,
+          "webservice_exists": false,
+          "webservice_skipped": true
+        },
+        "created_at": "2026-03-07T14:28:12.353141+00:00"
+      },
+      {
+        "stage": "cloud_sync",
+        "severity": "info",
+        "event_type": "cloud_synced",
+        "message": "Cloud-Eintraege synchronisiert.",
+        "payload": {
+          "chirpstack_created": false,
+          "chirpstack_exists": true,
+          "milesight_created": false,
+          "milesight_exists": true,
+          "webservice_exists": false,
+          "webservice_skipped": true
+        },
+        "created_at": "2026-03-07T14:28:26.546262+00:00"
+      },
+      {
+        "stage": "cloud_sync",
+        "severity": "info",
+        "event_type": "cloud_synced",
+        "message": "Cloud-Eintraege synchronisiert.",
+        "payload": {
+          "chirpstack_created": false,
+          "chirpstack_exists": true,
+          "milesight_created": false,
+          "milesight_exists": true,
+          "webservice_exists": false,
+          "webservice_skipped": true
+        },
+        "created_at": "2026-03-07T14:28:27.307504+00:00"
+      },
+      {
+        "stage": "cloud_sync",
+        "severity": "info",
+        "event_type": "cloud_synced",
+        "message": "Cloud-Eintraege synchronisiert.",
+        "payload": {
+          "chirpstack_created": false,
+          "chirpstack_exists": true,
+          "milesight_created": false,
+          "milesight_exists": true,
+          "webservice_exists": false,
+          "webservice_skipped": true
+        },
+        "created_at": "2026-03-07T14:28:28.836962+00:00"
+      },
+      {
+        "stage": "cloud_sync",
+        "severity": "info",
+        "event_type": "cloud_synced",
+        "message": "Cloud-Eintraege synchronisiert.",
+        "payload": {
+          "chirpstack_created": false,
+          "chirpstack_exists": true,
+          "milesight_created": false,
+          "milesight_exists": true,
+          "webservice_exists": false,
+          "webservice_skipped": true
+        },
+        "created_at": "2026-03-07T14:28:47.652077+00:00"
+      }
+    ],
+    "ee5690ab-0941-4ac8-87a9-b0b2c21710f7": [
+      {
+        "stage": "create_run",
+        "severity": "info",
+        "event_type": "run_created",
+        "message": "Provisionierungslauf angelegt.",
+        "payload": {
+          "operator_name": "j.kilian@ball-b.de",
+          "gateway_name": "0.117 461 - Taubertalhausen"
+        },
+        "created_at": "2026-03-07T16:55:51.761258+00:00"
+      },
+      {
+        "stage": "precheck",
+        "severity": "info",
+        "event_type": "precheck_passed",
+        "message": "Preflight-Checks erfolgreich.",
+        "payload": {
+          "discovered_eui": "C0BA1FFFFE003D74",
+          "peek_next_ip": "172.30.0.139",
+          "lora_status": "ONLINE",
+          "lns_connected": true
+        },
+        "created_at": "2026-03-07T16:55:52.216546+00:00"
+      },
+      {
+        "stage": "reserve",
+        "severity": "info",
+        "event_type": "inventory_reserved",
+        "message": "Zielwerte fuer das Gateway vorbereitet.",
+        "payload": {
+          "vpn_ip": "172.30.0.117",
+          "private_key": "***",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "sim_id": null,
+          "sim_card_id": 1,
+          "source": "existing_record"
+        },
+        "created_at": "2026-03-07T16:55:52.415455+00:00"
+      },
+      {
+        "stage": "confirm_config",
+        "severity": "info",
+        "event_type": "config_confirmed",
+        "message": "Gateway-Konfiguration durch Mitarbeiter bestaetigt.",
+        "payload": {
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        },
+        "created_at": "2026-03-07T16:55:52.427006+00:00"
+      }
+    ],
+    "0e8bc416-f771-498f-b5d8-abadde934990": [
+      {
+        "stage": "create_run",
+        "severity": "info",
+        "event_type": "run_created",
+        "message": "Provisionierungslauf angelegt.",
+        "payload": {
+          "operator_name": "j.kilian@ball-b.de",
+          "gateway_name": "0.117 461 - Taubertalhausen"
+        },
+        "created_at": "2026-03-07T17:22:01.775904+00:00"
+      },
+      {
+        "stage": "precheck",
+        "severity": "info",
+        "event_type": "precheck_passed",
+        "message": "Preflight-Checks erfolgreich.",
+        "payload": {
+          "discovered_eui": "C0BA1FFFFE003D74",
+          "peek_next_ip": "172.30.0.139",
+          "lora_status": "ONLINE",
+          "lns_connected": true
+        },
+        "created_at": "2026-03-07T17:22:02.306650+00:00"
+      },
+      {
+        "stage": "reserve",
+        "severity": "info",
+        "event_type": "inventory_reserved",
+        "message": "Zielwerte fuer das Gateway vorbereitet.",
+        "payload": {
+          "vpn_ip": "172.30.0.117",
+          "private_key": "***",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "sim_id": null,
+          "sim_card_id": 1,
+          "source": "existing_record"
+        },
+        "created_at": "2026-03-07T17:22:02.548106+00:00"
+      },
+      {
+        "stage": "confirm_config",
+        "severity": "info",
+        "event_type": "config_confirmed",
+        "message": "Gateway-Konfiguration durch Mitarbeiter bestaetigt.",
+        "payload": {
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        },
+        "created_at": "2026-03-07T17:22:02.566001+00:00"
+      }
+    ],
+    "7726fcae-c7d9-49af-8836-568b0c45be84": [
+      {
+        "stage": "create_run",
+        "severity": "info",
+        "event_type": "run_created",
+        "message": "Provisionierungslauf angelegt.",
+        "payload": {
+          "operator_name": "j.kilian@ball-b.de",
+          "gateway_name": "0.117 461 - Taubertalhausen"
+        },
+        "created_at": "2026-03-07T17:30:20.009020+00:00"
+      },
+      {
+        "stage": "precheck",
+        "severity": "info",
+        "event_type": "precheck_passed",
+        "message": "Preflight-Checks erfolgreich.",
+        "payload": {
+          "discovered_eui": "C0BA1FFFFE003D74",
+          "peek_next_ip": "172.30.0.139",
+          "lora_status": "ONLINE",
+          "lns_connected": true
+        },
+        "created_at": "2026-03-07T17:30:20.612665+00:00"
+      },
+      {
+        "stage": "reserve",
+        "severity": "info",
+        "event_type": "inventory_reserved",
+        "message": "Zielwerte fuer das Gateway vorbereitet.",
+        "payload": {
+          "vpn_ip": "172.30.0.117",
+          "private_key": "***",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "sim_id": null,
+          "sim_card_id": 1,
+          "source": "existing_record"
+        },
+        "created_at": "2026-03-07T17:30:20.807424+00:00"
+      },
+      {
+        "stage": "confirm_config",
+        "severity": "info",
+        "event_type": "config_confirmed",
+        "message": "Gateway-Konfiguration durch Mitarbeiter bestaetigt.",
+        "payload": {
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        },
+        "created_at": "2026-03-07T17:30:20.826726+00:00"
+      }
+    ],
+    "a87b355d-ac70-430f-a31d-83cd10bcbb39": [
+      {
+        "stage": "create_run",
+        "severity": "info",
+        "event_type": "run_created",
+        "message": "Provisionierungslauf angelegt.",
+        "payload": {
+          "operator_name": "j.kilian@ball-b.de",
+          "gateway_name": "0.117 461 - Taubertalhausen"
+        },
+        "created_at": "2026-03-07T17:35:15.270800+00:00"
+      },
+      {
+        "stage": "precheck",
+        "severity": "info",
+        "event_type": "precheck_passed",
+        "message": "Preflight-Checks erfolgreich.",
+        "payload": {
+          "discovered_eui": "C0BA1FFFFE003D74",
+          "peek_next_ip": "172.30.0.139",
+          "lora_status": "ONLINE",
+          "lns_connected": true
+        },
+        "created_at": "2026-03-07T17:35:15.782179+00:00"
+      },
+      {
+        "stage": "reserve",
+        "severity": "info",
+        "event_type": "inventory_reserved",
+        "message": "Zielwerte fuer das Gateway vorbereitet.",
+        "payload": {
+          "vpn_ip": "172.30.0.117",
+          "private_key": "***",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "sim_id": null,
+          "sim_card_id": 1,
+          "source": "existing_record"
+        },
+        "created_at": "2026-03-07T17:35:15.982641+00:00"
+      },
+      {
+        "stage": "confirm_config",
+        "severity": "info",
+        "event_type": "config_confirmed",
+        "message": "Gateway-Konfiguration durch Mitarbeiter bestaetigt.",
+        "payload": {
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        },
+        "created_at": "2026-03-07T17:35:15.996679+00:00"
+      },
+      {
+        "stage": "cloud_sync",
+        "severity": "info",
+        "event_type": "cloud_synced",
+        "message": "Cloud-Eintraege synchronisiert.",
+        "payload": {
+          "chirpstack_created": false,
+          "chirpstack_exists": true,
+          "milesight_created": false,
+          "milesight_exists": true,
+          "webservice_created": true,
+          "webservice_exists": true
+        },
+        "created_at": "2026-03-07T17:35:16.673794+00:00"
+      }
+    ],
+    "6a824234-8906-40f4-a38b-7acb046e1987": [
+      {
+        "stage": "create_run",
+        "severity": "info",
+        "event_type": "run_created",
+        "message": "Provisionierungslauf angelegt.",
+        "payload": {
+          "operator_name": "j.kilian@ball-b.de",
+          "gateway_name": "0.117 461 - Taubertalhausen"
+        },
+        "created_at": "2026-03-07T17:39:32.545468+00:00"
+      },
+      {
+        "stage": "precheck",
+        "severity": "info",
+        "event_type": "precheck_passed",
+        "message": "Preflight-Checks erfolgreich.",
+        "payload": {
+          "discovered_eui": "C0BA1FFFFE003D74",
+          "peek_next_ip": "172.30.0.139",
+          "lora_status": "ONLINE",
+          "lns_connected": true
+        },
+        "created_at": "2026-03-07T17:39:33.088474+00:00"
+      },
+      {
+        "stage": "reserve",
+        "severity": "info",
+        "event_type": "inventory_reserved",
+        "message": "Zielwerte fuer das Gateway vorbereitet.",
+        "payload": {
+          "vpn_ip": "172.30.0.117",
+          "private_key": "***",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "sim_id": null,
+          "sim_card_id": 1,
+          "source": "existing_record"
+        },
+        "created_at": "2026-03-07T17:39:33.330734+00:00"
+      },
+      {
+        "stage": "confirm_config",
+        "severity": "info",
+        "event_type": "config_confirmed",
+        "message": "Gateway-Konfiguration durch Mitarbeiter bestaetigt.",
+        "payload": {
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        },
+        "created_at": "2026-03-07T17:39:33.344520+00:00"
+      },
+      {
+        "stage": "update_context",
+        "severity": "info",
+        "event_type": "run_details_updated",
+        "message": "Laufdetails aus aktuellem Formularstand aktualisiert.",
+        "payload": {
+          "gateway_name": "0.117 461 - Taubertalhausen",
+          "serial_number": "6221F3784131",
+          "client_id": "461",
+          "lns": "chirpstack"
+        },
+        "created_at": "2026-03-07T17:39:33.356922+00:00"
+      },
+      {
+        "stage": "cloud_sync",
+        "severity": "info",
+        "event_type": "cloud_synced",
+        "message": "Cloud-Eintraege synchronisiert.",
+        "payload": {
+          "chirpstack_created": false,
+          "chirpstack_exists": true,
+          "milesight_created": false,
+          "milesight_exists": true,
+          "webservice_created": true,
+          "webservice_exists": true
+        },
+        "created_at": "2026-03-07T17:39:34.039326+00:00"
+      }
+    ],
+    "154ee7f5-507f-4d0e-a76d-15bb0c39f571": [
+      {
+        "stage": "create_run",
+        "severity": "info",
+        "event_type": "run_created",
+        "message": "Provisionierungslauf angelegt.",
+        "payload": {
+          "operator_name": "j.kilian@ball-b.de",
+          "gateway_name": "0.117 461 - Taubertalhausen"
+        },
+        "created_at": "2026-03-07T17:44:22.498953+00:00"
+      },
+      {
+        "stage": "precheck",
+        "severity": "info",
+        "event_type": "precheck_passed",
+        "message": "Preflight-Checks erfolgreich.",
+        "payload": {
+          "discovered_eui": "C0BA1FFFFE003D74",
+          "peek_next_ip": "172.30.0.139",
+          "lora_status": "ONLINE",
+          "lns_connected": true
+        },
+        "created_at": "2026-03-07T17:44:23.167978+00:00"
+      },
+      {
+        "stage": "reserve",
+        "severity": "info",
+        "event_type": "inventory_reserved",
+        "message": "Zielwerte fuer das Gateway vorbereitet.",
+        "payload": {
+          "vpn_ip": "172.30.0.117",
+          "private_key": "***",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "sim_id": null,
+          "sim_card_id": 1,
+          "source": "existing_record"
+        },
+        "created_at": "2026-03-07T17:44:23.375401+00:00"
+      },
+      {
+        "stage": "confirm_config",
+        "severity": "info",
+        "event_type": "config_confirmed",
+        "message": "Gateway-Konfiguration durch Mitarbeiter bestaetigt.",
+        "payload": {
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        },
+        "created_at": "2026-03-07T17:44:23.394252+00:00"
+      },
+      {
+        "stage": "update_context",
+        "severity": "info",
+        "event_type": "run_details_updated",
+        "message": "Laufdetails aus aktuellem Formularstand aktualisiert.",
+        "payload": {
+          "gateway_name": "0.117 461 - Taubertalhausen",
+          "serial_number": "6221F3784131",
+          "client_id": "461",
+          "lns": "chirpstack"
+        },
+        "created_at": "2026-03-07T17:44:23.406912+00:00"
+      },
+      {
+        "stage": "cloud_sync",
+        "severity": "info",
+        "event_type": "cloud_synced",
+        "message": "Cloud-Eintraege synchronisiert.",
+        "payload": {
+          "chirpstack_created": false,
+          "chirpstack_exists": true,
+          "milesight_created": false,
+          "milesight_exists": true,
+          "webservice_created": true,
+          "webservice_exists": true
+        },
+        "created_at": "2026-03-07T17:44:24.087242+00:00"
+      }
+    ],
+    "41a63ac4-ccd2-4921-8c42-d0216a6f6de2": [
+      {
+        "stage": "create_run",
+        "severity": "info",
+        "event_type": "run_created",
+        "message": "Provisionierungslauf angelegt.",
+        "payload": {
+          "operator_name": "j.kilian@ball-b.de",
+          "gateway_name": "0.117 461 - Taubertalhausen"
+        },
+        "created_at": "2026-03-07T17:46:23.102802+00:00"
+      },
+      {
+        "stage": "precheck",
+        "severity": "info",
+        "event_type": "precheck_passed",
+        "message": "Preflight-Checks erfolgreich.",
+        "payload": {
+          "discovered_eui": "C0BA1FFFFE003D74",
+          "peek_next_ip": "172.30.0.139",
+          "lora_status": "ONLINE",
+          "lns_connected": true
+        },
+        "created_at": "2026-03-07T17:46:23.689580+00:00"
+      },
+      {
+        "stage": "reserve",
+        "severity": "info",
+        "event_type": "inventory_reserved",
+        "message": "Zielwerte fuer das Gateway vorbereitet.",
+        "payload": {
+          "vpn_ip": "172.30.0.117",
+          "private_key": "***",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "sim_id": null,
+          "sim_card_id": 1,
+          "source": "existing_record"
+        },
+        "created_at": "2026-03-07T17:46:23.921499+00:00"
+      },
+      {
+        "stage": "confirm_config",
+        "severity": "info",
+        "event_type": "config_confirmed",
+        "message": "Gateway-Konfiguration durch Mitarbeiter bestaetigt.",
+        "payload": {
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        },
+        "created_at": "2026-03-07T17:46:23.944017+00:00"
+      },
+      {
+        "stage": "update_context",
+        "severity": "info",
+        "event_type": "run_details_updated",
+        "message": "Laufdetails aus aktuellem Formularstand aktualisiert.",
+        "payload": {
+          "gateway_name": "0.117 461 - Taubertalhausen",
+          "serial_number": "6221F3784131",
+          "client_id": "461",
+          "lns": "chirpstack"
+        },
+        "created_at": "2026-03-07T17:46:23.960627+00:00"
+      },
+      {
+        "stage": "cloud_sync",
+        "severity": "info",
+        "event_type": "cloud_synced",
+        "message": "Cloud-Eintraege synchronisiert.",
+        "payload": {
+          "chirpstack_created": false,
+          "chirpstack_exists": true,
+          "milesight_created": false,
+          "milesight_exists": true,
+          "webservice_created": true,
+          "webservice_exists": true
+        },
+        "created_at": "2026-03-07T17:46:24.646768+00:00"
+      }
+    ],
+    "1598f591-afce-4bf5-98e9-ff702e25ba23": [
+      {
+        "stage": "create_run",
+        "severity": "info",
+        "event_type": "run_created",
+        "message": "Provisionierungslauf angelegt.",
+        "payload": {
+          "operator_name": "j.kilian@ball-b.de",
+          "gateway_name": "0.117 461 - Taubertalhausen"
+        },
+        "created_at": "2026-03-07T18:01:08.552865+00:00"
+      },
+      {
+        "stage": "precheck",
+        "severity": "info",
+        "event_type": "precheck_passed",
+        "message": "Preflight-Checks erfolgreich.",
+        "payload": {
+          "discovered_eui": "C0BA1FFFFE003D74",
+          "peek_next_ip": "172.30.0.139",
+          "lora_status": "ONLINE",
+          "lns_connected": true
+        },
+        "created_at": "2026-03-07T18:01:09.115063+00:00"
+      },
+      {
+        "stage": "reserve",
+        "severity": "info",
+        "event_type": "inventory_reserved",
+        "message": "Zielwerte fuer das Gateway vorbereitet.",
+        "payload": {
+          "vpn_ip": "172.30.0.117",
+          "private_key": "***",
+          "apn": null,
+          "wifi_ssid": "bbdbmon_0.117",
+          "sim_id": null,
+          "sim_card_id": 1,
+          "source": "existing_record"
+        },
+        "created_at": "2026-03-07T18:01:09.332264+00:00"
+      },
+      {
+        "stage": "confirm_config",
+        "severity": "info",
+        "event_type": "config_confirmed",
+        "message": "Gateway-Konfiguration durch Mitarbeiter bestaetigt.",
+        "payload": {
+          "note": "Bestehender Gateway automatisch als technisch konfiguriert uebernommen."
+        },
+        "created_at": "2026-03-07T18:01:09.353968+00:00"
+      },
+      {
+        "stage": "update_context",
+        "severity": "info",
+        "event_type": "run_details_updated",
+        "message": "Laufdetails aus aktuellem Formularstand aktualisiert.",
+        "payload": {
+          "gateway_name": "0.117 461 - Taubertalhausen",
+          "serial_number": "6221F3784131",
+          "client_id": "461",
+          "lns": "chirpstack"
+        },
+        "created_at": "2026-03-07T18:01:09.368195+00:00"
+      },
+      {
+        "stage": "cloud_sync",
+        "severity": "info",
+        "event_type": "cloud_synced",
+        "message": "Cloud-Eintraege synchronisiert.",
+        "payload": {
+          "chirpstack_created": false,
+          "chirpstack_exists": true,
+          "milesight_created": false,
+          "milesight_exists": true,
+          "webservice_created": true,
+          "webservice_serial_number": "6221F3784131",
+          "webservice_exists": true
+        },
+        "created_at": "2026-03-07T18:01:10.232612+00:00"
       }
     ]
   }

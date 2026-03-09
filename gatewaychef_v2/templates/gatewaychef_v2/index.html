@@ -12,17 +12,21 @@
 <body>
     <main class="shell">
         <section class="hero">
-            <div>
+            <div class="hero-brand">
+                <img class="hero-logo" src="/static/icon/IconGatewayChef.png" alt="GatewayChef Logo">
+                <div>
                 <p class="eyebrow">Parallele sichere Variante</p>
                 <h1>GatewayChef v2</h1>
                 <p class="lede">Gefuehrter Provisionierungsflow mit Guardrails, Audit-Log, Readiness Report und expliziter Freigabe.</p>
+                </div>
             </div>
-            <div class="runtime-card">
-                <div class="runtime-label">Runtime</div>
-                <div id="runtimeSummary" class="runtime-summary">Lade Status...</div>
-                <div id="runtimeIssues" class="runtime-issues"></div>
-                <div id="connectionGrid" class="connection-grid"></div>
-            </div>
+        </section>
+
+        <section class="runtime-card runtime-bar">
+            <div class="runtime-label">Runtime</div>
+            <div id="runtimeSummary" class="runtime-summary">Lade Status...</div>
+            <div id="runtimeIssues" class="runtime-issues"></div>
+            <div id="connectionGrid" class="connection-grid"></div>
         </section>
 
         <section class="panel">
@@ -33,54 +37,39 @@
             <div class="discovery-layout">
                 <div>
                     <div id="gatewaySummary" class="summary-card">Aktuellen Gateway-Zustand lesen...</div>
-                    <div id="gatewayWarnings" class="warning-list"></div>
+                    <div id="gatewayWarnings" class="warning-list" style="display:none;"></div>
                 </div>
-                <div id="currentGrid" class="target-grid"></div>
             </div>
             <div class="panel-head panel-subhead">
-                <h2>Was passt schon, was fehlt?</h2>
+                <h2>Status & Naechste Schritte</h2>
                 <div id="discoveryGate" class="release release-block">PRUEFEN</div>
             </div>
-            <div id="discrepancyGrid" class="checks"></div>
+            <div id="statusWorkGrid" class="checks"></div>
         </section>
 
         <section class="panel">
             <div class="panel-head">
-                <h2>1. Daten vervollstaendigen</h2>
+                <h2>1. Webservice & Kontext</h2>
                 <div class="trace-box">Trace: <span id="traceId">-</span></div>
             </div>
-            <form id="runForm" class="form-grid">
-                <label>
-                    <span>Mitarbeiter</span>
-                    <input name="operator_name" required placeholder="Vorname Nachname">
+            <form id="runForm" class="form-grid" autocomplete="on">
+                <label class="span-2">
+                    <span>Webservice User</span>
+                    <input name="webservice_username" placeholder="Pflicht fuer Webservice und finale Freigabe" autocomplete="username">
+                </label>
+                <label class="span-2">
+                    <span>Webservice Passwort</span>
+                    <input name="webservice_password" type="password" placeholder="nur im Speicher der Seite" autocomplete="current-password">
                 </label>
                 <label>
                     <span>Gateway Name</span>
                     <input name="gateway_name" required placeholder="kunde-standort-01">
+                    <small id="suggestedGatewayName" class="field-help">Vorschlag: -</small>
+                    <button type="button" id="applySuggestedNameBtn" class="inline-link-btn">Vorschlag uebernehmen</button>
                 </label>
                 <label>
                     <span>Seriennummer</span>
                     <input name="serial_number" required placeholder="2A3B4C5D">
-                </label>
-                <label>
-                    <span>SIM Vendor</span>
-                    <select name="sim_vendor_id" id="simVendor" required></select>
-                </label>
-                <label>
-                    <span>SIM ICCID</span>
-                    <input name="sim_iccid" required placeholder="8949...">
-                </label>
-                <label>
-                    <span>Kunden-ID</span>
-                    <input name="client_id" placeholder="optional, aber fuer Webservice Sync noetig">
-                </label>
-                <label>
-                    <span>Kundenname</span>
-                    <input name="client_name" placeholder="optional">
-                </label>
-                <label>
-                    <span>LNS</span>
-                    <input name="lns" value="chirpstack">
                 </label>
                 <label>
                     <span>Hersteller</span>
@@ -90,24 +79,41 @@
                     <span>Typ</span>
                     <input name="gateway_type" value="UG67">
                 </label>
+                <label class="span-2">
+                    <span>SIM Vendor</span>
+                    <select name="sim_vendor_id" id="simVendor" required></select>
+                </label>
+                <label class="span-2">
+                    <span>SIM ICCID</span>
+                    <input name="sim_iccid" required placeholder="8949...">
+                </label>
                 <label>
+                    <span>Kunde suchen</span>
+                    <input id="clientSearchQuery" placeholder="mindestens 3 Zeichen aus dem Kundennamen">
+                    <small id="clientSearchStatus" class="field-help">Im Webservice suchen und Treffer auswaehlen.</small>
+                    <div id="clientSearchResults" class="search-results"></div>
+                    <input type="hidden" name="client_id">
+                </label>
+                <label>
+                    <span>Kundenname</span>
+                    <input id="clientNameDisplay" value="" placeholder="wird aus dem Webservice geladen" readonly>
+                    <input type="hidden" name="client_name">
+                    <small id="clientIdDisplay" class="field-help">Interne Kunden-ID: -</small>
+                </label>
+                <label>
+                    <span>LNS</span>
+                    <input name="lns" value="chirpstack">
+                </label>
+                <div class="field-group span-4">
                     <span>Modus</span>
-                    <select name="operation_mode" id="operationMode">
-                        <option value="reconcile">Bestehenden Eintrag pruefen/fortfuehren</option>
-                        <option value="new_config">Bewusst neu konfigurieren</option>
-                    </select>
-                </label>
-                <label>
-                    <span>Webservice User</span>
-                    <input name="webservice_username" placeholder="nur fuer Cloud Sync/Verify">
-                </label>
-                <label>
-                    <span>Webservice Passwort</span>
-                    <input name="webservice_password" type="password" placeholder="nur im Speicher der Seite">
-                </label>
+                    <input type="hidden" name="operation_mode" id="operationMode" value="reconcile">
+                    <input type="hidden" name="cleanup_confirmed" id="cleanupConfirmed" value="">
+                    <div id="modeSummary" class="summary-card" style="min-height:auto;">Standard: Bestehenden Gateway pruefen und nur Abweichungen korrigieren.</div>
+                    <button type="button" id="newConfigBtn" class="danger subtle-action">Neu konfigurieren</button>
+                </div>
             </form>
             <div class="actions">
-                <button id="createRunBtn" class="primary">Lauf anlegen</button>
+                <button type="button" id="createRunBtn" class="primary">Pruefung starten</button>
             </div>
         </section>
 
@@ -123,13 +129,13 @@
             <div id="actionContent">
                 <div class="timeline" id="timeline"></div>
                 <div class="actions">
-                    <button data-action="precheck">Precheck</button>
-                    <button data-action="reserve">Neue Zielwerte reservieren</button>
-                    <button data-action="secret-bundle">VPN-Key einmalig anzeigen</button>
-                    <button data-action="confirm-config">Aenderungen bestaetigen</button>
-                    <button data-action="cloud-sync">Cloud Sync</button>
-                    <button data-action="verify">Verifizieren</button>
-                    <button data-action="finalize" class="danger">Gateway freigeben</button>
+                    <button type="button" data-action="precheck">Precheck</button>
+                    <button type="button" data-action="reserve">Neue Zielwerte reservieren</button>
+                    <button type="button" data-action="confirm-config">Aenderungen bestaetigen</button>
+                    <button type="button" data-action="save-draft">Als Draft in Cloud DB speichern</button>
+                    <button type="button" data-action="cloud-sync">Cloud Sync</button>
+                    <button type="button" data-action="verify">Verifizieren</button>
+                    <button type="button" data-action="finalize" class="danger">Gateway freigeben</button>
                 </div>
                 <div id="actionNote" class="note">Pruefe zuerst den Ist-Zustand. Nur Abweichungen muessen korrigiert werden.</div>
             </div>
@@ -138,22 +144,26 @@
         <section class="panel two-col">
             <div>
                 <div class="panel-head">
-                    <h2>3. Erwartete Zielwerte</h2>
+                    <h2 id="targetTitle">3. Erwartete Zielwerte</h2>
                 </div>
                 <div id="targetGrid" class="target-grid"></div>
+                <div id="gatewayConnectSection">
                 <div class="panel-head panel-subhead">
                     <h2>Gateway verbinden</h2>
                 </div>
                 <div id="gatewayQrCard" class="summary-card"></div>
+                </div>
+                <div id="gatewayHelpSection">
                 <div class="panel-head panel-subhead">
                     <h2>Gateway UI Hilfen</h2>
                 </div>
                 <div id="gatewayQuickActions" class="checks"></div>
+                </div>
             </div>
             <div>
                 <div class="panel-head">
                     <h2>4. Readiness Report</h2>
-                    <div id="releaseGate" class="release release-block">BLOCK</div>
+                    <div id="releaseGate" class="release release-block">OFFEN</div>
                 </div>
                 <div id="readinessChecks" class="checks"></div>
             </div>

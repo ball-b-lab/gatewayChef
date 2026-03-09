@@ -45,7 +45,11 @@ async function webserviceRequest(path, payload) {
             const unwrapped = unwrap(res.data);
             if (!unwrapped.ok) {
                 const hint = describeWebserviceError(status, unwrapped.error);
+                const detail = formatDetailedError(unwrapped);
                 log(`!! Webservice Error (${path}): HTTP ${status || '?'} - ${hint}`, 'error');
+                if (detail && detail !== hint) {
+                    log(`!! Webservice Details (${path}): ${detail}`, 'error');
+                }
                 return { ok: false, error: hint, data: unwrapped.data, status };
             }
             log(`.. Webservice OK (${path}): HTTP ${status || '?'}`, 'success');
@@ -117,10 +121,395 @@ function setOperatorHintForError(errorText) {
             setRuntimeHint('VPN-Ping-Proxy nicht erreichbar: VPN_PING_PROVIDER_URL/VPN_PING_SERVICE_TOKEN prüfen.', 'warn');
             return;
         }
+        if (msg.includes('Gateway Health Proxy Fehler') || msg.includes('Gateway Health Fehler')) {
+            setRuntimeHint('VPN Health Check fehlgeschlagen: Cloud API, Gateway oder VPN-Tunnel pruefen.', 'warn');
+            return;
+        }
         if (msg.includes('Gateway nicht erreichbar')) {
             setRuntimeHint('Gateway offline oder WLAN falsch: mit Gateway-SSID verbinden und "Gateway lesen" erneut ausführen.', 'warn');
             return;
         }
+    }
+
+function formatDetailedError(result) {
+        if (!result || result.ok) return '';
+        const parts = [];
+        if (result.error) parts.push(result.error);
+        const details = result.data || {};
+        if (details.service) parts.push(`Service: ${details.service}`);
+        if (details.http_status) parts.push(`HTTP ${details.http_status}`);
+        if (details.response_body) parts.push(`Body: ${details.response_body}`);
+        return parts.filter(Boolean).join(' | ');
+    }
+
+function findWebserviceGatewayMatch(list, eui) {
+        const normalizedEui = normalizeIdentity(eui);
+        return normalizeList(list).find(gateway => {
+            const gatewayIdentity = normalizeIdentity(
+                gateway.gatewayEui || gateway.gateway_eui || gateway.gatewayId || gateway.gateway_id || ''
+            );
+            return gatewayIdentity === normalizedEui;
+        }) || null;
+    }
+
+function applyExternalExistenceStatus(serviceKey, options = {}) {
+        const {
+            exists = null,
+            error = null,
+            missing = [],
+            tooltip = '',
+            observed = null,
+            idleText = '-',
+            connectedOverride = null
+        } = options;
+        const now = new Date().toISOString();
+        const targetStatusId = {
+            chirpstack: 'chirpstackStatus',
+            milesight: 'milesightStatus',
+            webservice: 'webserviceStatus'
+        }[serviceKey];
+        const targetRowId = {
+            chirpstack: 'rowChirpstackService',
+            milesight: 'rowMilesightService',
+            webservice: 'rowWebserviceService'
+        }[serviceKey];
+        const targetButtonId = {
+            chirpstack: 'btnChirpstackCreate',
+            milesight: 'btnMilesightCreate'
+        }[serviceKey];
+
+        let statusText = idleText;
+        let connected = connectedOverride;
+        let rowState = 'na';
+        let detailText = '';
+
+        if (error) {
+            statusText = missing.length ? 'Fehlt' : 'Fehler';
+            connected = false;
+            rowState = 'bad';
+            detailText = error;
+        } else if (exists === true) {
+            statusText = 'Vorhanden';
+            connected = true;
+            rowState = 'ok';
+            detailText = 'Eintrag vorhanden';
+        } else if (exists === false) {
+            statusText = 'Fehlt';
+            connected = true;
+            rowState = 'bad';
+            detailText = 'Eintrag fehlt';
+        } else {
+            connected = connectedOverride === null ? false : connectedOverride;
+        }
+
+        if (targetStatusId) {
+            document.getElementById(targetStatusId).textContent = statusText;
+        }
+        if (targetButtonId) {
+            document.getElementById(targetButtonId).disabled = false;
+        }
+        if (targetRowId) {
+            setRowState(targetRowId, rowState);
+        }
+        setServiceStatus(serviceKey, {
+            connected,
+            statusText,
+            updatedAt: now,
+            error: error || '-',
+            connectionText: connected ? 'API erreichbar' : 'API nicht erreichbar',
+            detailText,
+            tooltip
+        });
+        state.observed[serviceKey] = observed;
+    }
+
+function applyExternalConfigStatus(serviceKey, result) {
+        if (!result || result.ok === false) {
+            applyExternalExistenceStatus(serviceKey, {
+                error: result?.error || 'Konfiguration konnte nicht geprueft werden',
+                observed: state.observed[serviceKey],
+                connectedOverride: false
+            });
+            return;
+        }
+        if (result.data && result.data.ready === false) {
+            applyExternalExistenceStatus(serviceKey, {
+                error: result.data.missing?.length ? result.data.missing.join(', ') : 'Konfiguration unvollstaendig',
+                missing: result.data.missing || [],
+                observed: state.observed[serviceKey],
+                connectedOverride: false
+            });
+        }
+    }
+
+async function syncWebserviceByEui(options = {}) {
+        const {
+            eui = document.getElementById('gwEui')?.value || '',
+            populateCustomer = false,
+            logMissingAsSuccess = false
+        } = options;
+        const normalizedEui = normalizeHexId(eui);
+        const statusEl = document.getElementById('webserviceStatus');
+
+        if (!isValidEui(normalizedEui)) {
+            applyExternalExistenceStatus('webservice', {
+                error: 'Ungueltige EUI',
+                observed: null,
+                connectedOverride: false
+            });
+            updateSectionStatuses();
+            return { ok: false, invalid: true, error: 'Ungueltige EUI' };
+        }
+
+        if (statusEl) statusEl.textContent = 'checking...';
+        const res = await webserviceRequest('/api/webservice/search-by-eui', { eui: normalizedEui });
+        if (!res.ok) {
+            setOperatorHintForError(res.error);
+            applyExternalExistenceStatus('webservice', {
+                error: res.error,
+                observed: null,
+                connectedOverride: false
+            });
+            updateSectionStatuses();
+            return { ok: false, error: res.error, data: res.data };
+        }
+
+        const list = normalizeList(res.data);
+        const match = findWebserviceGatewayMatch(list, normalizedEui);
+        const exists = !!match;
+        const observed = exists
+            ? {
+                exists: true,
+                gateway: match,
+                clientId: match.clientId || match.client_id || '',
+                clientName: match.clientName || match.customerName || match.customer_name || match.name || ''
+            }
+            : { exists: false };
+
+        applyExternalExistenceStatus('webservice', {
+            exists,
+            observed,
+            connectedOverride: true
+        });
+
+        if (exists && populateCustomer) {
+            const clientId = observed.clientId;
+            const clientName = observed.clientName;
+            if (clientId) {
+                document.getElementById('clientId').value = clientId;
+                vars.selectedClientId = clientId;
+            }
+            if (clientName) {
+                vars.selectedClientName = clientName;
+                const clientSearch = document.getElementById('clientSearch');
+                if (clientSearch) clientSearch.value = clientName;
+            }
+            if (clientId) {
+                loadClientGateways(clientId);
+            }
+            updateSuggestedNameLabel();
+            syncDesiredState();
+        }
+
+        updateSectionStatuses();
+        scheduleFinalCheck();
+
+        if (exists) {
+            log(`.. Webservice: Gateway existiert bereits.${observed.clientId ? ` Kunde ${observed.clientId}` : ''}`, 'warn');
+        } else if (logMissingAsSuccess) {
+            log('.. Webservice: Gateway nicht gefunden (bereit zum Anlegen).', 'success');
+        }
+        return { ok: true, exists, match, list, observed };
+    }
+
+function sleep(ms) {
+        return new Promise(resolve => window.setTimeout(resolve, ms));
+    }
+
+async function verifyWebserviceCreation(retries = 3, delayMs = 700) {
+        let lastResult = null;
+        for (let attempt = 0; attempt < retries; attempt += 1) {
+            lastResult = await syncWebserviceByEui({ logMissingAsSuccess: false });
+            if (lastResult.ok && state.observed.webservice && state.observed.webservice.exists) {
+                return { ok: true, confirmed: true };
+            }
+            if (attempt < retries - 1) {
+                await sleep(delayMs);
+            }
+        }
+        return { ok: !!(lastResult && lastResult.ok), confirmed: false, lastResult };
+    }
+
+function collectReadinessChecks() {
+        const name = document.getElementById('gwName').value;
+        const sn = document.getElementById('gwSn').value;
+        const eui = document.getElementById('gwEui').value;
+        const vpnIp = document.getElementById('vpnIp').value;
+        const vpnKey = document.getElementById('vpnKey').value;
+        const targetWifiSsid = getText('targetWifiSsid');
+        const currentWifiSsid = document.getElementById('gwWifiSsid').value;
+        const simIccid = document.getElementById('simIccid').value;
+        const simVendor = document.getElementById('simVendor').value;
+        const gwVpnReported = document.getElementById('gwVpnReported').value;
+        const loraGatewayId = document.getElementById('loraGatewayId').value;
+        const targetGatewayId = getText('targetGatewayId');
+        const targetVpnIp = getText('targetVpnIp');
+        const loraActiveServer = document.getElementById('loraActiveServer').value;
+        const loraStatus = document.getElementById('loraStatus').value;
+        const normalizedLoraGatewayId = normalizeIdentity(loraGatewayId);
+        const normalizedTargetGatewayId = normalizeIdentity(targetGatewayId);
+        const normalizedGwVpnReported = normalizeVpnIp(gwVpnReported);
+        const normalizedTargetVpnIp = normalizeVpnIp(targetVpnIp);
+        const chirp = state.observed.chirpstack;
+        const mile = state.observed.milesight;
+        const web = state.observed.webservice;
+        const dbRecord = state.observed.db;
+        const knownGatewayAck = !isKnownGatewayPendingAcknowledgement();
+
+        return [
+            { label: `Gateway erfolgreich gelesen`, ok: state.readPhaseComplete },
+            { label: `Gateway-Name gesetzt`, ok: !!name },
+            { label: `Seriennummer gesetzt`, ok: !!sn },
+            { label: `Gateway-EUI erkannt`, ok: !!eui },
+            { label: `VPN-IP gesetzt`, ok: !!vpnIp },
+            { label: `VPN-Key vorhanden`, ok: !!vpnKey },
+            { label: `WiFi-SSID stimmt (${currentWifiSsid || '-'} -> ${targetWifiSsid || '-'})`, ok: !!currentWifiSsid && currentWifiSsid === targetWifiSsid },
+            { label: `SIM-Vendor gesetzt`, ok: !!simVendor },
+            { label: `SIM-ICCID gesetzt`, ok: !!simIccid },
+            { label: `Gateway meldet die richtige VPN-IP (${gwVpnReported || '-'} -> ${targetVpnIp || '-'})`, ok: !!normalizedGwVpnReported && normalizedGwVpnReported === normalizedTargetVpnIp },
+            { label: `LoRa Gateway-ID stimmt (${loraGatewayId || '-'} -> ${targetGatewayId || '-'})`, ok: !!normalizedLoraGatewayId && normalizedLoraGatewayId === normalizedTargetGatewayId },
+            { label: `LoRa Active Server gesetzt`, ok: !!loraActiveServer },
+            { label: `LoRa Status ist online`, ok: String(loraStatus) === '1' },
+            { label: `ChirpStack Eintrag vorhanden`, ok: !!(chirp && chirp.exists === true) },
+            { label: `Milesight Eintrag vorhanden`, ok: !!(mile && mile.exists === true) },
+            { label: `Webservice Eintrag vorhanden`, ok: !!(web && web.exists === true) },
+            { label: `Bekannter Gateway wurde bewusst bestaetigt`, ok: knownGatewayAck },
+            { label: `Cloud DB Stand ist gespeichert`, ok: vars.lastProvisionSavedOk || !!dbRecord }
+        ];
+    }
+
+function hydrateDbRecord(record) {
+        state.observed.db = record || null;
+        const vendorSelect = document.getElementById('simVendor');
+        const simInventoryId = document.getElementById('simInventoryId');
+        if (record) {
+            if (vendorSelect) vendorSelect.value = record.sim_vendor_id ? String(record.sim_vendor_id) : '';
+            document.getElementById('simIccid').value = record.sim_iccid || '';
+            document.getElementById('simCardId').value = record.sim_card_id || '';
+            if (simInventoryId) simInventoryId.value = record.sim_id || '';
+            document.getElementById('gwName').value = record.gateway_name || '';
+            document.getElementById('gwSn').value = record.serial_number || '';
+            updateSerialStatus(document.getElementById('gwSn').value);
+        } else {
+            if (vendorSelect) vendorSelect.value = '';
+            document.getElementById('simIccid').value = '';
+            document.getElementById('simCardId').value = '';
+            if (simInventoryId) simInventoryId.value = '';
+            document.getElementById('gwName').value = '';
+            document.getElementById('gwSn').value = '';
+            updateSerialStatus('');
+        }
+        updateServiceNames();
+        updateConfigTargets();
+        syncDesiredState();
+        updateKnownGatewayNotice();
+        updateFinalizeActions();
+    }
+
+function updateFinalizeActions() {
+        const saveBtn = document.getElementById('btnPush');
+        const confirmBtn = document.getElementById('btnConfirmProvision');
+        const hintEl = document.getElementById('finalActionHint');
+        const ip = normalizeVpnIp(vars.manualVpnTarget || document.getElementById('vpnIp')?.value || '');
+        const knownGatewayNeedsAck = isKnownGatewayPendingAcknowledgement();
+        const readyToSave = !!(
+            state.readPhaseComplete &&
+            vars.finalCheckOk &&
+            !knownGatewayNeedsAck &&
+            ip &&
+            document.getElementById('gwName')?.value &&
+            document.getElementById('gwSn')?.value
+        );
+        const readyToConfirm = !!(vars.finalCheckOk && vars.lastProvisionSavedOk && ip && !vars.lastProvisionConfirmed && !knownGatewayNeedsAck);
+
+        if (saveBtn) saveBtn.disabled = !readyToSave;
+        if (confirmBtn) confirmBtn.disabled = !readyToConfirm;
+        if (hintEl) {
+            if (!vars.finalCheckOk) {
+                hintEl.textContent = 'Erst Schritt 4 Pruefung & Integrationen abschliessen.';
+            } else if (knownGatewayNeedsAck) {
+                hintEl.textContent = 'Bekannten Gateway zuerst bestaetigen.';
+            } else if (vars.lastProvisionConfirmed) {
+                hintEl.textContent = 'Gateway ist final freigegeben.';
+            } else if (!vars.lastProvisionSavedOk) {
+                hintEl.textContent = 'Pruefung & Integrationen sind gruen. Jetzt in Cloud DB speichern.';
+            } else {
+                hintEl.textContent = 'Cloud DB ist aktualisiert. Jetzt final freigeben.';
+            }
+        }
+    }
+
+function buildKnownGatewaySignature(record, gatewayEui) {
+        if (!record) return '';
+        return [
+            record.eui || '',
+            gatewayEui || '',
+            record.vpn_ip || '',
+            record.gateway_name || '',
+            record.status_overall || ''
+        ].join('|');
+    }
+
+function isKnownGatewayPendingAcknowledgement() {
+        const notice = document.getElementById('knownGatewayNotice');
+        return !!notice && !notice.classList.contains('d-none') && !vars.knownGatewayAcknowledged;
+    }
+
+function updateKnownGatewayNotice() {
+        const notice = document.getElementById('knownGatewayNotice');
+        const textEl = document.getElementById('knownGatewayNoticeText');
+        const metaEl = document.getElementById('knownGatewayNoticeMeta');
+        const stateEl = document.getElementById('knownGatewayNoticeState');
+        if (!notice || !textEl || !metaEl || !stateEl) return;
+
+        const record = state.observed.db;
+        const gatewayEui = normalizeIdentity(document.getElementById('gwEui')?.value || '');
+        const recordEui = normalizeIdentity(record?.eui || '');
+        if (!record || !gatewayEui || !recordEui || recordEui !== gatewayEui) {
+            notice.classList.add('d-none');
+            textEl.textContent = '-';
+            metaEl.textContent = '-';
+            stateEl.textContent = 'Bestaetigung offen';
+            vars.knownGatewayAcknowledged = false;
+            vars.lastKnownGatewaySignature = '';
+            updateFinalizeActions();
+            return;
+        }
+
+        const signature = buildKnownGatewaySignature(record, gatewayEui);
+        if (signature !== vars.lastKnownGatewaySignature) {
+            vars.knownGatewayAcknowledged = false;
+            vars.lastKnownGatewaySignature = signature;
+        }
+
+        notice.classList.remove('d-none');
+        textEl.textContent = `DB-Eintrag gefunden: ${record.gateway_name || '-'} | VPN ${record.vpn_ip || '-'} | Serial ${record.serial_number || '-'}`;
+        metaEl.textContent = `Status: ${record.status_overall || '-'} | EUI: ${record.eui || '-'}`;
+        stateEl.textContent = vars.knownGatewayAcknowledged ? 'Bestaetigt' : 'Bestaetigung offen';
+        stateEl.classList.remove('bg-warning', 'text-dark', 'bg-success');
+        if (vars.knownGatewayAcknowledged) {
+            stateEl.classList.add('bg-success');
+        } else {
+            stateEl.classList.add('bg-warning', 'text-dark');
+        }
+        updateFinalizeActions();
+    }
+
+export function acknowledgeKnownGateway() {
+        if (!state.observed.db) return;
+        vars.knownGatewayAcknowledged = true;
+        updateKnownGatewayNotice();
+        log('.. Bekannter Gateway bestaetigt.', 'success');
     }
 
 function renderClientSearchResults(items) {
@@ -314,7 +703,7 @@ const GatewayAdapter = {
         }
     };
 
-    const DatabaseAdapter = {
+const DatabaseAdapter = {
         async fetch(vpnIp, eui, serialNumber) {
             if (!vpnIp && !eui && !serialNumber) return { ok: false, error: 'VPN IP, EUI oder Serial fehlt.' };
             try {
@@ -329,8 +718,112 @@ const GatewayAdapter = {
             } catch (e) {
                 return { ok: false, error: String(e) };
             }
+        },
+        async fetchTable(query, limit) {
+            const params = new URLSearchParams();
+            if (query) params.set('q', query);
+            if (limit) params.set('limit', String(limit));
+            try {
+                const res = await safeJson(`/api/db/table-view?${params.toString()}`);
+                const unwrapped = unwrap(res.data);
+                if (!unwrapped.ok) return { ok: false, error: unwrapped.error };
+                return { ok: true, data: unwrapped.data };
+            } catch (e) {
+                return { ok: false, error: String(e) };
+            }
         }
     };
+
+function formatCloudTableDate(value) {
+        if (!value) return '-';
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return value;
+        return parsed.toLocaleString();
+    }
+
+function escapeHtml(value) {
+        return String(value ?? '-')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+function renderCloudTableRows(rows) {
+        const tbody = document.getElementById('cloudTableBody');
+        if (!tbody) return;
+
+        if (!rows || !rows.length) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-muted">Keine Eintraege gefunden.</td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = rows.map(row => `
+            <tr>
+                <td>${escapeHtml(row.vpn_ip)}</td>
+                <td>${escapeHtml(row.gateway_name)}</td>
+                <td>${escapeHtml(row.serial_number)}</td>
+                <td>${escapeHtml(row.eui)}</td>
+                <td>${escapeHtml(row.wifi_ssid)}</td>
+                <td>${escapeHtml(row.status_overall)}</td>
+                <td>${escapeHtml(row.sim_iccid || row.sim_id)}</td>
+                <td>${escapeHtml(row.sim_vendor_name)}</td>
+                <td>${escapeHtml(formatCloudTableDate(row.last_gateway_sync_at || row.assigned_at))}</td>
+            </tr>
+        `).join('');
+    }
+
+export async function loadCloudTableViewer() {
+        const searchInput = document.getElementById('cloudTableSearch');
+        const limitInput = document.getElementById('cloudTableLimit');
+        const statusEl = document.getElementById('cloudTableStatus');
+        const query = searchInput?.value?.trim() || '';
+        const limit = limitInput?.value || '50';
+
+        if (statusEl) {
+            statusEl.textContent = 'Lade Cloud Tabelle...';
+        }
+
+        const result = await DatabaseAdapter.fetchTable(query, limit);
+        if (!result.ok) {
+            renderCloudTableRows([]);
+            if (statusEl) {
+                statusEl.textContent = `Fehler: ${result.error}`;
+            }
+            log(`!! Cloud Tabellenansicht fehlgeschlagen: ${result.error}`, 'error');
+            setOperatorHintForError(result.error);
+            return;
+        }
+
+        renderCloudTableRows(result.data.rows || []);
+        if (statusEl) {
+            statusEl.textContent = `${result.data.count || 0} Eintraege geladen.`;
+            if (result.data.query) {
+                statusEl.textContent += ` Filter: "${result.data.query}"`;
+            }
+        }
+        log(`.. Cloud Tabelle geladen (${result.data.count || 0} Eintraege).`, 'success');
+    }
+
+export async function openCloudTableViewer() {
+        const modalEl = document.getElementById('cloudTableModal');
+        if (!modalEl || !window.bootstrap?.Modal) return;
+
+        const searchInput = document.getElementById('cloudTableSearch');
+        if (searchInput && !searchInput.value.trim()) {
+            searchInput.value = document.getElementById('vpnIp')?.value?.trim()
+                || document.getElementById('gwName')?.value?.trim()
+                || '';
+        }
+
+        window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        await loadCloudTableViewer();
+    }
 export async function runReadPipeline(options = {}) {
         const includeSecondary = options.includeSecondary !== false;
         log('.. Starte Gateway Read...', 'info');
@@ -413,7 +906,14 @@ export function applyGatewayState(deviceInfo, loraInfo) {
         document.getElementById('gwMac').value = rawMac;
         const statusMacEl = document.getElementById('statusMacAddress');
         if (statusMacEl) statusMacEl.textContent = rawMac || '-';
-        updateSerialStatus(deviceInfo.serial_number || deviceInfo.sn || document.getElementById('gwSn').value || '');
+        setRowState('rowMacAddress', rawMac ? 'ok' : 'na');
+        const gatewaySerial = deviceInfo.serial_number || deviceInfo.sn || document.getElementById('gwSn').value || '';
+        if (gatewaySerial) {
+            document.getElementById('gwSn').value = gatewaySerial;
+        }
+        updateSerialStatus(gatewaySerial);
+        const macDetailsEl = document.getElementById('statusMacDetails');
+        if (macDetailsEl) macDetailsEl.textContent = rawMac ? 'Vom Gateway gelesen' : 'Quelle device-info';
         document.getElementById('gwEui').value = rawEui;
         if (rawEui) {
             const targetGatewayEui = document.getElementById('targetGatewayEui');
@@ -432,6 +932,8 @@ export function applyGatewayState(deviceInfo, loraInfo) {
         setText('statusGatewayId', gatewayIdDisplay);
         setText('statusVpnReported', deviceInfo.vpn_ip);
         setText('statusWifiSsid', deviceInfo.wifi_ssid);
+        const euiDetailsEl = document.getElementById('statusGatewayEuiDetails');
+        if (euiDetailsEl) euiDetailsEl.textContent = rawEui ? 'Vom Gateway gelesen' : 'Quelle device-info-lora';
         if (statusGatewayEuiEl) setTooltip(statusGatewayEuiEl, 'Quelle: device-info-lora');
         if (statusGatewayIdEl) setTooltip(statusGatewayIdEl, 'Quelle: device-info-lora');
         if (statusVpnEl) setTooltip(statusVpnEl, 'Quelle: device-info');
@@ -446,8 +948,8 @@ export function applyGatewayState(deviceInfo, loraInfo) {
                 } else if (deviceInfo.vpn_ip) {
                     document.getElementById('vpnIp').value = deviceInfo.vpn_ip;
                 }
-                log('.. Golden Device erkannt (Gateway ID cafe). Hole neue IP...', 'info');
-                fetchIp();
+                log('.. Golden Device erkannt (Gateway ID cafe). Pruefe zuerst bestehenden DB-Eintrag per EUI...', 'info');
+                resolveKnownGatewayOrReserveIp(rawEui);
             }
         } else {
             document.getElementById('gatewayGoldenBadge').style.display = 'none';
@@ -548,18 +1050,7 @@ export async function fetchSecondarySources() {
         if (!dbResult.ok) {
             setOperatorHintForError(dbResult.error);
         }
-        state.observed.db = dbResult.ok ? dbResult.data : null;
-        if (dbResult.ok && dbResult.data) {
-            const vendorSelect = document.getElementById('simVendor');
-            if (dbResult.data.sim_vendor_id) {
-                vendorSelect.value = String(dbResult.data.sim_vendor_id);
-            }
-            if (dbResult.data.sim_iccid) {
-                document.getElementById('simIccid').value = dbResult.data.sim_iccid;
-            }
-            updateConfigTargets();
-            syncDesiredState();
-        }
+        hydrateDbRecord(dbResult.ok ? dbResult.data : null);
         buildMismatchList();
     }
 export function buildMismatchList() {
@@ -601,10 +1092,14 @@ export function syncDesiredState() {
         };
         renderDesiredDiff();
         updateSectionStatuses();
+        updateFinalizeActions();
         scheduleFinalCheck(1200);
     }
 export function renderDesiredDiff() {
         const list = document.getElementById('desiredDiffList');
+        const panel = document.getElementById('desiredDiffPanel');
+        const headline = document.getElementById('desiredDiffHeadline');
+        if (!list || !panel || !headline) return;
         list.innerHTML = '';
         const gateway = state.observed.gateway || {};
         const desired = state.desired;
@@ -626,6 +1121,8 @@ export function renderDesiredDiff() {
         state.diff = diffs;
 
         if (!state.readPhaseComplete) {
+            if (headline) headline.textContent = 'Geplante Aenderungen (Gateway -> Gewuenscht)';
+            if (panel) panel.classList.remove('d-none');
             const li = document.createElement('li');
             li.textContent = 'Gateway Status noch nicht gelesen.';
             list.appendChild(li);
@@ -633,12 +1130,16 @@ export function renderDesiredDiff() {
         }
 
         if (!diffs.length) {
+            if (headline) headline.textContent = 'Keine offenen Sollabweichungen';
+            if (panel) panel.classList.remove('d-none');
             const li = document.createElement('li');
-            li.textContent = 'Keine Aenderungen.';
+            li.textContent = 'Gateway entspricht bereits den Zielwerten.';
             list.appendChild(li);
             return;
         }
 
+        if (headline) headline.textContent = 'Noch offene Sollabweichungen';
+        if (panel) panel.classList.remove('d-none');
         diffs.forEach(entry => {
             const li = document.createElement('li');
             li.textContent = `${entry.label}: ${entry.current} -> ${entry.desired}`;
@@ -647,6 +1148,7 @@ export function renderDesiredDiff() {
     }
 export function renderFinalSummary() {
         const reasons = document.getElementById('finalCheckReasons');
+        if (!reasons) return;
         reasons.innerHTML = '';
         if (!vars.lastFinalChecks.length) {
             const li = document.createElement('li');
@@ -663,11 +1165,13 @@ export function renderFinalSummary() {
 
     }
 export function updateServiceNames() {
-        const customerName = document.getElementById('gwName').value || '-';
         const eui = document.getElementById('gwEui').value || '-';
-        document.getElementById('serviceNameChirpstack').textContent = eui;
-        document.getElementById('serviceNameMilesight').textContent = eui;
-        document.getElementById('serviceNameWebservice').textContent = customerName;
+        const chirpDetails = document.getElementById('serviceDetailsChirpstack');
+        const mileDetails = document.getElementById('serviceDetailsMilesight');
+        const webDetails = document.getElementById('serviceDetailsWebservice');
+        if (chirpDetails && chirpDetails.textContent === '-') chirpDetails.textContent = `Gateway ${eui}`;
+        if (mileDetails && mileDetails.textContent === '-') mileDetails.textContent = `Gateway ${eui}`;
+        if (webDetails && webDetails.textContent === '-') webDetails.textContent = `Gateway ${eui}`;
     }
 export function deriveWifiSsid(ip) {
         if (!ip) return '';
@@ -688,6 +1192,9 @@ export function normalizeVpnIp(ip) {
 function updateSerialStatus(value) {
         const statusSnEl = document.getElementById('statusSerialNumber');
         if (statusSnEl) statusSnEl.textContent = value || '-';
+        const serialDetailsEl = document.getElementById('statusSerialDetails');
+        if (serialDetailsEl) serialDetailsEl.textContent = value ? 'Vorhanden' : 'Seriennummer am Gateway';
+        setRowState('rowSerialNumber', value && value !== '-' ? 'ok' : 'na');
         const serialInput = document.getElementById('serialNumberInput');
         if (serialInput && document.activeElement !== serialInput) {
             serialInput.value = value || '';
@@ -783,36 +1290,29 @@ export async function loadDbForGateway(vpnIp, eui, serialNumber) {
         if (!dbResult.ok) {
             setOperatorHintForError(dbResult.error);
         }
-        state.observed.db = dbResult.ok ? dbResult.data : null;
-        if (dbResult.ok && dbResult.data) {
-            const vendorSelect = document.getElementById('simVendor');
-            if (dbResult.data.sim_vendor_id) {
-                vendorSelect.value = String(dbResult.data.sim_vendor_id);
-            } else {
-                vendorSelect.value = '';
+        hydrateDbRecord(dbResult.ok ? dbResult.data : null);
+        return dbResult.ok ? dbResult.data : null;
+    }
+
+async function resolveKnownGatewayOrReserveIp(eui) {
+        const normalizedEui = normalizeIdentity(eui || document.getElementById('gwEui')?.value || '');
+        if (normalizedEui) {
+            const dbRecord = await loadDbForGateway('', normalizedEui, '');
+            if (dbRecord && normalizeIdentity(dbRecord.eui) === normalizedEui && dbRecord.vpn_ip) {
+                vars.manualVpnTarget = dbRecord.vpn_ip;
+                document.getElementById('vpnIp').value = dbRecord.vpn_ip;
+                await fetchVpnKeyForGateway(dbRecord.vpn_ip);
+                updateConfigTargets();
+                syncDesiredState();
+                updateGatewayStatus();
+                checkVpnReachability();
+                log(`.. Bekannter Gateway in DB gefunden. Nutze bestehende VPN IP ${dbRecord.vpn_ip}.`, 'success');
+                return true;
             }
-            document.getElementById('simIccid').value = dbResult.data.sim_iccid || '';
-            document.getElementById('simCardId').value = dbResult.data.sim_card_id || '';
-            
-            const simInvEl = document.getElementById('simInventoryId');
-            if (simInvEl) simInvEl.value = dbResult.data.sim_id || '';
-            
-            document.getElementById('gwName').value = dbResult.data.gateway_name || '';
-            document.getElementById('gwSn').value = dbResult.data.serial_number || '';
-            updateSerialStatus(document.getElementById('gwSn').value);
-        } else {
-            document.getElementById('simVendor').value = '';
-            document.getElementById('simIccid').value = '';
-            document.getElementById('simCardId').value = '';
-            const simInvEl = document.getElementById('simInventoryId');
-            if (simInvEl) simInvEl.value = '';
-            document.getElementById('gwName').value = '';
-            document.getElementById('gwSn').value = '';
-            updateSerialStatus('');
         }
-        updateServiceNames();
-        updateConfigTargets();
-        syncDesiredState();
+        await fetchIp();
+        checkVpnReachability();
+        return false;
     }
 export function resetGatewayScopedFields() {
         document.getElementById('gwName').value = '';
@@ -824,17 +1324,20 @@ export function resetGatewayScopedFields() {
         vars.manualVpnTarget = '';
         vars.manualNameEdited = false;
         vars.allowMilesightSerialFill = true;
+        vars.knownGatewayAcknowledged = false;
+        vars.lastKnownGatewaySignature = '';
         state.observed.db = null;
         state.observed.chirpstack = null;
         state.observed.milesight = null;
-        setBadge('badgeChirpstack', 'ChirpStack: -', 'idle');
-        setBadge('badgeMilesight', 'Milesight: -', 'idle');
-        setServiceStatus('chirpstack', { connected: false, statusText: 'ChirpStack Status: -', updatedAt: null, error: '-' });
-        setServiceStatus('milesight', { connected: false, statusText: 'Milesight Status: -', updatedAt: null, error: '-' });
+        setServiceStatus('chirpstack', { connected: false, statusText: '-', updatedAt: null, error: '-' });
+        setServiceStatus('milesight', { connected: false, statusText: '-', updatedAt: null, error: '-' });
+        updateKnownGatewayNotice();
     }
 export function updateGatewayStatus() {
         const gateway = state.observed.gateway || {};
         const lora = state.observed.lora || {};
+        const serialValue = document.getElementById('gwSn').value || document.getElementById('statusSerialNumber')?.textContent || '';
+        const macValue = document.getElementById('gwMac').value || document.getElementById('statusMacAddress')?.textContent || '';
         const currentEui = normalizeIdentity(
             lora.gatewayEui ||
             gateway.eui ||
@@ -909,6 +1412,9 @@ export function updateGatewayStatus() {
         } else {
             setRowState('rowCellularStatus', 'na');
         }
+        setRowState('rowGatewayEuiStatus', currentEui ? 'ok' : 'na');
+        setRowState('rowMacAddress', macValue && macValue !== '-' ? 'ok' : 'na');
+        setRowState('rowSerialNumber', serialValue && serialValue !== '-' ? 'ok' : 'na');
 
         applyDbMismatch('statusGatewayEuiState', currentEui, db.eui);
         applyDbMismatch('statusGatewayIdState', currentId, db.eui);
@@ -931,33 +1437,47 @@ export function deriveEuiFromMac(mac) {
         if (clean === '000000000000') return '';
         return clean.slice(0, 6) + 'FFFE' + clean.slice(6);
     }
+function getSelectedVpnTarget() {
+        const candidates = [
+            vars.manualVpnTarget,
+            document.getElementById('vpnIp')?.value || '',
+            getText('targetVpnIp')
+        ];
+        for (const candidate of candidates) {
+            const normalized = normalizeVpnIp(candidate || '');
+            if (normalized && normalized !== '-') return normalized;
+        }
+        return '';
+    }
 export async function checkVpnReachability() {
-        const vpnIpRaw = document.getElementById('targetVpnIp').textContent;
-        const vpnIp = normalizeVpnIp(vpnIpRaw);
+        const vpnIp = getSelectedVpnTarget();
         const statusEl = document.getElementById('statusVpnReach');
+        const detailsEl = document.getElementById('statusVpnReachDetails');
         if (!vpnIp || vpnIp === '-') {
-            statusEl.textContent = '-';
-            setRowState('rowVpnReach', 'na');
-            setRuntimeHint('VPN-Pruefung ausstehend: zuerst Gateway lesen oder Ziel-VPN-IP setzen.', 'muted');
+            statusEl.textContent = 'Fehler';
+            if (detailsEl) detailsEl.textContent = 'Keine Ziel-VPN verfuegbar';
+            setRowState('rowVpnReach', 'bad');
+            setRuntimeHint('VPN-Pruefung fehlgeschlagen: keine Ziel-VPN verfuegbar.', 'warn');
             return;
         }
         const reportedVpn = normalizeVpnIp(document.getElementById('gwVpnReported').value || '');
         const reportedMatch = reportedVpn && reportedVpn === vpnIp;
         if (!reportedVpn && !reportedMatch) {
-            statusEl.textContent = 'disconnected';
+            statusEl.textContent = 'Fehlt';
+            if (detailsEl) detailsEl.textContent = 'Gateway meldet keine VPN-IP';
             statusEl.title = 'Gateway reports no VPN IP';
             setRowState('rowVpnReach', 'bad');
             setRuntimeHint('Gateway meldet keine VPN-IP: WireGuard am Gateway pruefen (VPN IP + Private Key + Save/Apply).', 'warn');
         } else {
-            statusEl.textContent = reportedMatch ? 'connected' : 'checking...';
+            statusEl.textContent = 'Pruefung...';
+            if (detailsEl) detailsEl.textContent = reportedMatch ? 'Gateway meldet passende VPN-IP, Health-Pruefung laeuft' : 'Automatische Health-Pruefung laeuft';
+            setRowState('rowVpnReach', 'na');
         }
         if (reportedMatch) {
             statusEl.title = 'Gateway reports matching VPN IP';
-            setRowState('rowVpnReach', 'ok');
-            setRuntimeHint('', 'muted');
         }
         try {
-            const res = await fetch('/api/network/vpn-check', {
+            const res = await fetch('/api/network/gateway-health', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ vpn_ip: vpnIp })
@@ -966,34 +1486,31 @@ export async function checkVpnReachability() {
             const result = unwrap(data);
             if (!result.ok) {
                 setOperatorHintForError(result.error);
-                if (!reportedMatch) {
-                    statusEl.textContent = 'unknown';
-                    statusEl.title = result.error;
-                    setRowState('rowVpnReach', 'na');
-                }
+                statusEl.textContent = 'Fehler';
+                statusEl.title = result.error;
+                if (detailsEl) detailsEl.textContent = result.error || 'VPN Health Check fehlgeschlagen';
+                setRowState('rowVpnReach', 'bad');
                 return;
             }
             const reachable = result.data && result.data.ok;
-            if (!reportedMatch) {
-                statusEl.textContent = reachable ? 'connected' : 'disconnected';
-                statusEl.title = (result.data && result.data.output) || '';
-                setRowState('rowVpnReach', reachable ? 'ok' : 'bad');
-                if (!reachable) {
-                    setRuntimeHint('VPN nicht erreichbar: Cloud-Ping-Service/Firewall/VPN-Tunnel pruefen.', 'warn');
-                } else {
-                    setRuntimeHint('', 'muted');
-                }
-            } else if (reachable) {
-                statusEl.title = (result.data && result.data.output) || statusEl.title;
+            const via = result.data && result.data.via ? ` | via ${result.data.via}` : '';
+            statusEl.textContent = reachable ? 'OK' : 'Fehler';
+            statusEl.title = (result.data && result.data.url ? `${result.data.url}${via}` : via).trim();
+            if (detailsEl) detailsEl.textContent = reachable
+                ? `Automatisch geprueft${via}`
+                : `Health Check fehlgeschlagen${via}`;
+            setRowState('rowVpnReach', reachable ? 'ok' : 'bad');
+            if (!reachable) {
+                setRuntimeHint('VPN Health Check fehlgeschlagen: Cloud API, Firewall oder VPN-Tunnel pruefen.', 'warn');
+            } else {
                 setRuntimeHint('', 'muted');
             }
         } catch (e) {
-            if (!reportedMatch) {
-                statusEl.textContent = 'unknown';
-                statusEl.title = String(e);
-                setRowState('rowVpnReach', 'na');
-                setOperatorHintForError(String(e));
-            }
+            statusEl.textContent = 'Fehler';
+            statusEl.title = String(e);
+            if (detailsEl) detailsEl.textContent = String(e);
+            setRowState('rowVpnReach', 'bad');
+            setOperatorHintForError(String(e));
         }
     }
 export function applyDbMismatch(statusCellId, gatewayVal, dbVal) {
@@ -1313,11 +1830,12 @@ export function resumeAutoRefresh() {
 export function invalidateFinalCheck() {
         vars.finalCheckOk = false;
         vars.lastFinalChecks = [];
-        document.getElementById('finalCheckResult').textContent = 'Konfigurations Check: -';
-        document.getElementById('btnPush').disabled = false;
+        vars.lastProvisionSavedOk = false;
+        vars.lastProvisionConfirmed = false;
         setBadge('badgeFinalCheck', 'Konfigurations Check: -', 'idle');
         renderFinalSummary();
         updateSectionStatuses();
+        updateFinalizeActions();
     }
 export function checkReady() {
         const ip = document.getElementById('vpnIp').value;
@@ -1328,11 +1846,9 @@ export function checkReady() {
 
         if (!state.readPhaseComplete || !ready) {
             invalidateFinalCheck();
-            document.getElementById('btnPush').disabled = true;
-        } else {
-            document.getElementById('btnPush').disabled = false;
         }
         updateSectionStatuses();
+        updateFinalizeActions();
     }
 export async function pushData() {
         const ipInput = document.getElementById('vpnIp').value;
@@ -1384,8 +1900,16 @@ export async function pushData() {
             alert("Bitte geben Sie einen Gateway Namen und die Serial Number ein!");
             return;
         }
+        if (isKnownGatewayPendingAcknowledgement()) {
+            alert("Dieser Gateway ist in der DB bereits bekannt. Bitte den Hinweis zuerst bestaetigen.");
+            return;
+        }
+        if (!vars.finalCheckOk) {
+            alert("Bitte zuerst Schritt 4 Pruefung & Integrationen erfolgreich abschliessen.");
+            return;
+        }
 
-        if (!confirm(`Soll Gateway '${name}' mit IP ${ip} provisioniert werden?`)) return;
+        if (!confirm(`Soll Gateway '${name}' mit IP ${ip} in der Cloud DB gespeichert werden?`)) return;
 
         const payloadPreview = {
             vpn_ip: ip,
@@ -1414,7 +1938,7 @@ export async function pushData() {
 
         log('.. Provisioning Payload: ' + JSON.stringify(payloadPreview), 'info');
 
-        log('.. Sende Daten an Cloud-Datenbank...');
+        log('.. Speichere Daten in Cloud-Datenbank...');
         document.getElementById('btnPush').disabled = true;
 
         try {
@@ -1430,6 +1954,7 @@ export async function pushData() {
                 const text = await res.text();
                 log(`!! Provisioning Fehler (HTTP ${res.status}): ${text || 'Antwort nicht lesbar'}`, 'error');
                 document.getElementById('btnPush').disabled = false;
+                updateFinalizeActions();
                 return;
             }
 
@@ -1437,21 +1962,68 @@ export async function pushData() {
             if (!result.ok) {
                 const missing = result.data && result.data.missing ? result.data.missing.join(', ') : '';
                 const suffix = missing ? ` (fehlend: ${missing})` : '';
-                log('!! Provisioning Fehler: ' + result.error + suffix, 'error');
-                alert('Provisioning fehlgeschlagen: ' + result.error + suffix);
+                log('!! Provisioning Fehler: ' + formatDetailedError(result) + suffix, 'error');
+                alert('Cloud DB speichern fehlgeschlagen: ' + (formatDetailedError(result) || result.error) + suffix);
                 document.getElementById('btnPush').disabled = false;
             } else {
-                log('.. Provisionierung erfolgreich abgeschlossen!', 'success');
-                if (vars.finalCheckOk) {
-                    alert("Erfolg! Das Gateway wurde provisioniert.");
-                } else {
-                    alert("Gespeichert. Achtung: Konfiguration ist noch nicht fertig.");
-                    setBadge('badgeFinalCheck', 'Konfigurations Check: nicht fertig', 'warn');
-                }
+                vars.lastProvisionSavedOk = true;
+                vars.lastProvisionConfirmed = false;
+                log('.. Cloud DB erfolgreich aktualisiert.', 'success');
+                alert("Cloud DB aktualisiert. Bitte jetzt final freigeben.");
             }
         } catch (e) {
             log('!! Kritischer Fehler beim Push: ' + e, 'error');
             document.getElementById('btnPush').disabled = false;
+        } finally {
+            updateFinalizeActions();
+        }
+    }
+export async function confirmProvisioning() {
+        const ip = normalizeVpnIp(vars.manualVpnTarget || document.getElementById('vpnIp')?.value || '');
+        if (!vars.finalCheckOk) {
+            alert('Finale Freigabe erst nach gruener Pruefung & Integrationen.');
+            return;
+        }
+        if (isKnownGatewayPendingAcknowledgement()) {
+            alert('Bitte zuerst bestaetigen, dass der bereits bekannte Gateway bewusst bearbeitet wird.');
+            return;
+        }
+        if (!vars.lastProvisionSavedOk) {
+            alert('Bitte zuerst in Cloud DB speichern.');
+            return;
+        }
+        if (!ip) {
+            alert('VPN IP fehlt.');
+            return;
+        }
+        if (!confirm(`Soll Gateway ${ip} jetzt final freigegeben werden?`)) return;
+        const confirmBtn = document.getElementById('btnConfirmProvision');
+        if (confirmBtn) confirmBtn.disabled = true;
+        try {
+            const res = await fetch('/api/confirm', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ vpn_ip: ip })
+            });
+            const data = await res.json();
+            const result = unwrap(data);
+            if (!result.ok) {
+                log('!! Finale Freigabe fehlgeschlagen: ' + formatDetailedError(result), 'error');
+                alert('Finale Freigabe fehlgeschlagen: ' + (formatDetailedError(result) || result.error));
+                return;
+            }
+            log('.. Gateway final freigegeben.', 'success');
+            alert('Gateway wurde final als DEPLOYED freigegeben.');
+            vars.lastProvisionConfirmed = true;
+            if (state.observed.db) {
+                state.observed.db.status_overall = 'DEPLOYED';
+            }
+        } catch (e) {
+            log('!! Fehler bei finaler Freigabe: ' + e, 'error');
+            alert('Finale Freigabe fehlgeschlagen: ' + e);
+        } finally {
+            updateFinalizeActions();
+            updateSectionStatuses();
         }
     }
 export async function dryRunChirpstack() {
@@ -1519,41 +2091,36 @@ export async function createChirpstackDevice() {
             const result = unwrap(data);
             if (!result.ok) {
                 log('!! ChirpStack Create fehlgeschlagen: ' + result.error, 'error');
-                if (result.data && result.data.missing && result.data.missing.length) {
-                    document.getElementById('chirpstackStatus').textContent =
-                        'ChirpStack Status: missing ' + result.data.missing.join(', ');
-                    setBadge('badgeChirpstack', 'ChirpStack: missing', 'error');
-                } else {
-                    document.getElementById('chirpstackStatus').textContent = 'ChirpStack Status: error';
-                    setBadge('badgeChirpstack', 'ChirpStack: error', 'error');
-                }
                 setServiceStatus('chirpstack', {
                     connected: false,
-                    statusText: 'ChirpStack Status: error',
+                    statusText: result.data && result.data.missing && result.data.missing.length ? 'Fehlt' : 'Fehler',
                     updatedAt: new Date().toISOString(),
-                    error: result.error || 'error'
+                    error: result.error || 'error',
+                    connectionText: 'API erreichbar',
+                    detailText: result.error || 'Anlegen fehlgeschlagen'
                 });
                 return;
             }
             log('.. ChirpStack Gateway angelegt.', 'success');
-            document.getElementById('chirpstackStatus').textContent = 'created';
-            setBadge('badgeChirpstack', 'ChirpStack: created', 'ok');
             setServiceStatus('chirpstack', {
                 connected: true,
-                statusText: 'created',
+                statusText: 'Angelegt',
                 updatedAt: new Date().toISOString(),
-                error: '-'
+                error: '-',
+                connectionText: 'API erreichbar',
+                detailText: 'Eintrag angelegt'
             });
             state.observed.chirpstack = { exists: true };
+            await checkChirpstackExists({ silent: true });
         } catch (e) {
             log('!! Fehler beim ChirpStack Create: ' + e, 'error');
-            document.getElementById('chirpstackStatus').textContent = 'ChirpStack Status: error';
-            setBadge('badgeChirpstack', 'ChirpStack: error', 'error');
             setServiceStatus('chirpstack', {
                 connected: false,
-                statusText: 'ChirpStack Status: error',
+                statusText: 'Fehler',
                 updatedAt: new Date().toISOString(),
-                error: String(e)
+                error: String(e),
+                connectionText: 'API nicht erreichbar',
+                detailText: String(e)
             });
         } finally {
             document.getElementById('btnChirpstackCreate').disabled = false;
@@ -1567,9 +2134,11 @@ export async function checkChirpstackExists(options = {}) {
             }
             setServiceStatus('chirpstack', {
                 connected: false,
-                statusText: 'ChirpStack Status: -',
+                statusText: '-',
                 updatedAt: new Date().toISOString(),
-                error: 'EUI fehlt'
+                error: 'EUI fehlt',
+                connectionText: '',
+                detailText: 'EUI fehlt'
             });
             state.observed.chirpstack = null;
             buildMismatchList();
@@ -1578,7 +2147,7 @@ export async function checkChirpstackExists(options = {}) {
         }
 
         log('.. Pruefe ChirpStack Gateway (EUI)...');
-        document.getElementById('chirpstackStatus').textContent = 'ChirpStack Status: checking...';
+        document.getElementById('chirpstackStatus').textContent = 'Pruefung...';
         document.getElementById('btnChirpstackCreate').disabled = false;
 
         try {
@@ -1592,59 +2161,27 @@ export async function checkChirpstackExists(options = {}) {
 
             if (!result.ok) {
                 log('!! ChirpStack Check fehlgeschlagen: ' + result.error, 'error');
-                setServiceStatus('chirpstack', {
-                    connected: false,
-                    statusText: 'error',
-                    updatedAt: new Date().toISOString(),
-                    error: result.error
+                applyExternalExistenceStatus('chirpstack', {
+                    error: result.error,
+                    missing: result.data && result.data.missing ? result.data.missing : [],
+                    observed: null,
+                    connectedOverride: false
                 });
-                if (result.data && result.data.missing && result.data.missing.length) {
-                    document.getElementById('chirpstackStatus').textContent =
-                        'missing ' + result.data.missing.join(', ');
-                    setBadge('badgeChirpstack', 'ChirpStack: missing', 'error');
-                } else {
-                    document.getElementById('chirpstackStatus').textContent = 'error';
-                    setBadge('badgeChirpstack', 'ChirpStack: error', 'error');
-                }
             } else {
-                if (result.data.exists) {
-                    log('!! ChirpStack Gateway existiert bereits.', 'error');
-                    document.getElementById('chirpstackStatus').textContent = 'exists';
-                    document.getElementById('btnChirpstackCreate').disabled = false;
-                    setBadge('badgeChirpstack', 'ChirpStack: exists', 'ok');
-                    setServiceStatus('chirpstack', {
-                        connected: true,
-                        statusText: 'exists',
-                        updatedAt: new Date().toISOString(),
-                        error: '-'
-                    });
-                    state.observed.chirpstack = { exists: true };
-                } else {
-                    log('.. ChirpStack Gateway nicht gefunden.', 'success');
-                    document.getElementById('chirpstackStatus').textContent = 'not found';
-                    document.getElementById('btnChirpstackCreate').disabled = false;
-                    setBadge('badgeChirpstack', 'ChirpStack: not found', 'ok');
-                    setServiceStatus('chirpstack', {
-                        connected: true,
-                        statusText: 'not found',
-                        updatedAt: new Date().toISOString(),
-                        error: '-'
-                    });
-                    state.observed.chirpstack = { exists: false };
-                }
+                applyExternalExistenceStatus('chirpstack', {
+                    exists: !!result.data.exists,
+                    observed: { exists: !!result.data.exists },
+                    connectedOverride: true
+                });
+                log(result.data.exists ? '!! ChirpStack Gateway existiert bereits.' : '.. ChirpStack Gateway nicht gefunden.', result.data.exists ? 'error' : 'success');
             }
         } catch (e) {
             log('!! Fehler beim ChirpStack Check: ' + e, 'error');
-            document.getElementById('chirpstackStatus').textContent = 'ChirpStack Status: error';
-            document.getElementById('btnChirpstackCreate').disabled = false;
-            setBadge('badgeChirpstack', 'ChirpStack: error', 'error');
-            setServiceStatus('chirpstack', {
-                connected: false,
-                statusText: 'ChirpStack Status: error',
-                updatedAt: new Date().toISOString(),
-                error: String(e)
+            applyExternalExistenceStatus('chirpstack', {
+                error: String(e),
+                observed: null,
+                connectedOverride: false
             });
-            state.observed.chirpstack = null;
         }
         buildMismatchList();
         updateSectionStatuses();
@@ -1655,39 +2192,9 @@ export async function checkChirpstackConfig() {
             const res = await fetch('/api/chirpstack/config');
             const data = await res.json();
             const result = unwrap(data);
-            if (!result.ok) {
-                document.getElementById('chirpstackStatus').textContent = 'ChirpStack Status: error';
-                setBadge('badgeChirpstack', 'ChirpStack: error', 'error');
-                setServiceStatus('chirpstack', {
-                    connected: false,
-                    statusText: 'ChirpStack Status: error',
-                    updatedAt: new Date().toISOString(),
-                    error: result.error
-                });
-                return;
-            }
-            if (!result.data.ready) {
-                document.getElementById('chirpstackStatus').textContent =
-                    'ChirpStack Status: missing ' + result.data.missing.join(', ');
-                document.getElementById('btnChirpstackCreate').disabled = false;
-                setBadge('badgeChirpstack', 'ChirpStack: missing', 'error');
-                setServiceStatus('chirpstack', {
-                    connected: false,
-                    statusText: 'ChirpStack Status: missing',
-                    updatedAt: new Date().toISOString(),
-                    error: result.data.missing.join(', ')
-                });
-            }
+            applyExternalConfigStatus('chirpstack', result);
         } catch (e) {
-            document.getElementById('chirpstackStatus').textContent = 'ChirpStack Status: error';
-            document.getElementById('btnChirpstackCreate').disabled = false;
-            setBadge('badgeChirpstack', 'ChirpStack: error', 'error');
-            setServiceStatus('chirpstack', {
-                connected: false,
-                statusText: 'ChirpStack Status: error',
-                updatedAt: new Date().toISOString(),
-                error: String(e)
-            });
+            applyExternalConfigStatus('chirpstack', { ok: false, error: String(e) });
         }
     }
 export async function checkMilesightExists(options = {}) {
@@ -1698,9 +2205,11 @@ export async function checkMilesightExists(options = {}) {
             }
             setServiceStatus('milesight', {
                 connected: false,
-                statusText: 'Milesight Status: -',
+                statusText: '-',
                 updatedAt: new Date().toISOString(),
-                error: 'EUI fehlt'
+                error: 'EUI fehlt',
+                connectionText: '',
+                detailText: 'EUI fehlt'
             });
             state.observed.milesight = null;
             buildMismatchList();
@@ -1709,7 +2218,7 @@ export async function checkMilesightExists(options = {}) {
         }
 
         log('.. Pruefe Milesight Device (EUI)...');
-        document.getElementById('milesightStatus').textContent = 'Milesight Status: checking...';
+        document.getElementById('milesightStatus').textContent = 'Pruefung...';
         document.getElementById('btnMilesightCreate').disabled = false;
 
         try {
@@ -1723,34 +2232,21 @@ export async function checkMilesightExists(options = {}) {
 
             if (!result.ok) {
                 log('!! Milesight Check fehlgeschlagen: ' + result.error, 'error');
-                setServiceStatus('milesight', {
-                    connected: false,
-                    statusText: 'error',
-                    updatedAt: new Date().toISOString(),
-                    error: result.error
+                applyExternalExistenceStatus('milesight', {
+                    error: result.error,
+                    missing: result.data && result.data.missing ? result.data.missing : [],
+                    observed: null,
+                    connectedOverride: false
                 });
-                if (result.data && result.data.missing && result.data.missing.length) {
-                    document.getElementById('milesightStatus').textContent =
-                        'missing ' + result.data.missing.join(', ');
-                    setBadge('badgeMilesight', 'Milesight: missing', 'error');
-                } else {
-                    document.getElementById('milesightStatus').textContent = 'error';
-                    setBadge('badgeMilesight', 'Milesight: error', 'error');
-                }
             } else {
                 if (result.data.exists) {
                     log('!! Milesight Device existiert bereits.', 'error');
-                    document.getElementById('milesightStatus').textContent = 'exists';
-                    document.getElementById('btnMilesightCreate').disabled = false;
-                    setBadge('badgeMilesight', 'Milesight: exists', 'ok');
-                    setServiceStatus('milesight', {
-                        connected: true,
-                        statusText: 'exists',
-                        updatedAt: new Date().toISOString(),
-                        error: '-',
-                        tooltip: [result.data.name, result.data.model].filter(Boolean).join(' · ')
+                    applyExternalExistenceStatus('milesight', {
+                        exists: true,
+                        observed: { exists: true, name: result.data.name, model: result.data.model, details: result.data.details || {} },
+                        tooltip: [result.data.name, result.data.model].filter(Boolean).join(' · '),
+                        connectedOverride: true
                     });
-                    state.observed.milesight = { exists: true, name: result.data.name, model: result.data.model, details: result.data.details || {} };
                     if (vars.allowMilesightSerialFill && !document.getElementById('gwSn').value && result.data.serial_number) {
                         document.getElementById('gwSn').value = result.data.serial_number;
                     }
@@ -1764,30 +2260,20 @@ export async function checkMilesightExists(options = {}) {
                     checkReady();
                 } else {
                     log('.. Milesight Device nicht gefunden.', 'success');
-                    document.getElementById('milesightStatus').textContent = 'not found';
-                    document.getElementById('btnMilesightCreate').disabled = false;
-                    setBadge('badgeMilesight', 'Milesight: not found', 'ok');
-                    setServiceStatus('milesight', {
-                        connected: true,
-                        statusText: 'not found',
-                        updatedAt: new Date().toISOString(),
-                        error: '-'
+                    applyExternalExistenceStatus('milesight', {
+                        exists: false,
+                        observed: { exists: false },
+                        connectedOverride: true
                     });
-                    state.observed.milesight = { exists: false };
                 }
             }
         } catch (e) {
             log('!! Fehler beim Milesight Check: ' + e, 'error');
-            document.getElementById('milesightStatus').textContent = 'Milesight Status: error';
-            document.getElementById('btnMilesightCreate').disabled = false;
-            setBadge('badgeMilesight', 'Milesight: error', 'error');
-            setServiceStatus('milesight', {
-                connected: false,
-                statusText: 'Milesight Status: error',
-                updatedAt: new Date().toISOString(),
-                error: String(e)
+            applyExternalExistenceStatus('milesight', {
+                error: String(e),
+                observed: null,
+                connectedOverride: false
             });
-            state.observed.milesight = null;
         }
         buildMismatchList();
         updateSectionStatuses();
@@ -1798,158 +2284,25 @@ export async function checkMilesightConfig() {
             const res = await fetch('/api/milesight/config');
             const data = await res.json();
             const result = unwrap(data);
-            if (!result.ok) {
-                document.getElementById('milesightStatus').textContent = 'Milesight Status: error';
-                setBadge('badgeMilesight', 'Milesight: error', 'error');
-                setServiceStatus('milesight', {
-                    connected: false,
-                    statusText: 'Milesight Status: error',
-                    updatedAt: new Date().toISOString(),
-                    error: result.error
-                });
-                return;
-            }
-            if (!result.data.ready) {
-                document.getElementById('milesightStatus').textContent =
-                    'Milesight Status: missing ' + result.data.missing.join(', ');
-                document.getElementById('btnMilesightCreate').disabled = false;
-                setBadge('badgeMilesight', 'Milesight: missing', 'error');
-                setServiceStatus('milesight', {
-                    connected: false,
-                    statusText: 'Milesight Status: missing',
-                    updatedAt: new Date().toISOString(),
-                    error: result.data.missing.join(', ')
-                });
-            }
+            applyExternalConfigStatus('milesight', result);
         } catch (e) {
-            document.getElementById('milesightStatus').textContent = 'Milesight Status: error';
-            document.getElementById('btnMilesightCreate').disabled = false;
-            setBadge('badgeMilesight', 'Milesight: error', 'error');
-            setServiceStatus('milesight', {
-                connected: false,
-                statusText: 'Milesight Status: error',
-                updatedAt: new Date().toISOString(),
-                error: String(e)
-            });
+            applyExternalConfigStatus('milesight', { ok: false, error: String(e) });
         }
     }
 export async function searchWebserviceByEui(eui) {
         const normalizedEui = normalizeHexId(eui);
-        if (!normalizedEui) return;
-        
-        // Ensure credentials are present (simple check)
-        const creds = getWebserviceCredentials();
-        if (!creds) return; // Silent return if no login
-
+        if (!normalizedEui || !getWebserviceCredentials()) return;
         log('.. Webservice: Suche nach EUI...', 'info');
-        const status = document.getElementById('webserviceStatus');
-        if (status) status.textContent = 'Webservice: searching EUI...';
-
-        const res = await webserviceRequest('/api/webservice/search-by-eui', { eui: normalizedEui });
-        if (!res.ok) {
-            // It's common that it doesn't exist yet, so just info/warn
-            // log('Webservice EUI Search failed: ' + res.error, 'warn');
-            if (status) status.textContent = 'Webservice: EUI not found (or error)';
-            return;
-        }
-
-        const list = normalizeList(res.data);
-        if (!list.length) {
-            if (status) status.textContent = 'Webservice: EUI not known';
-            return;
-        }
-
-        // Find exact match if possible
-        const match = list.find(g => normalizeIdentity(g.gatewayEui || g.gateway_eui || '') === normalizedEui) || list[0];
-
-        if (match) {
-            const clientId = match.clientId || match.client_id;
-            const clientName = match.clientName || match.customerName || match.customer_name || match.name;
-            
-            if (clientId) {
-                log(`.. Webservice: Gateway gefunden. Setze Kunde ${clientId} (${clientName || '?'})`, 'success');
-                if (status) status.textContent = 'Webservice: Client found';
-
-                document.getElementById('clientId').value = clientId;
-                vars.selectedClientId = clientId;
-                if (clientName) {
-                    vars.selectedClientName = clientName;
-                    const clientSearch = document.getElementById('clientSearch');
-                    if (clientSearch) clientSearch.value = clientName;
-                }
-
-                // Load gateways for this client
-                loadClientGateways(clientId);
-                updateSuggestedNameLabel();
-                syncDesiredState();
-                updateSectionStatuses();
-            }
-        }
+        await syncWebserviceByEui({ eui: normalizedEui, populateCustomer: true });
     }
 export async function checkWebserviceStatus() {
-        const eui = normalizeHexId(document.getElementById('gwEui')?.value || '');
-        if (!isValidEui(eui)) {
-            setServiceStatus('webservice', {
-                connected: false,
-                statusText: 'Ungueltige EUI',
-                updatedAt: new Date().toISOString(),
-                error: 'Ungueltige EUI'
-            });
-            state.observed.webservice = null;
-            updateSectionStatuses();
-            return;
-        }
-
         log('.. Pruefe Webservice Status (EUI)...');
-        const statusEl = document.getElementById('webserviceStatus');
-        if (statusEl) statusEl.textContent = 'Webservice: checking...';
-
-        const res = await webserviceRequest('/api/webservice/search-by-eui', { eui });
-        
-        if (!res.ok) {
-            setOperatorHintForError(res.error);
-            setServiceStatus('webservice', {
-                connected: false,
-                statusText: 'error',
-                updatedAt: new Date().toISOString(),
-                error: res.error
-            });
-            state.observed.webservice = null;
-            updateSectionStatuses();
-            return;
-        }
-
-        const list = normalizeList(res.data);
-        // Check exact match on EUI or Gateway ID (as fallback)
-        const match = list.find(g => {
-             const gEui = normalizeIdentity(g.gatewayEui || g.gateway_eui || g.gatewayId || g.gateway_id || '');
-             return gEui === eui;
-        });
-        const exists = !!match;
-
-        setServiceStatus('webservice', {
-            connected: true,
-            statusText: exists ? 'exists' : 'not found',
-            updatedAt: new Date().toISOString(),
-            error: '-'
-        });
-        
-        if (statusEl) statusEl.textContent = exists ? 'exists' : 'not found';
-        
-        state.observed.webservice = { exists: exists };
-        updateSectionStatuses();
-        scheduleFinalCheck();
-        
-        if (exists) {
-            log('.. Webservice: Gateway existiert bereits.', 'warn');
-        } else {
-            log('.. Webservice: Gateway nicht gefunden (bereit zum Anlegen).', 'success');
-        }
+        await syncWebserviceByEui({ logMissingAsSuccess: true });
     }
 export async function dryRunWebservice() {
-        // For now, dry run is just checking if it exists
-        await checkWebserviceStatus();
+        const wsResult = await syncWebserviceByEui({ logMissingAsSuccess: true });
         const wsState = state.observed.webservice;
+        if (!wsResult.ok) return;
         if (wsState && !wsState.exists) {
             log('.. Webservice Dry-Run: Gateway wuerde angelegt werden.', 'success');
         } else if (wsState && wsState.exists) {
@@ -2007,9 +2360,9 @@ export async function createWebserviceGateway() {
         }
 
         // Pre-check: Does it already exist?
-        await checkWebserviceStatus();
+        const wsResult = await syncWebserviceByEui({ logMissingAsSuccess: false });
         const wsState = state.observed.webservice;
-        if (!wsState) {
+        if (!wsResult.ok || !wsState) {
             log('!! Webservice Check fehlgeschlagen. Erstellung abgebrochen.', 'error');
             return;
         }
@@ -2046,9 +2399,11 @@ export async function createWebserviceGateway() {
             if (statusEl) statusEl.textContent = 'error';
             setServiceStatus('webservice', {
                 connected: false,
-                statusText: 'error',
+                statusText: 'Fehler',
                 updatedAt: new Date().toISOString(),
-                error: res.error
+                error: res.error,
+                connectionText: 'API erreichbar',
+                detailText: res.error
             });
             return;
         }
@@ -2057,14 +2412,32 @@ export async function createWebserviceGateway() {
         if (statusEl) statusEl.textContent = 'created';
         setServiceStatus('webservice', {
             connected: true,
-            statusText: 'created',
+            statusText: 'Angelegt',
             updatedAt: new Date().toISOString(),
-            error: '-'
+            error: '-',
+            connectionText: 'API erreichbar',
+            detailText: 'Eintrag angelegt'
         });
         state.observed.webservice = { exists: true };
         
-        // Reload list to confirm
+        // Reload list and verify with a short retry window because the webservice
+        // may expose the new entry with a small delay.
         loadClientGateways(clientId);
+        const verification = await verifyWebserviceCreation();
+        if (verification.confirmed) {
+            log('.. Webservice Gateway bestaetigt.', 'success');
+        } else {
+            log('.. Webservice Gateway angelegt, Nachpruefung noch ausstehend.', 'info');
+            setServiceStatus('webservice', {
+                connected: true,
+                statusText: 'Angelegt',
+                updatedAt: new Date().toISOString(),
+                error: '-',
+                connectionText: 'API erreichbar',
+                detailText: 'Angelegt, Nachpruefung ausstehend'
+            });
+            setRowState('rowWebserviceService', 'na');
+        }
     }
 export async function printMilesightCommand() {
         const eui = document.getElementById('gwEui').value;
@@ -2133,40 +2506,36 @@ export async function createMilesightDevice() {
             const result = unwrap(data);
             if (!result.ok) {
                 log('!! Milesight Create fehlgeschlagen: ' + result.error, 'error');
-                if (result.data && result.data.missing && result.data.missing.length) {
-                    document.getElementById('milesightStatus').textContent =
-                        'missing ' + result.data.missing.join(', ');
-                } else {
-                    document.getElementById('milesightStatus').textContent = 'error';
-                }
-                setBadge('badgeMilesight', 'Milesight: error', 'error');
                 setServiceStatus('milesight', {
                     connected: false,
-                    statusText: 'error',
+                    statusText: result.data && result.data.missing && result.data.missing.length ? 'Fehlt' : 'Fehler',
                     updatedAt: new Date().toISOString(),
-                    error: result.error || 'error'
+                    error: result.error || 'error',
+                    connectionText: 'API erreichbar',
+                    detailText: result.error || 'Anlegen fehlgeschlagen'
                 });
                 return;
             }
             log('.. Milesight Device angelegt.', 'success');
-            document.getElementById('milesightStatus').textContent = 'created';
-            setBadge('badgeMilesight', 'Milesight: created', 'ok');
             setServiceStatus('milesight', {
                 connected: true,
-                statusText: 'created',
+                statusText: 'Angelegt',
                 updatedAt: new Date().toISOString(),
-                error: '-'
+                error: '-',
+                connectionText: 'API erreichbar',
+                detailText: 'Eintrag angelegt'
             });
             state.observed.milesight = { exists: true, details: result.data.data || {} };
+            await checkMilesightExists({ silent: true });
         } catch (e) {
             log('!! Fehler beim Milesight Create: ' + e, 'error');
-            document.getElementById('milesightStatus').textContent = 'error';
-            setBadge('badgeMilesight', 'Milesight: error', 'error');
             setServiceStatus('milesight', {
                 connected: false,
-                statusText: 'error',
+                statusText: 'Fehler',
                 updatedAt: new Date().toISOString(),
-                error: e.toString()
+                error: e.toString(),
+                connectionText: 'API nicht erreichbar',
+                detailText: e.toString()
             });
         } finally {
             document.getElementById('btnMilesightCreate').disabled = false;
@@ -2225,7 +2594,6 @@ export async function runFinalCheck() {
             if (!state.readPhaseComplete) {
                 log('!! Konfigurations Check abgebrochen: Gateway nicht gelesen.', 'error');
                 setBadge('badgeFinalCheck', 'Konfigurations Check: nicht bereit', 'warn');
-                document.getElementById('finalCheckResult').textContent = 'Konfigurations Check: Gateway nicht gelesen';
                 return;
             }
         }
@@ -2237,60 +2605,18 @@ export async function runFinalCheck() {
             checkChirpstackExists({ silent: true }),
             checkMilesightExists({ silent: true })
         ]);
-        const name = document.getElementById('gwName').value;
-        const sn = document.getElementById('gwSn').value;
-        const eui = document.getElementById('gwEui').value;
-        const vpnIp = document.getElementById('vpnIp').value;
-        const vpnKey = document.getElementById('vpnKey').value;
-        const targetWifiSsid = getText('targetWifiSsid');
-        const currentWifiSsid = document.getElementById('gwWifiSsid').value;
-        const simIccid = document.getElementById('simIccid').value;
-        const simVendor = document.getElementById('simVendor').value;
-        const chirpStatus = document.getElementById('chirpstackStatus').textContent;
-        const milesightStatus = document.getElementById('milesightStatus').textContent;
-        const gwVpnReported = document.getElementById('gwVpnReported').value;
-        const loraGatewayEui = document.getElementById('loraGatewayEui').value;
-        const loraGatewayId = document.getElementById('loraGatewayId').value;
-        const targetGatewayEui = getText('targetGatewayEui');
-        const targetGatewayId = getText('targetGatewayId');
-        const targetVpnIp = getText('targetVpnIp');
-        const loraActiveServer = document.getElementById('loraActiveServer').value;
-        const loraStatus = document.getElementById('loraStatus').value;
-
-        const normalizedLoraGatewayId = normalizeIdentity(loraGatewayId);
-        const normalizedTargetGatewayId = normalizeIdentity(targetGatewayId);
-        const normalizedGwVpnReported = normalizeVpnIp(gwVpnReported);
-        const normalizedTargetVpnIp = normalizeVpnIp(targetVpnIp);
-
-        const checks = [
-            { label: `Gateway gelesen: ${state.readPhaseComplete ? 'OK' : '-'}`, ok: state.readPhaseComplete },
-            { label: `Gateway Name: ${name || '-'}`, ok: !!name },
-            { label: `Serial Number: ${sn || '-'}`, ok: !!sn },
-            { label: `EUI: ${eui || '-'}`, ok: !!eui },
-            { label: `VPN IP: ${vpnIp || '-'}`, ok: !!vpnIp },
-            { label: `VPN Key: ${vpnKey ? 'gesetzt' : '-'}`, ok: !!vpnKey },
-            { label: `WiFi SSID: ${currentWifiSsid || '-'} (soll ${targetWifiSsid || '-'})`, ok: !!currentWifiSsid && currentWifiSsid === targetWifiSsid },
-            { label: `SIM Vendor: ${simVendor || '-'}`, ok: !!simVendor },
-            { label: `SIM ICCID: ${simIccid || '-'}`, ok: !!simIccid },
-            { label: `Gateway VPN-IP reported: ${gwVpnReported || '-'} (soll ${targetVpnIp || '-'})`, ok: !!normalizedGwVpnReported && normalizedGwVpnReported === normalizedTargetVpnIp },
-            { label: `LoRa Gateway ID: ${loraGatewayId || '-'} (soll ${targetGatewayId || '-'})`, ok: !!normalizedLoraGatewayId && normalizedLoraGatewayId === normalizedTargetGatewayId },
-            { label: `LoRa Active Server: ${loraActiveServer || '-'}`, ok: !!loraActiveServer },
-            { label: `LoRa Status: ${loraStatus || '-'}`, ok: String(loraStatus) === '1' },
-            { label: `ChirpStack: ${chirpStatus}`, ok: chirpStatus.includes('not found') || chirpStatus.includes('exists') },
-            { label: `Milesight: ${milesightStatus}`, ok: milesightStatus.includes('not found') || milesightStatus.includes('exists') }
-        ];
+        await syncWebserviceByEui({ logMissingAsSuccess: false });
+        const checks = collectReadinessChecks();
 
         const failed = checks.filter(c => !c.ok);
         const summary = failed.length === 0 ? 'OK' : `WARN (${failed.length})`;
         vars.finalCheckOk = failed.length === 0;
         vars.lastFinalChecks = checks;
-        document.getElementById('finalCheckResult').textContent = `Konfigurations Check: ${summary}`;
-        document.getElementById('btnPush').disabled = false;
-
         setBadge('badgeFinalCheck', `Konfigurations Check: ${summary}`, vars.finalCheckOk ? 'ok' : 'warn');
         renderFinalSummary();
         log('.. Konfigurations Check gestartet: ' + summary, failed.length === 0 ? 'success' : 'error');
         updateSectionStatuses();
+        updateFinalizeActions();
     }
 
 export function updateSectionStatuses() {
@@ -2310,20 +2636,31 @@ export function updateSectionStatuses() {
         const configOk = !!state.readPhaseComplete;
         setStepStatus('config', configOk ? 'ok' : 'warn', configOk ? 'Gateway gelesen' : 'Gateway Status fehlt');
 
-        const statusOk = !!state.readPhaseComplete;
-        setStepStatus('gateway-status', statusOk ? 'ok' : 'warn', statusOk ? 'Status verfügbar' : 'Status fehlt');
-
-        const chirp = state.observed.chirpstack;
-        const mile = state.observed.milesight;
-        const web = state.observed.webservice;
-        const externalOk = !!(
-            chirp && chirp.exists === true &&
-            mile && mile.exists === true &&
-            web && web.exists === true
+        const readinessChecks = collectReadinessChecks();
+        const gatewayChecks = readinessChecks.filter(item =>
+            item.label.startsWith('Gateway ') ||
+            item.label.startsWith('VPN-') ||
+            item.label.startsWith('WiFi-') ||
+            item.label.startsWith('SIM-') ||
+            item.label.startsWith('LoRa ')
         );
-        setStepStatus('external', externalOk ? 'ok' : 'warn', externalOk ? 'Integrationen ok' : 'Integrationen fehlen');
+        const externalChecks = readinessChecks.filter(item =>
+            item.label.startsWith('ChirpStack ') ||
+            item.label.startsWith('Milesight ') ||
+            item.label.startsWith('Webservice ')
+        );
+        const inspectionChecks = gatewayChecks.concat(externalChecks);
+        const inspectionOpen = inspectionChecks.filter(item => !item.ok).length;
+        setStepStatus('inspection', inspectionOpen === 0 ? 'ok' : 'warn', inspectionOpen === 0 ? 'Gateway und Integrationen ok' : `${inspectionOpen} Punkt(e) offen`);
 
-        setStepStatus('final', vars.finalCheckOk ? 'ok' : 'warn', vars.finalCheckOk ? 'Final Check OK' : 'Final Check ausstehend');
+        const finalStepReady = vars.lastProvisionConfirmed;
+        const finalStepState = finalStepReady ? 'ok' : 'warn';
+        const finalStepText = finalStepReady
+            ? 'Final freigegeben'
+            : (vars.finalCheckOk
+                ? (vars.lastProvisionSavedOk ? 'Bereit fuer finale Freigabe' : 'Cloud DB noch nicht gespeichert')
+                : 'Final Check ausstehend');
+        setStepStatus('final', finalStepState, finalStepText);
     }
 export function handleEuiChange() {
         const eui = document.getElementById('gwEui').value;
