@@ -39,6 +39,9 @@
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="tab-log-tab" data-bs-toggle="tab" data-bs-target="#tab-log" type="button" role="tab" aria-controls="tab-log" aria-selected="false">Status Protokoll</button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-cloud-table-trigger" type="button" onclick="openCloudTableViewer()">Cloud Tabelle ansehen</button>
+        </li>
     </ul>
 
     <div class="tab-content" id="mainTabContent">
@@ -148,7 +151,6 @@
                                 </div>
                                 <div class="col-12">
                                     <button class="btn btn-outline-primary" type="button" onclick="saveCustomerData()">Zuordnung speichern</button>
-                                    <button class="btn btn-outline-secondary ms-2" type="button" onclick="openCloudTableViewer()">Cloud Tabelle ansehen</button>
                                     <span class="small text-muted ms-2">Speichert Name/Serial (und optional SIM) in der DB nach VPN IP.</span>
                                 </div>
                                 <div class="col-12">
@@ -407,7 +409,6 @@
                             <div class="d-grid gap-2 mt-3">
                                 <button class="btn btn-success btn-lg" id="btnPush" onclick="pushData()" disabled>In Cloud DB speichern</button>
                                 <button class="btn btn-primary btn-lg" id="btnConfirmProvision" onclick="confirmProvisioning()" disabled>Final freigeben</button>
-                                <button class="btn btn-outline-secondary btn-lg" type="button" onclick="openCloudTableViewer()">Cloud Tabelle ansehen</button>
                             </div>
                             <div class="small text-muted mt-1" id="finalActionHint">Erst speichern, dann final freigeben.</div>
                         </div>
@@ -469,6 +470,7 @@
                     </div>
                 </div>
                 <div class="small text-muted mb-2" id="cloudTableStatus">Bereit.</div>
+                <div class="small text-muted mb-3">Ansicht zeigt direkte DB-Werte aus <code>gateway_inventory</code> plus SIM-Zuordnung. <span class="text-muted">"leer in DB"</span> bedeutet: Feld ist in der Cloud-DB aktuell nicht befuellt.</div>
                 <div class="table-responsive">
                     <table class="table table-sm table-striped align-middle">
                         <thead>

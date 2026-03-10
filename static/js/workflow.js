@@ -750,6 +750,13 @@ function escapeHtml(value) {
             .replace(/'/g, '&#39;');
     }
 
+function formatCloudTableText(value, options = {}) {
+        const text = String(value ?? '').trim();
+        if (text) return escapeHtml(text);
+        const emptyLabel = options.emptyLabel || 'leer in DB';
+        return `<span class="text-muted">${escapeHtml(emptyLabel)}</span>`;
+    }
+
 function renderCloudTableRows(rows) {
         const tbody = document.getElementById('cloudTableBody');
         if (!tbody) return;
@@ -765,14 +772,14 @@ function renderCloudTableRows(rows) {
 
         tbody.innerHTML = rows.map(row => `
             <tr>
-                <td>${escapeHtml(row.vpn_ip)}</td>
-                <td>${escapeHtml(row.gateway_name)}</td>
-                <td>${escapeHtml(row.serial_number)}</td>
-                <td>${escapeHtml(row.eui)}</td>
-                <td>${escapeHtml(row.wifi_ssid)}</td>
-                <td>${escapeHtml(row.status_overall)}</td>
-                <td>${escapeHtml(row.sim_iccid || row.sim_id)}</td>
-                <td>${escapeHtml(row.sim_vendor_name)}</td>
+                <td>${formatCloudTableText(row.vpn_ip, { emptyLabel: '-' })}</td>
+                <td>${formatCloudTableText(row.gateway_name)}</td>
+                <td>${formatCloudTableText(row.serial_number)}</td>
+                <td>${formatCloudTableText(row.eui)}</td>
+                <td>${formatCloudTableText(row.wifi_ssid)}</td>
+                <td>${formatCloudTableText(row.status_overall, { emptyLabel: '-' })}</td>
+                <td>${formatCloudTableText(row.sim_iccid || row.sim_id)}</td>
+                <td>${formatCloudTableText(row.sim_vendor_name)}</td>
                 <td>${escapeHtml(formatCloudTableDate(row.last_gateway_sync_at || row.assigned_at))}</td>
             </tr>
         `).join('');
