@@ -170,12 +170,29 @@ def view_gateway_table():
     """
     search_term = (request.args.get('q') or '').strip()
     raw_limit = request.args.get('limit', '50')
+    sort_by = (request.args.get('sort_by') or 'last_sync').strip()
+    sort_dir = (request.args.get('sort_dir') or 'desc').strip().lower()
     try:
         limit = int(raw_limit)
     except (TypeError, ValueError):
         return error("Limit muss eine Zahl sein.", 400)
 
     limit = max(1, min(limit, 200))
+
+    sort_columns = {
+        "vpn_ip": "gi.vpn_ip",
+        "last_sync": "gi.last_gateway_sync_at",
+    }
+    if sort_by not in sort_columns:
+        return error("Ungueltige Sortierung.", 400)
+    if sort_dir not in {"asc", "desc"}:
+        return error("Ungueltige Sortierrichtung.", 400)
+
+    sort_expression = sort_columns[sort_by]
+    if sort_by == "last_sync":
+        order_clause = f"{sort_expression} {sort_dir.upper()} NULLS LAST, gi.id DESC"
+    else:
+        order_clause = f"{sort_expression} {sort_dir.upper()}, gi.id DESC"
 
     conn = None
     try:
@@ -221,7 +238,7 @@ def view_gateway_table():
                 LEFT JOIN sim_cards sc ON sc.id = gi.sim_card_id
                 LEFT JOIN sim_vendors sv ON sv.id = sc.vendor_id
                 {where_clause}
-                ORDER BY gi.assigned_at DESC NULLS LAST, gi.id DESC
+                ORDER BY {order_clause}
                 LIMIT %s
             """,
             params
@@ -249,6 +266,8 @@ def view_gateway_table():
             "count": len(rows),
             "query": search_term,
             "limit": limit,
+            "sort_by": sort_by,
+            "sort_dir": sort_dir,
         })
     except psycopg2.Error as e:
         return error(f"Datenbank Fehler: {e}", 500)

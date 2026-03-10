@@ -719,10 +719,12 @@ const DatabaseAdapter = {
                 return { ok: false, error: String(e) };
             }
         },
-        async fetchTable(query, limit) {
+        async fetchTable(query, limit, sortBy, sortDir) {
             const params = new URLSearchParams();
             if (query) params.set('q', query);
             if (limit) params.set('limit', String(limit));
+            if (sortBy) params.set('sort_by', sortBy);
+            if (sortDir) params.set('sort_dir', sortDir);
             try {
                 const res = await safeJson(`/api/db/table-view?${params.toString()}`);
                 const unwrapped = unwrap(res.data);
@@ -788,15 +790,17 @@ function renderCloudTableRows(rows) {
 export async function loadCloudTableViewer() {
         const searchInput = document.getElementById('cloudTableSearch');
         const limitInput = document.getElementById('cloudTableLimit');
+        const sortInput = document.getElementById('cloudTableSort');
         const statusEl = document.getElementById('cloudTableStatus');
         const query = searchInput?.value?.trim() || '';
         const limit = limitInput?.value || '50';
+        const [sortBy = 'last_sync', sortDir = 'desc'] = (sortInput?.value || 'last_sync:desc').split(':');
 
         if (statusEl) {
             statusEl.textContent = 'Lade Cloud Tabelle...';
         }
 
-        const result = await DatabaseAdapter.fetchTable(query, limit);
+        const result = await DatabaseAdapter.fetchTable(query, limit, sortBy, sortDir);
         if (!result.ok) {
             renderCloudTableRows([]);
             if (statusEl) {

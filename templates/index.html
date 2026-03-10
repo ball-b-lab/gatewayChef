@@ -432,9 +432,18 @@
             <div class="card-header bg-dark text-white">Cloud Tabelle</div>
             <div class="card-body">
                 <div class="row g-2 align-items-end mb-3">
-                    <div class="col-md-8">
+                    <div class="col-md-6">
                         <label for="cloudTableSearch" class="form-label">Suche</label>
                         <input type="text" class="form-control" id="cloudTableSearch" placeholder="VPN IP, Name, Serial, EUI, ICCID">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="cloudTableSort" class="form-label">Sortierung</label>
+                        <select class="form-select" id="cloudTableSort">
+                            <option value="last_sync:desc" selected>Zuletzt Sync, neu zuerst</option>
+                            <option value="last_sync:asc">Zuletzt Sync, alt zuerst</option>
+                            <option value="vpn_ip:asc">VPN IP, aufsteigend</option>
+                            <option value="vpn_ip:desc">VPN IP, absteigend</option>
+                        </select>
                     </div>
                     <div class="col-md-2">
                         <label for="cloudTableLimit" class="form-label">Limit</label>

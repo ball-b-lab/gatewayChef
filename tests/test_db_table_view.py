@@ -58,12 +58,14 @@ class DbTableViewTest(unittest.TestCase):
         ])
         get_db_connection_mock.return_value = conn
 
-        response = self.client.get("/api/db/table-view?q=172.30&limit=25")
+        response = self.client.get("/api/db/table-view?q=172.30&limit=25&sort_by=vpn_ip&sort_dir=asc")
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()["data"]
         self.assertEqual(payload["count"], 1)
         self.assertEqual(payload["query"], "172.30")
+        self.assertEqual(payload["sort_by"], "vpn_ip")
+        self.assertEqual(payload["sort_dir"], "asc")
         self.assertEqual(payload["rows"][0]["vpn_ip"], "172.30.1.10")
         self.assertEqual(payload["rows"][0]["sim_vendor_name"], "Telekom")
         self.assertEqual(payload["rows"][0]["last_gateway_sync_at"], "2026-03-08T11:15:00")
@@ -78,6 +80,15 @@ class DbTableViewTest(unittest.TestCase):
         payload = response.get_json()
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["error"]["message"], "Limit muss eine Zahl sein.")
+
+    @patch("routes.db.DB_API_PROVIDER_URL", "")
+    def test_table_view_rejects_invalid_sort(self):
+        response = self.client.get("/api/db/table-view?sort_by=status_overall")
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.get_json()
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["message"], "Ungueltige Sortierung.")
 
 
 if __name__ == "__main__":

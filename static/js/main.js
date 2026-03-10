@@ -185,6 +185,7 @@ function bindInputListeners() {
     const clientSearch = document.getElementById('clientSearch');
     const clientId = document.getElementById('clientId');
     const cloudTableSearch = document.getElementById('cloudTableSearch');
+    const cloudTableSort = document.getElementById('cloudTableSort');
     const wsUser = document.getElementById('wsUser');
     const wsPass = document.getElementById('wsPass');
 
@@ -270,6 +271,11 @@ function bindInputListeners() {
         cloudTableSearch.addEventListener('keydown', event => {
             if (event.key !== 'Enter') return;
             event.preventDefault();
+            loadCloudTableViewer();
+        });
+    }
+    if (cloudTableSort) {
+        cloudTableSort.addEventListener('change', () => {
             loadCloudTableViewer();
         });
     }
