@@ -148,6 +148,7 @@
                                 </div>
                                 <div class="col-12">
                                     <button class="btn btn-outline-primary" type="button" onclick="saveCustomerData()">Zuordnung speichern</button>
+                                    <button class="btn btn-outline-secondary ms-2" type="button" onclick="openCloudTableViewer()">Cloud Tabelle ansehen</button>
                                     <span class="small text-muted ms-2">Speichert Name/Serial (und optional SIM) in der DB nach VPN IP.</span>
                                 </div>
                                 <div class="col-12">
@@ -428,14 +429,16 @@
 </div>
 
 <div class="modal fade" id="helpModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="helpModalTitle">Hilfe</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="helpModalBody">Lade...</div>
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="helpModalTitle">Hilfe</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="helpModalBody">Lade...</div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -490,9 +493,6 @@
                 </div>
             </div>
         </div>
-    </div>
-</div>
-</div>
     </div>
 </div>
 

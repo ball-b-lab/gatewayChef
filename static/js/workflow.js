@@ -778,6 +778,20 @@ function renderCloudTableRows(rows) {
         `).join('');
     }
 
+function deriveCloudTableQuery() {
+        return document.getElementById('vpnIp')?.value?.trim()
+            || document.getElementById('gwEui')?.value?.trim()
+            || document.getElementById('gwSn')?.value?.trim()
+            || document.getElementById('gwName')?.value?.trim()
+            || '';
+    }
+
+function setCloudTableSearchQuery(query) {
+        const searchInput = document.getElementById('cloudTableSearch');
+        if (!searchInput) return;
+        searchInput.value = (query || '').trim();
+    }
+
 export async function loadCloudTableViewer() {
         const searchInput = document.getElementById('cloudTableSearch');
         const limitInput = document.getElementById('cloudTableLimit');
@@ -810,15 +824,16 @@ export async function loadCloudTableViewer() {
         log(`.. Cloud Tabelle geladen (${result.data.count || 0} Eintraege).`, 'success');
     }
 
-export async function openCloudTableViewer() {
+export async function openCloudTableViewer(query = '') {
         const modalEl = document.getElementById('cloudTableModal');
         if (!modalEl || !window.bootstrap?.Modal) return;
 
-        const searchInput = document.getElementById('cloudTableSearch');
-        if (searchInput && !searchInput.value.trim()) {
-            searchInput.value = document.getElementById('vpnIp')?.value?.trim()
-                || document.getElementById('gwName')?.value?.trim()
-                || '';
+        const requestedQuery = (query || '').trim();
+        const currentSearch = document.getElementById('cloudTableSearch')?.value?.trim() || '';
+        if (requestedQuery) {
+            setCloudTableSearchQuery(requestedQuery);
+        } else if (!currentSearch) {
+            setCloudTableSearchQuery(deriveCloudTableQuery());
         }
 
         window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
