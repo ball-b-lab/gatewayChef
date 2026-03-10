@@ -1663,6 +1663,47 @@ export async function saveCustomerData() {
             log('!! Fehler beim Speichern der Kundendaten: ' + e, 'error');
         }
     }
+export async function uploadGatewayInventoryCsv() {
+        const input = document.getElementById('gatewayInventoryCsv');
+        const status = document.getElementById('gatewayInventoryImportStatus');
+        const file = input?.files?.[0];
+        if (!file) {
+            alert('Bitte zuerst eine peer_inventory.csv auswaehlen.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        if (status) status.textContent = 'Import laeuft...';
+        log(`.. Importiere VPN Pool CSV: ${file.name}`, 'info');
+        try {
+            const res = await fetch('/api/db/import-gateway-inventory', {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await res.json();
+            const result = unwrap(data);
+            if (!result.ok) {
+                if (status) status.textContent = `Fehler: ${result.error}`;
+                log('!! VPN Pool Import fehlgeschlagen: ' + result.error, 'error');
+                return;
+            }
+
+            const summary = [
+                `importiert=${result.data.inserted}`,
+                `vorhanden=${result.data.skipped_existing}`,
+                `ignoriert=${result.data.ignored_non_gateway}`,
+            ].join(' | ');
+            if (status) status.textContent = summary;
+            log('.. VPN Pool Import erfolgreich: ' + summary, 'success');
+            setRuntimeHint('VPN Pool in gateway_inventory importiert.', 'muted');
+            if (input) input.value = '';
+        } catch (e) {
+            if (status) status.textContent = `Fehler: ${e}`;
+            log('!! VPN Pool Import Exception: ' + e, 'error');
+        }
+    }
 export async function fetchSimVendors() {
         try {
             const res = await fetch('/api/sim/vendors');

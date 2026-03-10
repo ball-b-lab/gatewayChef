@@ -68,6 +68,7 @@ docker compose up --build
 ## WireGuard Pool Expansion
 
 - Generator fuer neue WG-Peers plus `gateway_inventory`-SQL: `scripts/generate_wireguard_inventory.py`
+- Host-Import fuer `gateway_inventory.sql`: `scripts/import_gateway_inventory_sql.py`
 - Kurz-Anleitung: `docs/WIREGUARD_POOL_EXPANSION.md`
 - Bestehende `wg0.conf` erweitern: `docs/WIREGUARD_EXISTING_CONFIG_UPDATE.md`
 

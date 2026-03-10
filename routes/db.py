@@ -102,6 +102,40 @@ def fetch_vpn_key():
             conn.close()
 
 
+@bp.route('/api/db/import-gateway-inventory', methods=['POST'])
+def import_gateway_inventory():
+    """
+    Import generated peer_inventory.csv into gateway_inventory.
+    Accepts multipart/form-data with file field 'file'.
+    Only gateway profile rows are inserted; workstation rows are ignored.
+    """
+    upload = request.files.get('file')
+    if not upload or not upload.filename:
+        return error("CSV-Datei fehlt (Form-Feld 'file').", 400)
+
+    conn = None
+    try:
+        csv_text = upload.stream.read().decode('utf-8-sig')
+    except UnicodeDecodeError:
+        return error("CSV muss UTF-8 sein.", 400)
+
+    try:
+        conn = get_db_connection()
+        service = ProvisioningService(conn)
+        return ok(service.import_gateway_inventory_csv(csv_text))
+    except ProvisioningError as e:
+        if conn:
+            conn.rollback()
+        return error(e.message, e.status_code)
+    except psycopg2.Error as e:
+        if conn:
+            conn.rollback()
+        return error(f"Datenbank Fehler: {e}", 500)
+    finally:
+        if conn:
+            conn.close()
+
+
 @bp.route('/api/db/gateway', methods=['POST'])
 def fetch_gateway_record():
     """

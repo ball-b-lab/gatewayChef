@@ -12,6 +12,7 @@ import {
     copyVpnCidr,
     formatVpnCidr,
     applyVpnIp,
+    uploadGatewayInventoryCsv,
     saveCustomerData,
     fetchSimVendors,
     handleSimVendorChange,
@@ -66,6 +67,7 @@ window.copyField = copyField;
 window.copyVpnCidr = copyVpnCidr;
 window.formatVpnCidr = formatVpnCidr;
 window.applyVpnIp = applyVpnIp;
+window.uploadGatewayInventoryCsv = uploadGatewayInventoryCsv;
 window.saveCustomerData = saveCustomerData;
 window.fetchSimVendors = fetchSimVendors;
 window.handleSimVendorChange = handleSimVendorChange;

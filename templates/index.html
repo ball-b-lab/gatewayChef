@@ -168,6 +168,17 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="col-12">
+                                    <div class="border rounded p-3 bg-light-subtle">
+                                        <div class="fw-semibold mb-2">VPN Pool Import</div>
+                                        <div class="small text-muted mb-2">Importiert generierte <code>peer_inventory.csv</code> nach <code>gateway_inventory</code>. Nur <code>gateway</code>-Profile werden angelegt.</div>
+                                        <div class="input-group">
+                                            <input type="file" class="form-control" id="gatewayInventoryCsv" accept=".csv,text/csv">
+                                            <button class="btn btn-outline-primary" type="button" onclick="uploadGatewayInventoryCsv()">CSV importieren</button>
+                                        </div>
+                                        <div class="small text-muted mt-2" id="gatewayInventoryImportStatus">-</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

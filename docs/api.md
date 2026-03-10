@@ -55,6 +55,10 @@ Notes:
 - `POST /api/db/vpn-key`
   - body: `{ vpn_ip }`
   - `data`: `{ private_key, serial_number }`
+- `POST /api/db/import-gateway-inventory`
+  - multipart/form-data mit Feld `file` = generierte `peer_inventory.csv`
+  - importiert nur `gateway`-Profile nach `gateway_inventory`
+  - `data`: `{ inserted, skipped_existing, ignored_non_gateway, processed_gateway_rows }`
 - `POST /api/db/gateway`
   - body: `{ vpn_ip?, eui?, serial_number? }`
   - `data`: `{ vpn_ip, eui, wifi_ssid, serial_number, gateway_name, sim_iccid, sim_vendor_id, sim_vendor_name }`
