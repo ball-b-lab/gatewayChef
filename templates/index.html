@@ -463,13 +463,21 @@
                             <option value="50" selected>50</option>
                             <option value="100">100</option>
                             <option value="200">200</option>
+                            <option value="500">500</option>
+                            <option value="1000">1000</option>
                         </select>
                     </div>
                     <div class="col-md-2 d-grid">
                         <button class="btn btn-outline-primary" type="button" onclick="loadCloudTableViewer()">Aktualisieren</button>
                     </div>
                 </div>
+                <input type="hidden" id="cloudTableOffset" value="0">
                 <div class="small text-muted mb-2" id="cloudTableStatus">Bereit.</div>
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="cloudTablePrev" onclick="changeCloudTablePage(-1)" disabled>Zurueck</button>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="cloudTableNext" onclick="changeCloudTablePage(1)" disabled>Weiter</button>
+                    <span class="small text-muted" id="cloudTablePageInfo">Seite 0 / 0</span>
+                </div>
                 <div class="small text-muted mb-3">Ansicht zeigt direkte DB-Werte aus <code>gateway_inventory</code> plus SIM-Zuordnung. <span class="text-muted">"leer in DB"</span> bedeutet: Feld ist in der Cloud-DB aktuell nicht befuellt.</div>
                 <div class="table-responsive">
                     <table class="table table-sm table-striped align-middle">

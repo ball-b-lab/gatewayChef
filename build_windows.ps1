@@ -1,5 +1,6 @@
 param(
-    [string]$Port = "5000"
+    [string]$Port = "5000",
+    [switch]$Clean
 )
 
 Set-StrictMode -Version Latest
@@ -7,9 +8,15 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "== GatewayChef Windows Build ==" -ForegroundColor Cyan
 
-# Ensure we are in the provisioner folder
+# Ensure we are in the repository root
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $scriptDir
+
+if ($Clean) {
+    Write-Host ".. Cleaning previous build artifacts" -ForegroundColor Yellow
+    if (Test-Path "build") { Remove-Item "build" -Recurse -Force }
+    if (Test-Path "dist") { Remove-Item "dist" -Recurse -Force }
+}
 
 # Execution policy hint
 $policy = Get-ExecutionPolicy -Scope CurrentUser
@@ -61,6 +68,10 @@ if ($envContent -notmatch "^PORT=") {
     Set-Content ".env" $envContent
 }
 Write-Host ".. Using PORT=$Port" -ForegroundColor Green
+
+# Basic Python syntax validation before packaging
+Write-Host ".. Running compileall validation" -ForegroundColor Yellow
+python -m compileall app.py auth db repositories routes scripts services tests utils | Out-Null
 
 # Build with PyInstaller
 Write-Host ".. Building EXE (PyInstaller)" -ForegroundColor Yellow

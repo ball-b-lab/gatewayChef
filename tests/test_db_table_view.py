@@ -10,13 +10,20 @@ from routes.db import bp as db_bp
 class FakeCursor:
     def __init__(self, rows):
         self.rows = rows
-        self.executed = None
+        self.executed = []
+        self.count_mode = False
 
     def execute(self, query, params=None):
-        self.executed = (query, params)
+        self.executed.append((query, params))
+        self.count_mode = "SELECT COUNT(*)" in query
 
     def fetchall(self):
         return self.rows
+
+    def fetchone(self):
+        if self.count_mode:
+            return (len(self.rows),)
+        return None
 
 
 class FakeConnection:
@@ -67,11 +74,13 @@ class DbTableViewTest(unittest.TestCase):
         self.assertEqual(payload["query"], "172.30")
         self.assertEqual(payload["sort_by"], "vpn_ip")
         self.assertEqual(payload["sort_dir"], "asc")
+        self.assertEqual(payload["total_count"], 1)
+        self.assertEqual(payload["offset"], 0)
         self.assertEqual(payload["rows"][0]["vpn_ip"], "172.30.1.10")
         self.assertEqual(payload["rows"][0]["private_key"], "priv-key-123")
         self.assertEqual(payload["rows"][0]["sim_vendor_name"], "Telekom")
         self.assertEqual(payload["rows"][0]["last_gateway_sync_at"], "2026-03-08T11:15:00")
-        self.assertEqual(conn.cursor_obj.executed[1][-1], 25)
+        self.assertEqual(conn.cursor_obj.executed[-1][1][-2:], [25, 0])
         self.assertTrue(conn.closed)
 
     @patch("routes.db.DB_API_PROVIDER_URL", "")
@@ -91,6 +100,15 @@ class DbTableViewTest(unittest.TestCase):
         payload = response.get_json()
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["error"]["message"], "Ungueltige Sortierung.")
+
+    @patch("routes.db.DB_API_PROVIDER_URL", "")
+    def test_table_view_rejects_invalid_offset(self):
+        response = self.client.get("/api/db/table-view?offset=abc")
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.get_json()
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["message"], "Offset muss eine Zahl sein.")
 
 
 if __name__ == "__main__":

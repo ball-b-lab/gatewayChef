@@ -24,12 +24,10 @@ from config import (
 )
 from routes.gateway import bp as gateway_bp
 from routes.db import bp as db_bp
-from routes.auth import bp as auth_bp
 from routes.network import bp as network_bp
 from routes.chirpstack import bp as chirpstack_bp
 from routes.milesight import bp as milesight_bp
 from routes.webservice import bp as webservice_bp
-from gatewaychef_v2 import bp as gatewaychef_v2_bp
 from utils.response import error, ok
 
 def resource_path(relative):
@@ -103,12 +101,19 @@ app.register_blueprint(db_bp)
 app.register_blueprint(network_bp)
 if APP_MODE != 'cloud_api':
     if ENABLE_LOCAL_AUTH:
-        app.register_blueprint(auth_bp)
+        try:
+            from routes.auth import bp as auth_bp
+        except ModuleNotFoundError as exc:
+            if exc.name != "jwt":
+                raise
+            auth_bp = None
+            print("WARNUNG: jwt Paket fehlt. Auth-Blueprint wird nicht registriert.", flush=True)
+        if auth_bp is not None:
+            app.register_blueprint(auth_bp)
     app.register_blueprint(gateway_bp)
     app.register_blueprint(chirpstack_bp)
     app.register_blueprint(milesight_bp)
     app.register_blueprint(webservice_bp)
-    app.register_blueprint(gatewaychef_v2_bp)
 
 
 def open_browser():

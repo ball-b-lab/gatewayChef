@@ -20,12 +20,13 @@ class WireguardInventoryScriptTest(unittest.TestCase):
         sql = MODULE.build_sql(
             [
                 {
+                    "inventory_enabled": True,
+                    "inventory_status": "FREE",
                     "vpn_ip": "172.30.1.42",
                     "private_key": "secret",
                     "wifi_ssid": "bbdbmon_1.42",
                 }
             ],
-            status="FREE",
             skip_existing=True,
         )
 

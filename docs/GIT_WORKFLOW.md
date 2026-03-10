@@ -1,10 +1,10 @@
 # Git Workflow Rules
 
-Stand: 2026-03-07
+Stand: 2026-03-10
 
 ## Ziel
-- Stabiler `main` Branch fuer produktionsnahe/deployte Staende.
-- Saubere Trennung zwischen Cloud/API und Local-App Aenderungen.
+- Stabiler `main` Branch fuer produktive und deployte Staende.
+- Feature-Branches nur fuer kurzfristige Arbeit, nicht als dauerhafte Deploy-Ziele.
 - Nachvollziehbare Releases und schnelle Rollbacks.
 
 ## Branching Regeln
@@ -32,10 +32,11 @@ Stand: 2026-03-07
    - kurzer Deploy-Checkliste
 
 ## Release/Deploy Regel
+- Coolify deployt `main`.
 - Nach Merge in `main` optional Tag setzen, z. B.:
   - `v2026.03.07-1`
-- Cloud Deploy bevorzugt auf:
-  - klaren Commit SHA oder Tag (nicht "floating branch")
+- Optional kann auf Commit SHA oder Tag gepinnt werden.
+- Keine produktiven Deploys auf wechselnde `codex/*` Branches.
 
 ## Deploy-Checkliste (kurz)
 1. Erwarteten Commit/Tag notieren.
@@ -46,4 +47,3 @@ Stand: 2026-03-07
 - Das ist ok.
 - `build_sha` faellt auf Git SHA zurueck.
 - `build_tag` und `build_time` sind dann `unknown`.
-

@@ -2,6 +2,10 @@
 
 This guide covers setting up the development environment, running the application locally, and building standalone executables for Windows, macOS, and Linux.
 
+Release note:
+- Production and Coolify baseline is `main`.
+- Experimental side paths such as `gatewaychef_v2` are removed and no longer part of deployment.
+
 ## Prerequisites
 
 - **Python 3.12+**: Ensure Python is installed and added to your system PATH.
@@ -222,7 +226,7 @@ We use [PyInstaller](https://pyinstaller.org/) to create standalone executables.
 
 ### Windows One-Click Build Script
 
-For Windows you can run a single PowerShell script from the `provisioner` folder:
+For Windows you can run a single PowerShell script from the repository root:
 
 ```powershell
 .\build_windows.ps1
@@ -233,12 +237,19 @@ This will:
 - install dependencies
 - install PyInstaller
 - ensure `.env` exists and sets `PORT` (default `5000`)
+- run `compileall` validation on the Python sources
 - build the EXE
 
 To override the port:
 
 ```powershell
 .\build_windows.ps1 -Port 5000
+```
+
+To force a clean rebuild:
+
+```powershell
+.\build_windows.ps1 -Clean
 ```
 
 ### 1. Install PyInstaller

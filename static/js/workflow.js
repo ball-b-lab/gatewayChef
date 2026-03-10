@@ -725,6 +725,8 @@ const DatabaseAdapter = {
             if (limit) params.set('limit', String(limit));
             if (sortBy) params.set('sort_by', sortBy);
             if (sortDir) params.set('sort_dir', sortDir);
+            const offset = document.getElementById('cloudTableOffset')?.value || '0';
+            params.set('offset', String(offset));
             try {
                 const res = await safeJson(`/api/db/table-view?${params.toString()}`);
                 const unwrapped = unwrap(res.data);
@@ -788,11 +790,39 @@ function renderCloudTableRows(rows) {
         `).join('');
     }
 
+function updateCloudTablePager(data) {
+        const prevBtn = document.getElementById('cloudTablePrev');
+        const nextBtn = document.getElementById('cloudTableNext');
+        const pageInfo = document.getElementById('cloudTablePageInfo');
+        const offsetInput = document.getElementById('cloudTableOffset');
+        const limit = Number(data?.limit || 50);
+        const offset = Number(data?.offset || 0);
+        const total = Number(data?.total_count || 0);
+        const currentPage = total === 0 ? 0 : Math.floor(offset / limit) + 1;
+        const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+        if (offsetInput) offsetInput.value = String(offset);
+        if (pageInfo) pageInfo.textContent = total === 0 ? 'Seite 0 / 0' : `Seite ${currentPage} / ${totalPages}`;
+        if (prevBtn) prevBtn.disabled = offset <= 0;
+        if (nextBtn) nextBtn.disabled = offset + limit >= total;
+    }
+
+export async function changeCloudTablePage(direction) {
+        const offsetInput = document.getElementById('cloudTableOffset');
+        const limitInput = document.getElementById('cloudTableLimit');
+        const currentOffset = Number(offsetInput?.value || 0);
+        const limit = Number(limitInput?.value || 50);
+        const nextOffset = Math.max(0, currentOffset + (direction * limit));
+        if (offsetInput) offsetInput.value = String(nextOffset);
+        await loadCloudTableViewer();
+    }
+
 export async function loadCloudTableViewer() {
         const searchInput = document.getElementById('cloudTableSearch');
         const limitInput = document.getElementById('cloudTableLimit');
         const sortInput = document.getElementById('cloudTableSort');
         const statusEl = document.getElementById('cloudTableStatus');
+        const offsetInput = document.getElementById('cloudTableOffset');
         const query = searchInput?.value?.trim() || '';
         const limit = limitInput?.value || '50';
         const [sortBy = 'last_sync', sortDir = 'desc'] = (sortInput?.value || 'last_sync:desc').split(':');
@@ -813,8 +843,13 @@ export async function loadCloudTableViewer() {
         }
 
         renderCloudTableRows(result.data.rows || []);
+        updateCloudTablePager(result.data);
         if (statusEl) {
-            statusEl.textContent = `${result.data.count || 0} Eintraege geladen.`;
+            const loaded = result.data.count || 0;
+            const total = result.data.total_count || 0;
+            const start = total === 0 ? 0 : (Number(result.data.offset || 0) + 1);
+            const end = total === 0 ? 0 : (Number(result.data.offset || 0) + loaded);
+            statusEl.textContent = `${loaded} Eintraege geladen. Bereich ${start}-${end} von ${total}.`;
             if (result.data.query) {
                 statusEl.textContent += ` Filter: "${result.data.query}"`;
             }
@@ -827,6 +862,8 @@ export async function openCloudTableViewer() {
         if (tabTrigger && window.bootstrap?.Tab) {
             window.bootstrap.Tab.getOrCreateInstance(tabTrigger).show();
         }
+        const offsetInput = document.getElementById('cloudTableOffset');
+        if (offsetInput) offsetInput.value = '0';
         await loadCloudTableViewer();
     }
 export async function runReadPipeline(options = {}) {

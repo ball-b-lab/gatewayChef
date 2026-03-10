@@ -209,14 +209,20 @@ def view_gateway_table():
     """
     search_term = (request.args.get('q') or '').strip()
     raw_limit = request.args.get('limit', '50')
+    raw_offset = request.args.get('offset', '0')
     sort_by = (request.args.get('sort_by') or 'last_sync').strip()
     sort_dir = (request.args.get('sort_dir') or 'desc').strip().lower()
     try:
         limit = int(raw_limit)
     except (TypeError, ValueError):
         return error("Limit muss eine Zahl sein.", 400)
+    try:
+        offset = int(raw_offset)
+    except (TypeError, ValueError):
+        return error("Offset muss eine Zahl sein.", 400)
 
-    limit = max(1, min(limit, 200))
+    limit = max(1, min(limit, 1000))
+    offset = max(0, offset)
 
     sort_columns = {
         "last_sync": "gi.last_gateway_sync_at",
@@ -263,7 +269,18 @@ def view_gateway_table():
             """
             params.extend([like_term] * 9)
 
-        params.append(limit)
+        count_query = f"""
+            SELECT COUNT(*)
+            FROM gateway_inventory gi
+            LEFT JOIN sim_cards sc ON sc.id = gi.sim_card_id
+            LEFT JOIN sim_vendors sv ON sv.id = sc.vendor_id
+            {where_clause}
+        """
+        cur.execute(count_query, params)
+        total_count = cur.fetchone()[0]
+
+        query_params = list(params)
+        query_params.extend([limit, offset])
         cur.execute(
             f"""
                 SELECT
@@ -286,8 +303,9 @@ def view_gateway_table():
                 {where_clause}
                 ORDER BY {order_clause}
                 LIMIT %s
+                OFFSET %s
             """,
-            params
+            query_params
         )
 
         rows = []
@@ -311,8 +329,10 @@ def view_gateway_table():
         return ok({
             "rows": rows,
             "count": len(rows),
+            "total_count": total_count,
             "query": search_term,
             "limit": limit,
+            "offset": offset,
             "sort_by": sort_by,
             "sort_dir": sort_dir,
         })

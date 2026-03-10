@@ -6,11 +6,10 @@ A robust Flask-based web application for provisioning Milesight LoRa Gateways. I
 
 -   **[Architecture & System Overview](docs/ARCHITECTURE.md)**: Understand the system components, data flow, and file structure.
 -   **[Deployment Guide](docs/DEPLOYMENT.md)**: Instructions for running locally and building standalone executables for Windows, macOS, and Linux.
--   **[Coolify Runtime Architecture](docs/COOLIFY_RUNTIME_ARCHITECTURE.md)**: What runs where (containers, ports, proxy, envs, migration paths).
 -   **[Target Architecture (Local + Cloud)](docs/TARGET_ARCHITECTURE_LOCAL_CLOUD.md)**: Final operating model with containers, ports, reverse proxy, envs, and migration roles.
--   **[Git Workflow Rules](docs/GIT_WORKFLOW.md)**: Branching, release, and deploy verification rules.
--   **[Local App Backlog](docs/LOCAL_APP_BACKLOG.md)**: Prioritized stabilization and UX tasks for the local runner.
--   **[API Reference](docs/API.md)**: Detailed specification of the backend JSON API.
+-   **[API Reference](docs/api.md)**: Detailed specification of the backend JSON API.
+-   **[Release Baseline](docs/RELEASE_BASELINE.md)**: Current supported baseline, release branch and cleanup decisions.
+-   **[Agent Notes](AGENTS.md)**: Guardrails for later AI-assisted changes.
 
 ## ✨ Features
 
@@ -74,7 +73,13 @@ docker compose up --build
 
 ## 📦 Building Executables
 
-To build a standalone executable for your current platform:
+Windows build:
+
+```powershell
+.\build_windows.ps1 -Clean
+```
+
+Generic PyInstaller build:
 
 ```bash
 pip install pyinstaller
