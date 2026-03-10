@@ -184,6 +184,7 @@ function bindInputListeners() {
     const vpnIp = document.getElementById('vpnIp');
     const clientSearch = document.getElementById('clientSearch');
     const clientId = document.getElementById('clientId');
+    const cloudTableSearch = document.getElementById('cloudTableSearch');
     const wsUser = document.getElementById('wsUser');
     const wsPass = document.getElementById('wsPass');
 
@@ -263,6 +264,13 @@ function bindInputListeners() {
                 clearTimeout(vars.clientSearchTimer);
             }
             vars.clientSearchTimer = setTimeout(triggerClientLoad, 300);
+        });
+    }
+    if (cloudTableSearch) {
+        cloudTableSearch.addEventListener('keydown', event => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            loadCloudTableViewer();
         });
     }
     
