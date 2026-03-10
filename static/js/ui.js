@@ -80,6 +80,7 @@ export function formatTimestamp(date) {
 
 export function setBadge(el, text, stateName) {
     const badge = document.getElementById(el);
+    if (!badge) return;
     badge.textContent = text;
     badge.classList.remove('bg-secondary', 'bg-success', 'bg-danger', 'bg-warning', 'text-dark');
     if (stateName === 'ok') {
@@ -96,19 +97,16 @@ export function setBadge(el, text, stateName) {
 export function setServiceStatus(serviceKey, payload) {
     const config = {
         chirpstack: {
-            conn: 'serviceConnChirpstack',
             status: 'chirpstackStatus',
-            updated: 'serviceUpdatedChirpstack'
+            details: 'serviceDetailsChirpstack'
         },
         milesight: {
-            conn: 'serviceConnMilesight',
             status: 'milesightStatus',
-            updated: 'serviceUpdatedMilesight'
+            details: 'serviceDetailsMilesight'
         },
         webservice: {
-            conn: 'serviceConnWebservice',
             status: 'webserviceStatus',
-            updated: 'serviceUpdatedWebservice'
+            details: 'serviceDetailsWebservice'
         }
     };
     const target = config[serviceKey];
@@ -117,17 +115,19 @@ export function setServiceStatus(serviceKey, payload) {
     const statusText = payload.statusText || '-';
     const errorText = payload.error || '-';
     const updatedAt = payload.updatedAt || null;
-    document.getElementById(target.conn).textContent = connected ? 'Connected' : 'Not connected';
-    const combined = (errorText && errorText !== '-' && errorText !== 'none')
-        ? `${statusText} | ${errorText}`
-        : statusText;
-    document.getElementById(target.status).textContent = combined;
-    document.getElementById(target.updated).textContent = formatTimestamp(updatedAt);
-    if (payload.tooltip) {
-        document.getElementById(target.status).title = payload.tooltip;
-    } else {
-        document.getElementById(target.status).title = '';
+    const connectionText = payload.connectionText || (connected ? 'API erreichbar' : 'API nicht erreichbar');
+    const detailText = payload.detailText || '';
+    document.getElementById(target.status).textContent = statusText;
+    const details = [];
+    if (connectionText) details.push(connectionText);
+    if (detailText) {
+        details.push(detailText);
+    } else if (errorText && errorText !== '-' && errorText !== 'none') {
+        details.push(errorText);
     }
+    if (updatedAt) details.push(formatTimestamp(updatedAt));
+    document.getElementById(target.details).textContent = details.join(' | ') || '-';
+    document.getElementById(target.details).title = payload.tooltip || '';
     if (state.statuses[serviceKey]) {
         state.statuses[serviceKey] = {
             connected: !!connected,
@@ -139,6 +139,7 @@ export function setServiceStatus(serviceKey, payload) {
 
 export function renderMismatchList(items) {
     const list = document.getElementById('mismatchList');
+    if (!list) return;
     list.innerHTML = '';
     if (!items.length) {
         const li = document.createElement('li');

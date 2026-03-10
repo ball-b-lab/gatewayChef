@@ -1,5 +1,9 @@
+import csv
+import io
+
 from repositories.gateway_inventory_repository import GatewayInventoryRepository
 from db.sim import SimAssignmentError, assign_sim
+from utils.helpers import derive_wifi_ssid
 
 
 class ProvisioningError(Exception):
@@ -92,3 +96,88 @@ class ProvisioningService:
             return {"status": "success", "sim_card_id": assigned_sim_id, "sim_id": sim_id_str}
         except ProvisioningError:
             raise
+
+    def import_gateway_inventory_csv(self, csv_text):
+        if not csv_text or not str(csv_text).strip():
+            raise ProvisioningError("CSV-Datei ist leer.", 400)
+
+        try:
+            reader = csv.DictReader(io.StringIO(csv_text))
+        except csv.Error as exc:
+            raise ProvisioningError(f"CSV kann nicht gelesen werden: {exc}", 400) from exc
+
+        if not reader.fieldnames:
+            raise ProvisioningError("CSV-Header fehlt.", 400)
+
+        normalized_fieldnames = {name.strip() for name in reader.fieldnames if name}
+        required = {"vpn_ip", "private_key"}
+        missing = required - normalized_fieldnames
+        if missing:
+            raise ProvisioningError(
+                f"CSV-Header unvollstaendig. Es fehlen: {', '.join(sorted(missing))}",
+                400,
+            )
+
+        rows_to_import = []
+        ignored = 0
+        seen_gateway_ips = set()
+
+        for index, row in enumerate(reader, start=2):
+            normalized = {str(k).strip(): (v.strip() if isinstance(v, str) else v) for k, v in (row or {}).items()}
+            vpn_ip = normalized.get("vpn_ip") or ""
+            private_key = normalized.get("private_key") or ""
+            profile = (normalized.get("profile") or "gateway").strip().lower()
+            inventory_enabled = (normalized.get("inventory_enabled") or "").strip().lower()
+            status_overall = (normalized.get("inventory_status") or "FREE").strip() or "FREE"
+            wifi_ssid = (normalized.get("wifi_ssid") or "").strip() or derive_wifi_ssid(vpn_ip)
+
+            should_import = True
+            if profile and profile != "gateway":
+                should_import = False
+            if inventory_enabled in {"false", "0", "no"}:
+                should_import = False
+
+            if not should_import:
+                ignored += 1
+                continue
+
+            if not vpn_ip:
+                raise ProvisioningError(f"CSV Zeile {index}: vpn_ip fehlt.", 400)
+            if not private_key:
+                raise ProvisioningError(f"CSV Zeile {index}: private_key fehlt.", 400)
+            if vpn_ip in seen_gateway_ips:
+                raise ProvisioningError(f"CSV enthaelt doppelte Gateway-VPN-IP: {vpn_ip}", 400)
+            seen_gateway_ips.add(vpn_ip)
+
+            rows_to_import.append(
+                {
+                    "vpn_ip": vpn_ip,
+                    "private_key": private_key,
+                    "wifi_ssid": wifi_ssid,
+                    "status_overall": status_overall,
+                }
+            )
+
+        inserted = 0
+        skipped = 0
+        with self.connection.cursor() as cursor:
+            repo = GatewayInventoryRepository(cursor)
+            for row in rows_to_import:
+                result = repo.insert_gateway_inventory_seed_row(
+                    vpn_ip=row["vpn_ip"],
+                    private_key=row["private_key"],
+                    wifi_ssid=row["wifi_ssid"],
+                    status_overall=row["status_overall"],
+                )
+                if result:
+                    inserted += 1
+                else:
+                    skipped += 1
+
+        self.connection.commit()
+        return {
+            "inserted": inserted,
+            "skipped_existing": skipped,
+            "ignored_non_gateway": ignored,
+            "processed_gateway_rows": len(rows_to_import),
+        }

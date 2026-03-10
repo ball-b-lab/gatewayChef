@@ -85,3 +85,15 @@ class GatewayInventoryRepository:
             (sim_card_id,),
         )
         return self.cursor.fetchone()
+
+    def insert_gateway_inventory_seed_row(self, vpn_ip, private_key, wifi_ssid, status_overall):
+        self.cursor.execute(
+            """
+            INSERT INTO gateway_inventory (vpn_ip, private_key, wifi_ssid, status_overall)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (vpn_ip) DO NOTHING
+            RETURNING id
+            """,
+            (vpn_ip, private_key, wifi_ssid, status_overall),
+        )
+        return self.cursor.fetchone()

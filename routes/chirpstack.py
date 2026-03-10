@@ -7,10 +7,15 @@ from utils.response import ok, error
 bp = Blueprint('chirpstack', __name__)
 
 
+def _normalize_eui(value):
+    return ''.join(ch for ch in str(value or '') if ch in '0123456789abcdefABCDEF').lower()
+
+
 def _build_gateway_payload(eui, serial, gateway_name):
+    normalized_eui = _normalize_eui(eui)
     return {
         "gateway": {
-            "gatewayId": eui,
+            "gatewayId": normalized_eui,
             "name": gateway_name,
             "description": serial,
             "tenantId": CHIRPSTACK_TENANT_ID,
@@ -28,7 +33,7 @@ def chirpstack_command():
     Returns ChirpStack create payload for dry-run (no terminal output).
     """
     data = request.json
-    eui = data.get('eui')
+    eui = _normalize_eui(data.get('eui'))
     serial = data.get('serial_number')
     gateway_name = data.get('gateway_name')
 
@@ -52,7 +57,7 @@ def chirpstack_create():
     Creates a ChirpStack gateway using the REST API.
     """
     data = request.json or {}
-    eui = data.get('eui')
+    eui = _normalize_eui(data.get('eui'))
     serial = data.get('serial_number')
     gateway_name = data.get('gateway_name')
 
@@ -98,7 +103,7 @@ def chirpstack_check():
     Checks ChirpStack for a gateway by EUI.
     """
     data = request.json
-    eui = data.get('eui')
+    eui = _normalize_eui(data.get('eui'))
 
     if not eui:
         return error("Fehlende EUI.", 400)

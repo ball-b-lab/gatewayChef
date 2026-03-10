@@ -14,6 +14,7 @@ export const state = {
         gateway: { connected: false, updatedAt: null, error: null },
         milesight: { connected: false, updatedAt: null, error: null },
         chirpstack: { connected: false, updatedAt: null, error: null },
+        webservice: { connected: false, updatedAt: null, error: null },
         db: { connected: false, updatedAt: null, error: null }
     },
     ui: {
@@ -42,5 +43,9 @@ export const vars = {
     selectedClientId: '',
     selectedClientName: '',
     finalCheckTimer: null,
-    lastFinalCheckSignature: ''
+    lastFinalCheckSignature: '',
+    lastProvisionSavedOk: false,
+    lastProvisionConfirmed: false,
+    knownGatewayAcknowledged: false,
+    lastKnownGatewaySignature: ''
 };

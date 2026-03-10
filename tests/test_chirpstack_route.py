@@ -35,6 +35,7 @@ class ChirpstackRouteTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()["data"]["payload"]
+        self.assertEqual(payload["gateway"]["gatewayId"], "a1b2c3d4e5f6a7b8")
         self.assertEqual(payload["gateway"]["statsInterval"], 30)
         self.assertEqual(payload["gateway"]["tags"]["serial_number"], "SER-1")
 
@@ -56,6 +57,7 @@ class ChirpstackRouteTest(unittest.TestCase):
         post_mock.assert_called_once()
 
         sent_json = post_mock.call_args.kwargs["json"]
+        self.assertEqual(sent_json["gateway"]["gatewayId"], "a1b2c3d4e5f6a7b8")
         self.assertEqual(sent_json["gateway"]["statsInterval"], 30)
         self.assertEqual(sent_json["gateway"]["tags"]["serial_number"], "SER-1")
 

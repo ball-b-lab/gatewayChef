@@ -12,6 +12,7 @@ import {
     copyVpnCidr,
     formatVpnCidr,
     applyVpnIp,
+    uploadGatewayInventoryCsv,
     saveCustomerData,
     fetchSimVendors,
     handleSimVendorChange,
@@ -19,6 +20,9 @@ import {
     fetchIp,
     fetchVpnKeyForGateway,
     pushData,
+    confirmProvisioning,
+    openCloudTableViewer,
+    loadCloudTableViewer,
     dryRunChirpstack,
     createChirpstackDevice,
     checkChirpstackExists,
@@ -39,6 +43,7 @@ import {
     syncDesiredState,
     renderFinalSummary,
     updateGatewayStatus,
+    checkVpnReachability,
     updateConfigTargets,
     checkReady,
     invalidateFinalCheck,
@@ -46,6 +51,7 @@ import {
     handleClientSearchInput,
     loadClientGateways,
     setSuggestedName,
+    acknowledgeKnownGateway,
     updateSuggestedNameLabel,
     setSerialNumberFromStatus,
     toggleSerialNumberEdit
@@ -61,6 +67,7 @@ window.copyField = copyField;
 window.copyVpnCidr = copyVpnCidr;
 window.formatVpnCidr = formatVpnCidr;
 window.applyVpnIp = applyVpnIp;
+window.uploadGatewayInventoryCsv = uploadGatewayInventoryCsv;
 window.saveCustomerData = saveCustomerData;
 window.fetchSimVendors = fetchSimVendors;
 window.handleSimVendorChange = handleSimVendorChange;
@@ -68,6 +75,9 @@ window.fetchNextSim = fetchNextSim;
 window.fetchIp = fetchIp;
 window.fetchVpnKeyForGateway = fetchVpnKeyForGateway;
 window.pushData = pushData;
+window.confirmProvisioning = confirmProvisioning;
+window.openCloudTableViewer = openCloudTableViewer;
+window.loadCloudTableViewer = loadCloudTableViewer;
 window.dryRunChirpstack = dryRunChirpstack;
 window.createChirpstackDevice = createChirpstackDevice;
 window.checkChirpstackExists = checkChirpstackExists;
@@ -86,8 +96,10 @@ window.handleEuiChange = handleEuiChange;
 window.openHelp = openHelp;
 window.loadClientGateways = loadClientGateways;
 window.setSuggestedName = setSuggestedName;
+window.acknowledgeKnownGateway = acknowledgeKnownGateway;
 window.setSerialNumberFromStatus = setSerialNumberFromStatus;
 window.toggleSerialNumberEdit = toggleSerialNumberEdit;
+window.checkVpnReachability = checkVpnReachability;
 
 function applyDbProxyStatus() {
     const badge = document.getElementById('dbProxyState');
@@ -174,6 +186,8 @@ function bindInputListeners() {
     const vpnIp = document.getElementById('vpnIp');
     const clientSearch = document.getElementById('clientSearch');
     const clientId = document.getElementById('clientId');
+    const cloudTableSearch = document.getElementById('cloudTableSearch');
+    const cloudTableSort = document.getElementById('cloudTableSort');
     const wsUser = document.getElementById('wsUser');
     const wsPass = document.getElementById('wsPass');
 
@@ -255,6 +269,18 @@ function bindInputListeners() {
             vars.clientSearchTimer = setTimeout(triggerClientLoad, 300);
         });
     }
+    if (cloudTableSearch) {
+        cloudTableSearch.addEventListener('keydown', event => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            loadCloudTableViewer();
+        });
+    }
+    if (cloudTableSort) {
+        cloudTableSort.addEventListener('change', () => {
+            loadCloudTableViewer();
+        });
+    }
     
     // Trigger Webservice check when credentials change
     const triggerWsCheck = () => {
@@ -306,16 +332,13 @@ window.addEventListener('load', () => {
     if (savedUser && wsUser) {
         wsUser.value = savedUser;
     }
-    setBadge('badgeChirpstack', 'ChirpStack: -', 'idle');
-    setBadge('badgeMilesight', 'Milesight: -', 'idle');
-    setBadge('badgeFinalCheck', 'Konfigurations Check: -', 'idle');
     renderFinalSummary();
     updateServiceNames();
     fetchSimVendors();
     syncDesiredState();
-    setServiceStatus('chirpstack', { connected: false, statusText: 'ChirpStack Status: -', updatedAt: null, error: '-' });
-    setServiceStatus('milesight', { connected: false, statusText: 'Milesight Status: -', updatedAt: null, error: '-' });
-    setServiceStatus('webservice', { connected: false, statusText: 'Webservice Status: -', updatedAt: null, error: '-' });
+    setServiceStatus('chirpstack', { connected: false, statusText: '-', updatedAt: null, error: '-' });
+    setServiceStatus('milesight', { connected: false, statusText: '-', updatedAt: null, error: '-' });
+    setServiceStatus('webservice', { connected: false, statusText: '-', updatedAt: null, error: '-' });
     refreshTooltips();
     refreshGatewayStatus(true);
     const autoRefresh = document.getElementById('gwAutoRefresh');

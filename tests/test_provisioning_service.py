@@ -6,14 +6,28 @@ from services.provisioning_service import ProvisioningError, ProvisioningService
 
 
 class FakeCursor:
-    def __init__(self, rows):
+    def __init__(self, rows, existing_ips=None):
         self.rows = list(rows)
         self.executed = []
+        self.existing_ips = set(existing_ips or [])
+        self._pending_fetchone = None
 
     def execute(self, query, params=None):
         self.executed.append((query, params))
+        normalized = " ".join(str(query).split())
+        if normalized.startswith("INSERT INTO gateway_inventory"):
+            vpn_ip = params[0]
+            if vpn_ip in self.existing_ips:
+                self._pending_fetchone = None
+            else:
+                self.existing_ips.add(vpn_ip)
+                self._pending_fetchone = (len(self.existing_ips),)
 
     def fetchone(self):
+        if self._pending_fetchone is not None:
+            value = self._pending_fetchone
+            self._pending_fetchone = None
+            return value
         if not self.rows:
             return None
         return self.rows.pop(0)
@@ -26,13 +40,14 @@ class FakeCursor:
 
 
 class FakeConnection:
-    def __init__(self, rows):
+    def __init__(self, rows, existing_ips=None):
         self._rows = rows
+        self._existing_ips = existing_ips or set()
         self.commit_calls = 0
         self.rollback_calls = 0
 
     def cursor(self):
-        return FakeCursor(self._rows)
+        return FakeCursor(self._rows, existing_ips=self._existing_ips)
 
     def commit(self):
         self.commit_calls += 1
@@ -148,6 +163,48 @@ class ProvisioningServiceTest(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 422)
         self.assertEqual(conn.commit_calls, 0)
         self.assertEqual(conn.rollback_calls, 1)
+
+    def test_import_gateway_inventory_csv_imports_only_gateway_profiles(self):
+        conn = FakeConnection(rows=[])
+        service = ProvisioningService(conn)
+
+        result = service.import_gateway_inventory_csv(
+            "profile,vpn_ip,wifi_ssid,private_key,public_key,inventory_enabled,inventory_status\n"
+            "gateway,172.30.1.10,bbdbmon_1.10,priv-a,pub-a,true,FREE\n"
+            "workstation,172.30.100.10,bbdbmon_100.10,priv-b,pub-b,false,RESERVED\n"
+        )
+
+        self.assertEqual(result["inserted"], 1)
+        self.assertEqual(result["skipped_existing"], 0)
+        self.assertEqual(result["ignored_non_gateway"], 1)
+        self.assertEqual(conn.commit_calls, 1)
+
+    def test_import_gateway_inventory_csv_skips_existing_rows(self):
+        conn = FakeConnection(rows=[], existing_ips={"172.30.1.10"})
+        service = ProvisioningService(conn)
+
+        result = service.import_gateway_inventory_csv(
+            "profile,vpn_ip,wifi_ssid,private_key\n"
+            "gateway,172.30.1.10,bbdbmon_1.10,priv-a\n"
+            "gateway,172.30.1.11,bbdbmon_1.11,priv-b\n"
+        )
+
+        self.assertEqual(result["inserted"], 1)
+        self.assertEqual(result["skipped_existing"], 1)
+        self.assertEqual(result["ignored_non_gateway"], 0)
+
+    def test_import_gateway_inventory_csv_rejects_duplicate_gateway_ip_in_file(self):
+        conn = FakeConnection(rows=[])
+        service = ProvisioningService(conn)
+
+        with self.assertRaises(ProvisioningError) as ctx:
+            service.import_gateway_inventory_csv(
+                "profile,vpn_ip,wifi_ssid,private_key\n"
+                "gateway,172.30.1.10,bbdbmon_1.10,priv-a\n"
+                "gateway,172.30.1.10,bbdbmon_1.10,priv-b\n"
+            )
+
+        self.assertEqual(ctx.exception.status_code, 400)
 
 
 if __name__ == "__main__":

@@ -29,6 +29,7 @@ from routes.network import bp as network_bp
 from routes.chirpstack import bp as chirpstack_bp
 from routes.milesight import bp as milesight_bp
 from routes.webservice import bp as webservice_bp
+from gatewaychef_v2 import bp as gatewaychef_v2_bp
 from utils.response import error, ok
 
 def resource_path(relative):
@@ -107,6 +108,7 @@ if APP_MODE != 'cloud_api':
     app.register_blueprint(chirpstack_bp)
     app.register_blueprint(milesight_bp)
     app.register_blueprint(webservice_bp)
+    app.register_blueprint(gatewaychef_v2_bp)
 
 
 def open_browser():
