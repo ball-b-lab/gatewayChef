@@ -51,6 +51,10 @@ CHIRPSTACK_STATS_INTERVAL_SECS = int(os.getenv("CHIRPSTACK_STATS_INTERVAL_SECS",
 # Optional cloud ping proxy (for local app that cannot reach VPN)
 VPN_PING_PROVIDER_URL = os.getenv("VPN_PING_PROVIDER_URL", "").rstrip("/")
 VPN_PING_SERVICE_TOKEN = os.getenv("VPN_PING_SERVICE_TOKEN", "")
+GATEWAY_HEALTH_CONNECT_TIMEOUT_SECS = float(os.getenv("GATEWAY_HEALTH_CONNECT_TIMEOUT_SECS", "1.5"))
+GATEWAY_HEALTH_READ_TIMEOUT_SECS = float(os.getenv("GATEWAY_HEALTH_READ_TIMEOUT_SECS", "2.5"))
+GATEWAY_HEALTH_RETRIES = int(os.getenv("GATEWAY_HEALTH_RETRIES", "1"))
+GATEWAY_HEALTH_RETRY_DELAY_SECS = float(os.getenv("GATEWAY_HEALTH_RETRY_DELAY_SECS", "0.2"))
 
 # Optional cloud DB API proxy (for local app that should not connect to DB directly)
 DB_API_PROVIDER_URL = os.getenv("DB_API_PROVIDER_URL", "").rstrip("/")

@@ -4,14 +4,17 @@ import platform
 import time
 import requests
 from flask import Blueprint, request
-from config import VPN_PING_PROVIDER_URL, VPN_PING_SERVICE_TOKEN
+from config import (
+    VPN_PING_PROVIDER_URL,
+    VPN_PING_SERVICE_TOKEN,
+    GATEWAY_HEALTH_CONNECT_TIMEOUT_SECS,
+    GATEWAY_HEALTH_READ_TIMEOUT_SECS,
+    GATEWAY_HEALTH_RETRIES,
+    GATEWAY_HEALTH_RETRY_DELAY_SECS,
+)
 from utils.response import ok, error
 
 bp = Blueprint('network', __name__)
-
-GATEWAY_HEALTH_TIMEOUT_SECS = 8
-GATEWAY_HEALTH_RETRIES = 2
-GATEWAY_HEALTH_RETRY_DELAY_SECS = 0.35
 
 
 def _validate_host(host):
@@ -64,7 +67,10 @@ def _fetch_gateway_health_direct(host):
     url = _gateway_health_url(host)
     for attempt in range(GATEWAY_HEALTH_RETRIES):
         try:
-            resp = requests.get(url, timeout=GATEWAY_HEALTH_TIMEOUT_SECS)
+            resp = requests.get(
+                url,
+                timeout=(GATEWAY_HEALTH_CONNECT_TIMEOUT_SECS, GATEWAY_HEALTH_READ_TIMEOUT_SECS),
+            )
             break
         except requests.RequestException as exc:
             if attempt < GATEWAY_HEALTH_RETRIES - 1:
@@ -95,7 +101,7 @@ def _proxy_gateway_health(host):
                 url,
                 headers=headers,
                 json={"host": host},
-                timeout=GATEWAY_HEALTH_TIMEOUT_SECS,
+                timeout=(GATEWAY_HEALTH_CONNECT_TIMEOUT_SECS, GATEWAY_HEALTH_READ_TIMEOUT_SECS),
             )
             payload = resp.json() if resp.content else {}
             break

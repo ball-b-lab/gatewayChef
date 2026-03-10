@@ -50,6 +50,7 @@ class NetworkRouteTest(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["via"], "cloud_http_health")
         self.assertEqual(post_mock.call_args.kwargs["headers"]["X-Ping-Service-Token"], "secret")
+        self.assertEqual(post_mock.call_args.kwargs["timeout"], (1.5, 2.5))
 
     @patch("routes.network.time.sleep", return_value=None)
     @patch("routes.network.requests.post")
@@ -60,7 +61,7 @@ class NetworkRouteTest(unittest.TestCase):
         ]
         with patch("routes.network.VPN_PING_PROVIDER_URL", "https://cloud.example.com"), patch(
             "routes.network.VPN_PING_SERVICE_TOKEN", "secret"
-        ):
+        ), patch("routes.network.GATEWAY_HEALTH_RETRIES", 2):
             response = self.client.post("/api/network/vpn-check", json={"vpn_ip": "172.30.1.10"})
 
         self.assertEqual(response.status_code, 200)

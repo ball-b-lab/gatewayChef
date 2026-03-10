@@ -1519,13 +1519,12 @@ export async function checkVpnReachability() {
             statusEl.title = 'Gateway reports matching VPN IP';
         }
         try {
-            const res = await fetch('/api/network/gateway-health', {
+            const res = await safeJson('/api/network/gateway-health', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ vpn_ip: vpnIp })
-            });
-            const data = await res.json();
-            const result = unwrap(data);
+            }, 4500);
+            const result = unwrap(res.data);
             if (!result.ok) {
                 setOperatorHintForError(result.error);
                 statusEl.textContent = 'Fehler';
