@@ -110,6 +110,11 @@ def import_gateway_inventory():
     Only gateway profile rows are inserted; workstation rows are ignored.
     """
     upload = request.files.get('file')
+    print(
+        f"[api/db/import-gateway-inventory] filename={(upload.filename if upload else '')!r} "
+        f"content_type={request.content_type!r}",
+        flush=True,
+    )
     if not upload or not upload.filename:
         return error("CSV-Datei fehlt (Form-Feld 'file').", 400)
 

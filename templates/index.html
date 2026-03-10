@@ -40,7 +40,7 @@
             <button class="nav-link" id="tab-log-tab" data-bs-toggle="tab" data-bs-target="#tab-log" type="button" role="tab" aria-controls="tab-log" aria-selected="false">Status Protokoll</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="tab-cloud-table-tab" data-bs-toggle="tab" data-bs-target="#tab-cloud-table" type="button" role="tab" aria-controls="tab-cloud-table" aria-selected="false" onclick="openCloudTableViewer()">Cloud Tabelle ansehen</button>
+            <button class="nav-link" id="tab-cloud-table-tab" data-bs-toggle="tab" data-bs-target="#tab-cloud-table" type="button" role="tab" aria-controls="tab-cloud-table" aria-selected="false" onclick="openCloudTableViewer()">Cloud Tabelle</button>
         </li>
     </ul>
 
@@ -166,17 +166,6 @@
                                                 <button class="btn btn-sm btn-outline-dark" type="button" onclick="acknowledgeKnownGateway()">Bestaetigen</button>
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
-                                <div class="col-12">
-                                    <div class="border rounded p-3 bg-light-subtle">
-                                        <div class="fw-semibold mb-2">VPN Pool Import</div>
-                                        <div class="small text-muted mb-2">Importiert generierte <code>peer_inventory.csv</code> nach <code>gateway_inventory</code>. Nur <code>gateway</code>-Profile werden angelegt.</div>
-                                        <div class="input-group">
-                                            <input type="file" class="form-control" id="gatewayInventoryCsv" accept=".csv,text/csv">
-                                            <button class="btn btn-outline-primary" type="button" onclick="uploadGatewayInventoryCsv()">CSV importieren</button>
-                                        </div>
-                                        <div class="small text-muted mt-2" id="gatewayInventoryImportStatus">-</div>
                                     </div>
                                 </div>
                             </div>
@@ -439,6 +428,17 @@
         </div>
     </div>
     <div class="tab-pane fade" id="tab-cloud-table" role="tabpanel" aria-labelledby="tab-cloud-table-tab">
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="fw-semibold mb-2">VPN Pool Import</div>
+                <div class="small text-muted mb-2">Importiert generierte <code>peer_inventory.csv</code> nach <code>gateway_inventory</code>. Nur <code>gateway</code>-Profile werden angelegt.</div>
+                <div class="input-group">
+                    <input type="file" class="form-control" id="gatewayInventoryCsv" accept=".csv,text/csv">
+                    <button class="btn btn-outline-primary" type="button" onclick="uploadGatewayInventoryCsv()">CSV importieren</button>
+                </div>
+                <div class="small text-muted mt-2" id="gatewayInventoryImportStatus">-</div>
+            </div>
+        </div>
         <div class="card mb-4">
             <div class="card-header bg-dark text-white">Cloud Tabelle</div>
             <div class="card-body">

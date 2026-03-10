@@ -201,6 +201,7 @@ def write_csv(path, rows):
                 "inventory_enabled",
                 "inventory_status",
             ],
+            extrasaction="ignore",
         )
         writer.writeheader()
         writer.writerows(rows)

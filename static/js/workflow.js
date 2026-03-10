@@ -1682,11 +1682,21 @@ export async function uploadGatewayInventoryCsv() {
                 method: 'POST',
                 body: formData,
             });
+            const httpStatus = res.status;
             const data = await res.json();
             const result = unwrap(data);
             if (!result.ok) {
-                if (status) status.textContent = `Fehler: ${result.error}`;
-                log('!! VPN Pool Import fehlgeschlagen: ' + result.error, 'error');
+                const runtime = window.RUNTIME_CONFIG || {};
+                const proxyEnabled = !!runtime.db_api_proxy_enabled;
+                const proxyHint = proxyEnabled && httpStatus === 404
+                    ? ' Wahrscheinlich ist die Cloud-API noch nicht auf dem neuen Branch deployt.'
+                    : '';
+                const message = `HTTP ${httpStatus}: ${result.error}${proxyHint}`;
+                if (status) status.textContent = `Fehler: ${message}`;
+                log('!! VPN Pool Import fehlgeschlagen: ' + message, 'error');
+                if (proxyEnabled && httpStatus === 404) {
+                    setRuntimeHint('DB-Proxy aktiv: Cloud-API vermutlich noch ohne /api/db/import-gateway-inventory deployt.', 'warn');
+                }
                 return;
             }
 
