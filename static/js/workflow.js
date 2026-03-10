@@ -766,7 +766,7 @@ function renderCloudTableRows(rows) {
         if (!rows || !rows.length) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="9" class="text-muted">Keine Eintraege gefunden.</td>
+                    <td colspan="10" class="text-muted">Keine Eintraege gefunden.</td>
                 </tr>
             `;
             return;
@@ -779,6 +779,7 @@ function renderCloudTableRows(rows) {
                 <td>${formatCloudTableText(row.serial_number)}</td>
                 <td>${formatCloudTableText(row.eui)}</td>
                 <td>${formatCloudTableText(row.wifi_ssid)}</td>
+                <td class="font-monospace small">${formatCloudTableText(row.private_key)}</td>
                 <td>${formatCloudTableText(row.status_overall, { emptyLabel: '-' })}</td>
                 <td>${formatCloudTableText(row.sim_iccid || row.sim_id)}</td>
                 <td>${formatCloudTableText(row.sim_vendor_name)}</td>

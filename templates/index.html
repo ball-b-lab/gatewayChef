@@ -452,8 +452,8 @@
                         <select class="form-select" id="cloudTableSort">
                             <option value="last_sync:desc" selected>Zuletzt Sync, neu zuerst</option>
                             <option value="last_sync:asc">Zuletzt Sync, alt zuerst</option>
-                            <option value="vpn_ip:asc">VPN IP, aufsteigend</option>
-                            <option value="vpn_ip:desc">VPN IP, absteigend</option>
+                            <option value="vpn_ip:asc">VPN IP, numerisch aufsteigend</option>
+                            <option value="vpn_ip:desc">VPN IP, numerisch absteigend</option>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -480,6 +480,7 @@
                                 <th>Serial</th>
                                 <th>EUI</th>
                                 <th>SSID</th>
+                                <th>Private Key</th>
                                 <th>Status</th>
                                 <th>SIM ICCID</th>
                                 <th>Provider</th>
@@ -488,7 +489,7 @@
                         </thead>
                         <tbody id="cloudTableBody">
                             <tr>
-                                <td colspan="9" class="text-muted">Noch keine Daten geladen.</td>
+                                <td colspan="10" class="text-muted">Noch keine Daten geladen.</td>
                             </tr>
                         </tbody>
                     </table>

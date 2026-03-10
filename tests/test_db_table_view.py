@@ -48,6 +48,7 @@ class DbTableViewTest(unittest.TestCase):
                 "SN123",
                 "ABCDEF1234567890",
                 "bbdbmon_172_30_1_10",
+                "priv-key-123",
                 "IN_PROGRESS",
                 "8949000000001",
                 "SIM-42",
@@ -67,6 +68,7 @@ class DbTableViewTest(unittest.TestCase):
         self.assertEqual(payload["sort_by"], "vpn_ip")
         self.assertEqual(payload["sort_dir"], "asc")
         self.assertEqual(payload["rows"][0]["vpn_ip"], "172.30.1.10")
+        self.assertEqual(payload["rows"][0]["private_key"], "priv-key-123")
         self.assertEqual(payload["rows"][0]["sim_vendor_name"], "Telekom")
         self.assertEqual(payload["rows"][0]["last_gateway_sync_at"], "2026-03-08T11:15:00")
         self.assertEqual(conn.cursor_obj.executed[1][-1], 25)

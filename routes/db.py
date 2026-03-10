@@ -219,19 +219,25 @@ def view_gateway_table():
     limit = max(1, min(limit, 200))
 
     sort_columns = {
-        "vpn_ip": "gi.vpn_ip",
         "last_sync": "gi.last_gateway_sync_at",
     }
     if sort_by not in sort_columns:
-        return error("Ungueltige Sortierung.", 400)
+        if sort_by != "vpn_ip":
+            return error("Ungueltige Sortierung.", 400)
     if sort_dir not in {"asc", "desc"}:
         return error("Ungueltige Sortierrichtung.", 400)
 
-    sort_expression = sort_columns[sort_by]
     if sort_by == "last_sync":
+        sort_expression = sort_columns[sort_by]
         order_clause = f"{sort_expression} {sort_dir.upper()} NULLS LAST, gi.id DESC"
     else:
-        order_clause = f"{sort_expression} {sort_dir.upper()}, gi.id DESC"
+        order_clause = (
+            f"split_part(gi.vpn_ip, '.', 1)::int {sort_dir.upper()}, "
+            f"split_part(gi.vpn_ip, '.', 2)::int {sort_dir.upper()}, "
+            f"split_part(gi.vpn_ip, '.', 3)::int {sort_dir.upper()}, "
+            f"split_part(gi.vpn_ip, '.', 4)::int {sort_dir.upper()}, "
+            "gi.id DESC"
+        )
 
     conn = None
     try:
@@ -267,6 +273,7 @@ def view_gateway_table():
                     gi.serial_number,
                     gi.eui,
                     gi.wifi_ssid,
+                    gi.private_key,
                     gi.status_overall,
                     sc.iccid,
                     sc.sim_id,
@@ -292,12 +299,13 @@ def view_gateway_table():
                 "serial_number": row[3],
                 "eui": row[4],
                 "wifi_ssid": row[5],
-                "status_overall": row[6],
-                "sim_iccid": row[7],
-                "sim_id": row[8],
-                "sim_vendor_name": row[9],
-                "assigned_at": row[10].isoformat() if row[10] else None,
-                "last_gateway_sync_at": row[11].isoformat() if row[11] else None,
+                "private_key": row[6],
+                "status_overall": row[7],
+                "sim_iccid": row[8],
+                "sim_id": row[9],
+                "sim_vendor_name": row[10],
+                "assigned_at": row[11].isoformat() if row[11] else None,
+                "last_gateway_sync_at": row[12].isoformat() if row[12] else None,
             })
 
         return ok({
