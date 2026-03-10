@@ -40,7 +40,7 @@
             <button class="nav-link" id="tab-log-tab" data-bs-toggle="tab" data-bs-target="#tab-log" type="button" role="tab" aria-controls="tab-log" aria-selected="false">Status Protokoll</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="tab-cloud-table-trigger" type="button" onclick="openCloudTableViewer()">Cloud Tabelle ansehen</button>
+            <button class="nav-link" id="tab-cloud-table-tab" data-bs-toggle="tab" data-bs-target="#tab-cloud-table" type="button" role="tab" aria-controls="tab-cloud-table" aria-selected="false" onclick="openCloudTableViewer()">Cloud Tabelle ansehen</button>
         </li>
     </ul>
 
@@ -427,30 +427,10 @@
             </div>
         </div>
     </div>
-</div>
-
-<div class="modal fade" id="helpModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="helpModalTitle">Hilfe</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="helpModalBody">Lade...</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="cloudTableModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Cloud Tabelle</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
+    <div class="tab-pane fade" id="tab-cloud-table" role="tabpanel" aria-labelledby="tab-cloud-table-tab">
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">Cloud Tabelle</div>
+            <div class="card-body">
                 <div class="row g-2 align-items-end mb-3">
                     <div class="col-md-8">
                         <label for="cloudTableSearch" class="form-label">Suche</label>
@@ -493,6 +473,20 @@
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="helpModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="helpModalTitle">Hilfe</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="helpModalBody">Lade...</div>
             </div>
         </div>
     </div>

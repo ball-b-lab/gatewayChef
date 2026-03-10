@@ -785,20 +785,6 @@ function renderCloudTableRows(rows) {
         `).join('');
     }
 
-function deriveCloudTableQuery() {
-        return document.getElementById('vpnIp')?.value?.trim()
-            || document.getElementById('gwEui')?.value?.trim()
-            || document.getElementById('gwSn')?.value?.trim()
-            || document.getElementById('gwName')?.value?.trim()
-            || '';
-    }
-
-function setCloudTableSearchQuery(query) {
-        const searchInput = document.getElementById('cloudTableSearch');
-        if (!searchInput) return;
-        searchInput.value = (query || '').trim();
-    }
-
 export async function loadCloudTableViewer() {
         const searchInput = document.getElementById('cloudTableSearch');
         const limitInput = document.getElementById('cloudTableLimit');
@@ -831,19 +817,11 @@ export async function loadCloudTableViewer() {
         log(`.. Cloud Tabelle geladen (${result.data.count || 0} Eintraege).`, 'success');
     }
 
-export async function openCloudTableViewer(query = '') {
-        const modalEl = document.getElementById('cloudTableModal');
-        if (!modalEl || !window.bootstrap?.Modal) return;
-
-        const requestedQuery = (query || '').trim();
-        const currentSearch = document.getElementById('cloudTableSearch')?.value?.trim() || '';
-        if (requestedQuery) {
-            setCloudTableSearchQuery(requestedQuery);
-        } else if (!currentSearch) {
-            setCloudTableSearchQuery(deriveCloudTableQuery());
+export async function openCloudTableViewer() {
+        const tabTrigger = document.getElementById('tab-cloud-table-tab');
+        if (tabTrigger && window.bootstrap?.Tab) {
+            window.bootstrap.Tab.getOrCreateInstance(tabTrigger).show();
         }
-
-        window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
         await loadCloudTableViewer();
     }
 export async function runReadPipeline(options = {}) {
