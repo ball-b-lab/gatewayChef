@@ -133,6 +133,28 @@ function registerTabStateHandlers() {
     });
 }
 
+function formatBuildTimestamp(value) {
+    if (!value || value === 'unknown') return 'unknown';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleString('de-DE');
+}
+
+async function loadBuildInfo() {
+    const node = document.getElementById('buildInfo');
+    if (!node) return;
+    try {
+        const res = await fetch('/api/version');
+        const payload = await res.json();
+        const data = payload?.data || {};
+        const buildSha = data.build_sha || 'unknown';
+        const buildTime = formatBuildTimestamp(data.build_time || 'unknown');
+        node.textContent = `Build: ${buildSha} | ${buildTime}`;
+    } catch (e) {
+        node.textContent = 'Build: unbekannt';
+    }
+}
+
 function applyVpnProxyStatus() {
     const badge = document.getElementById('vpnProxyState');
     if (!badge) return;
@@ -352,6 +374,7 @@ window.addEventListener('load', () => {
     setServiceStatus('milesight', { connected: false, statusText: '-', updatedAt: null, error: '-' });
     setServiceStatus('webservice', { connected: false, statusText: '-', updatedAt: null, error: '-' });
     refreshTooltips();
+    loadBuildInfo();
     refreshGatewayStatus(true);
     const autoRefresh = document.getElementById('gwAutoRefresh');
     autoRefresh.checked = true;

@@ -30,6 +30,7 @@
         <div class="small text-danger mt-2" id="gatewayConnectionError" style="display:none;"></div>
         <div class="small text-muted mt-2" id="appStatusInfo">Gateway nicht verbunden. Auto-Refresh aus.</div>
         <div class="small text-muted mt-1" id="runtimeHintInfo"></div>
+        <div class="small text-muted mt-1" id="buildInfo">Build: -</div>
     </div>
 
     <ul class="nav nav-tabs mb-3 no-scroll-tabs" id="mainTabs" role="tablist">
@@ -152,6 +153,9 @@
                                 <div class="col-12">
                                     <button class="btn btn-outline-primary" type="button" onclick="saveCustomerData()">Zuordnung speichern</button>
                                     <span class="small text-muted ms-2">Speichert Name/Serial (und optional SIM) in der DB nach VPN IP.</span>
+                                </div>
+                                <div class="col-12">
+                                    <div class="small text-muted" id="customerSaveStatus">-</div>
                                 </div>
                                 <div class="col-12">
                                     <div class="alert alert-warning d-none mb-0" id="knownGatewayNotice">

@@ -1786,12 +1786,15 @@ export async function saveCustomerData() {
         const vpnKeyInput = document.getElementById('vpnKey');
         let vpnKey = (vpnKeyInput?.value || '').trim();
         const wifiSsid = (document.getElementById('gwWifiSsid')?.value || '').trim() || deriveWifiSsid(ip);
+        const statusEl = document.getElementById('customerSaveStatus');
 
         if (!ip) {
+            if (statusEl) statusEl.textContent = 'Fehler: VPN IP fehlt.';
             alert('Bitte eine VPN IP setzen.');
             return;
         }
         if (!name && !sn && !simIccid) {
+            if (statusEl) statusEl.textContent = 'Fehler: Name, Serial oder SIM ICCID fehlt.';
             alert('Bitte mindestens Name, Serial oder SIM ICCID eingeben.');
             return;
         }
@@ -1816,6 +1819,7 @@ export async function saveCustomerData() {
             sim_card_id: simCardId
         };
 
+        if (statusEl) statusEl.textContent = `Speichere Zuordnung fuer ${ip}...`;
         async function submitCustomerUpdate() {
             const res = await fetch('/api/db/customer-update', {
                 method: 'POST',
@@ -1834,29 +1838,36 @@ export async function saveCustomerData() {
                 if ((result.error || '').includes('Gateway nicht gefunden')) {
                     if (!vpnKey) {
                         log('!! Kundendaten speichern fehlgeschlagen: ' + detail, 'error');
+                        if (statusEl) statusEl.textContent = `Fehler: ${detail}`;
                         alert(`Zuordnung speichern fehlgeschlagen: ${detail}\n\nEs existiert noch kein gateway_inventory-Eintrag fuer diese VPN IP und es ist kein VPN Private Key geladen. Bitte zuerst eine neue VPN-IP beziehen oder den Sonderfall in der Cloud-Tabelle anlegen.`);
                         return;
                     }
 
                     log(`.. Kein gateway_inventory-Eintrag fuer ${ip}. Lege automatisch Seed-Datensatz an...`, 'warn');
+                    if (statusEl) statusEl.textContent = `Kein gateway_inventory-Eintrag fuer ${ip}. Lege automatisch an...`;
                     const createResult = await DatabaseAdapter.createManualGateway(ip, vpnKey, wifiSsid);
                     if (!createResult.ok) {
                         log('!! Automatische Seed-Anlage fehlgeschlagen: ' + createResult.error, 'error');
+                        if (statusEl) statusEl.textContent = `Fehler: automatische Seed-Anlage fehlgeschlagen (${createResult.error})`;
                         alert(`Zuordnung speichern fehlgeschlagen: ${detail}\n\nAutomatische Anlage des gateway_inventory-Eintrags fehlgeschlagen: ${createResult.error}`);
                         return;
                     }
 
                     log(`.. gateway_inventory-Eintrag fuer ${createResult.data.vpn_ip} automatisch angelegt. Wiederhole Speichern...`, 'success');
+                    if (statusEl) statusEl.textContent = `gateway_inventory fuer ${createResult.data.vpn_ip} angelegt. Speichere Kundendaten erneut...`;
                     result = await submitCustomerUpdate();
                     if (!result.ok) {
                         const retryDetail = formatDetailedError(result) || result.error;
                         log('!! Kundendaten speichern fehlgeschlagen (nach Seed-Anlage): ' + retryDetail, 'error');
+                        if (statusEl) statusEl.textContent = `Fehler: ${retryDetail}`;
                         alert(`Zuordnung speichern fehlgeschlagen: ${retryDetail}\n\ngateway_inventory-Eintrag wurde angelegt, aber das eigentliche Kundendaten-Update ist weiterhin fehlgeschlagen.`);
                         return;
                     }
+                    if (statusEl) statusEl.textContent = `OK: gateway_inventory fuer ${ip} angelegt und Kundendaten gespeichert.`;
                     alert(`gateway_inventory-Eintrag automatisch angelegt und Kundendaten fuer ${ip} gespeichert.`);
                 } else {
                     log('!! Kundendaten speichern fehlgeschlagen: ' + detail, 'error');
+                    if (statusEl) statusEl.textContent = `Fehler: ${detail}`;
                     alert('Zuordnung speichern fehlgeschlagen: ' + detail);
                     return;
                 }
@@ -1871,9 +1882,14 @@ export async function saveCustomerData() {
             }
             
             log('.. Kundendaten gespeichert.', 'success');
+            if (statusEl && !String(statusEl.textContent || '').startsWith('OK:')) {
+                statusEl.textContent = `OK: Kundendaten fuer ${ip} gespeichert.`;
+            }
+            alert(`Zuordnung fuer ${ip} gespeichert.`);
             await loadDbForGateway(ip, document.getElementById('gwEui').value || '', sn || '');
         } catch (e) {
             log('!! Fehler beim Speichern der Kundendaten: ' + e, 'error');
+            if (statusEl) statusEl.textContent = `Fehler: ${e}`;
             alert('Fehler beim Speichern der Kundendaten: ' + e);
         }
     }
