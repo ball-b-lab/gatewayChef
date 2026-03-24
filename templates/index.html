@@ -288,6 +288,7 @@
                         <div class="card-body">
                             <h5 class="card-title"><span class="step-num">4</span>Gateway Pruefung &amp; Integrationen</h5>
                             <div class="small text-muted mb-3">Gateway-Zustand und Cloud-Dienste werden gemeinsam bewertet.</div>
+                            <div class="alert alert-warning mb-3" id="gatewayFirmwareWarning">Stellen Sie sicher, dass mindestens Firmware-Version <code>60.0.0.48</code> installiert ist.</div>
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle status-table">
                                     <thead>
@@ -335,6 +336,12 @@
                                             <td>Serial Number</td>
                                             <td id="statusSerialNumber">-</td>
                                             <td id="statusSerialDetails">Fix im Gateway</td>
+                                            <td>-</td>
+                                        </tr>
+                                        <tr id="rowFirmwareVersion">
+                                            <td>Firmware</td>
+                                            <td id="statusFirmwareVersion">-</td>
+                                            <td id="statusFirmwareDetails">Quelle device-info</td>
                                             <td>-</td>
                                         </tr>
                                         <tr id="rowChirpstackService">
@@ -525,9 +532,12 @@
     <div class="card">
         <div class="card-body text-center">
             <h5 class="card-title">Nicht mit Gateway verbunden</h5>
-            <p class="text-muted">Bitte mit dem Gateway-WLAN verbinden und erneut lesen.</p>
-            <div class="small text-muted mb-3">SSID: <span id="blockedSsidHint">bbdbmon_*</span></div>
-            <button class="btn btn-outline-primary" type="button" onclick="runReadPipeline()">Erneut pruefen</button>
+            <p class="text-muted">Die App erreicht das Gateway unter <code>http://192.168.1.1/node-red/device-info</code> nicht. Bitte WLAN und Gateway-Erreichbarkeit pruefen und erneut lesen.</p>
+            <div class="small text-muted mb-3">SSID-Hinweis: <span id="blockedSsidHint">bbdbmon_* oder bbdbmon_golden</span></div>
+            <div class="d-flex justify-content-center gap-2">
+                <button class="btn btn-outline-primary" type="button" onclick="runReadPipeline()">Erneut pruefen</button>
+                <button class="btn btn-outline-secondary" type="button" onclick="openCloudTableViewer()">Cloud Tabelle oeffnen</button>
+            </div>
         </div>
     </div>
 </div>

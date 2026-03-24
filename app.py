@@ -21,6 +21,7 @@ from config import (
     SKIP_AUTH,
     DB_API_PROVIDER_URL,
     VPN_PING_PROVIDER_URL,
+    RECOMMENDED_GATEWAY_FIRMWARE,
 )
 from routes.gateway import bp as gateway_bp
 from routes.db import bp as db_bp
@@ -89,6 +90,7 @@ def index():
             "vpn_ping_proxy_url": VPN_PING_PROVIDER_URL or "",
             "local_auth_enabled": bool(ENABLE_LOCAL_AUTH),
             "skip_auth_mode": bool(SKIP_AUTH),
+            "recommended_gateway_firmware": RECOMMENDED_GATEWAY_FIRMWARE,
         },
     )
 

@@ -1,10 +1,11 @@
 import io
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from flask import Flask
 
-from routes.db import bp as db_bp
+from routes.db import bp as db_bp, _normalize_optional_bool
 
 
 class GatewayInventoryImportRouteTest(unittest.TestCase):
@@ -48,6 +49,80 @@ class GatewayInventoryImportRouteTest(unittest.TestCase):
     def test_import_route_requires_file(self):
         response = self.client.post("/api/db/import-gateway-inventory", data={}, content_type="multipart/form-data")
         self.assertEqual(response.status_code, 400)
+
+
+class NormalizeOptionalBoolTest(unittest.TestCase):
+    def test_normalizes_common_boolean_variants(self):
+        self.assertIs(_normalize_optional_bool(True), True)
+        self.assertIs(_normalize_optional_bool(False), False)
+        self.assertIs(_normalize_optional_bool(1), True)
+        self.assertIs(_normalize_optional_bool(0), False)
+        self.assertIs(_normalize_optional_bool("1"), True)
+        self.assertIs(_normalize_optional_bool("0"), False)
+        self.assertIs(_normalize_optional_bool("true"), True)
+        self.assertIs(_normalize_optional_bool("false"), False)
+        self.assertIsNone(_normalize_optional_bool(""))
+        self.assertIsNone(_normalize_optional_bool(None))
+
+
+class ProvisionRouteBoolNormalizationTest(unittest.TestCase):
+    def setUp(self):
+        app = Flask(__name__)
+        app.register_blueprint(db_bp)
+        self.client = app.test_client()
+
+    @patch("routes.db.DB_API_PROVIDER_URL", "")
+    @patch("routes.db.APP_MODE", "local")
+    @patch("routes.db.assign_sim", return_value=321)
+    @patch("routes.db.get_db_connection")
+    def test_provision_normalizes_lora_pending_integer_to_boolean(self, get_db_connection_mock, _assign_sim_mock):
+        executed = []
+
+        class FakeCursor:
+            rowcount = 1
+
+            def execute(self, sql, params=None):
+                executed.append((sql, params))
+
+            def fetchone(self):
+                return (123,)
+
+        class FakeConnection:
+            def __init__(self):
+                self.cursor_obj = FakeCursor()
+                self.closed = False
+
+            def cursor(self):
+                return self.cursor_obj
+
+            def rollback(self):
+                pass
+
+            def commit(self):
+                pass
+
+            def close(self):
+                self.closed = True
+
+        get_db_connection_mock.return_value = FakeConnection()
+
+        response = self.client.post(
+            "/api/provision",
+            json={
+                "vpn_ip": "172.30.1.10",
+                "eui": "AA55AA55AA55AA55",
+                "serial_number": "SN-123",
+                "gateway_name": "gw-test",
+                "sim_vendor_id": 7,
+                "sim_iccid": "8949",
+                "lora_pending": 0,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        update_sql, update_params = executed[-1]
+        self.assertIn("lora_pending = %s", update_sql)
+        self.assertIs(update_params[17], False)
 
 
 if __name__ == "__main__":

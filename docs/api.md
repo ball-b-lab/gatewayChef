@@ -40,7 +40,7 @@ Notes:
 
 ### Gateway
 - `GET /api/gateway/device-info`
-  - `data`: `{ status, mac, eui, vpn_ip, wifi_ssid, interfaces, cellular_online }`
+  - `data`: `{ status, mac, eui, vpn_ip, wifi_ssid, interfaces, cellular_online, firmware_version, hardware_version }`
   - **Errors:** Returns `504` on timeout, `502` on connection error.
 - `GET /api/gateway/device-info-lora`
   - `data`: passthrough payload from Node-RED

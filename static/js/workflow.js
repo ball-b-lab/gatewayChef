@@ -80,6 +80,65 @@ function normalizeIdentity(value) {
         return hex || String(value || '').trim();
     }
 
+function normalizeVersionValue(value) {
+        return String(value || '').trim();
+    }
+
+function compareVersionStrings(left, right) {
+        const leftParts = normalizeVersionValue(left).split('.').map(part => Number.parseInt(part, 10) || 0);
+        const rightParts = normalizeVersionValue(right).split('.').map(part => Number.parseInt(part, 10) || 0);
+        const length = Math.max(leftParts.length, rightParts.length);
+        for (let i = 0; i < length; i += 1) {
+            const leftValue = leftParts[i] || 0;
+            const rightValue = rightParts[i] || 0;
+            if (leftValue > rightValue) return 1;
+            if (leftValue < rightValue) return -1;
+        }
+        return 0;
+    }
+
+function normalizeOptionalBool(value) {
+        if (value === null || value === undefined || value === '') return null;
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'number') return value !== 0;
+        const text = String(value).trim().toLowerCase();
+        if (['true', '1', 'yes', 'on'].includes(text)) return true;
+        if (['false', '0', 'no', 'off'].includes(text)) return false;
+        return null;
+    }
+
+function getRecommendedGatewayFirmware() {
+        return normalizeVersionValue((window.RUNTIME_CONFIG || {}).recommended_gateway_firmware || '');
+    }
+
+function updateFirmwareWarning(deviceInfo) {
+        const firmware = normalizeVersionValue(deviceInfo && deviceInfo.firmware_version);
+        const hardware = normalizeVersionValue(deviceInfo && deviceInfo.hardware_version);
+        const expected = getRecommendedGatewayFirmware();
+        const statusEl = document.getElementById('statusFirmwareVersion');
+        const detailsEl = document.getElementById('statusFirmwareDetails');
+        const warningEl = document.getElementById('gatewayFirmwareWarning');
+        const belowMinimum = expected && firmware && compareVersionStrings(firmware, expected) < 0;
+
+        if (statusEl) statusEl.textContent = firmware || '-';
+        if (detailsEl) {
+            const detailParts = [firmware ? 'Vom Gateway gelesen' : 'Quelle device-info'];
+            if (hardware) detailParts.push(`HW ${hardware}`);
+            if (expected) detailParts.push(`Minimum ${expected}`);
+            detailsEl.textContent = detailParts.join(' | ');
+        }
+        setRowState('rowFirmwareVersion', belowMinimum ? 'bad' : (firmware ? 'ok' : 'na'));
+
+        if (!warningEl) return;
+        let warningText = expected
+            ? `Stellen Sie sicher, dass mindestens Firmware-Version ${expected} installiert ist.`
+            : 'Stellen Sie sicher, dass die erforderliche Mindest-Firmware installiert ist.';
+        if (belowMinimum) {
+            warningText = `Firmware ${firmware} erkannt. Mindestens ${expected} erforderlich.`;
+        }
+        warningEl.textContent = warningText;
+    }
+
 function isMissingValue(value) {
         if (value === null || value === undefined) return true;
         const text = String(value).trim();
@@ -874,7 +933,7 @@ export async function runReadPipeline(options = {}) {
         const deviceResult = await GatewayAdapter.fetchDevice();
         if (!deviceResult.ok) {
             state.statuses.gateway = { connected: false, updatedAt: null, error: deviceResult.error };
-            setConnectionState(false, 'Bitte mit dem Gateway-WLAN verbinden.');
+            setConnectionState(false, 'Gateway unter http://192.168.1.1 nicht erreichbar.');
             setGatewayBlocked(true, deviceResult.error);
             setOperatorHintForError('Gateway nicht erreichbar');
             log('!! Gateway nicht erreichbar: ' + deviceResult.error, 'error');
@@ -954,6 +1013,7 @@ export function applyGatewayState(deviceInfo, loraInfo) {
             document.getElementById('gwSn').value = gatewaySerial;
         }
         updateSerialStatus(gatewaySerial);
+        updateFirmwareWarning(deviceInfo);
         const macDetailsEl = document.getElementById('statusMacDetails');
         if (macDetailsEl) macDetailsEl.textContent = rawMac ? 'Vom Gateway gelesen' : 'Quelle device-info';
         document.getElementById('gwEui').value = rawEui;
@@ -1116,6 +1176,11 @@ export function buildMismatchList() {
         }
         if (euiValid && milesight && milesight.exists === false) {
             items.push({ text: `Milesight: Device ${eui} nicht gefunden.` });
+        }
+        const firmware = normalizeVersionValue(gateway.firmware_version);
+        const expectedFirmware = getRecommendedGatewayFirmware();
+        if (firmware && expectedFirmware && compareVersionStrings(firmware, expectedFirmware) < 0) {
+            items.push({ text: `Gateway-Firmware ${firmware} ist kleiner als Minimum ${expectedFirmware}.` });
         }
 
         renderMismatchList(items);
@@ -1360,6 +1425,7 @@ export function resetGatewayScopedFields() {
         document.getElementById('gwName').value = '';
         document.getElementById('gwSn').value = '';
         updateSerialStatus('');
+        updateFirmwareWarning(null);
         document.getElementById('simIccid').value = '';
         document.getElementById('simVendor').value = '';
         document.getElementById('simCardId').value = '';
@@ -1971,7 +2037,7 @@ export async function pushData() {
         const loraGatewayId = loraInfo.gatewayId || document.getElementById('loraGatewayId').value;
         const loraActiveServer = getLoraActiveServer(loraInfo) || document.getElementById('loraActiveServer').value;
         const loraStatus = loraInfo.status ?? document.getElementById('loraStatus').value;
-        const loraPending = loraInfo.pendingData ?? document.getElementById('loraPending').value;
+        const loraPending = normalizeOptionalBool(loraInfo.pendingData ?? document.getElementById('loraPending').value);
         const milesightInfo = state.observed.milesight || {};
         const gatewayVendor = milesightInfo.exists ? 'Milesight' : '';
         const gatewayModel = milesightInfo.model || '';

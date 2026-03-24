@@ -1,5 +1,16 @@
 import { state } from './state.js';
 
+function isWorkflowTabActive() {
+    return document.getElementById('tab-workflow-tab')?.classList.contains('active');
+}
+
+export function refreshGatewayBlockedState() {
+    const overlay = document.getElementById('appBlocked');
+    if (!overlay) return;
+    const isBlocked = overlay.dataset.blocked === 'true';
+    overlay.style.display = isBlocked && isWorkflowTabActive() ? 'block' : 'none';
+}
+
 export function log(msg, type='info') {
     const logDiv = document.getElementById('statusLog');
     const entry = document.createElement('div');
@@ -14,7 +25,8 @@ export function setGatewayBlocked(isBlocked, message, hint) {
     const overlay = document.getElementById('appBlocked');
     const hintEl = document.getElementById('blockedSsidHint');
     const errorEl = document.getElementById('gatewayConnectionError');
-    overlay.style.display = isBlocked ? 'block' : 'none';
+    overlay.dataset.blocked = isBlocked ? 'true' : 'false';
+    refreshGatewayBlockedState();
     if (hint) hintEl.textContent = hint;
     if (message) {
         errorEl.textContent = message;

@@ -9,6 +9,13 @@ from utils.response import ok, error
 bp = Blueprint('gateway', __name__)
 
 
+def _first_present(*values):
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return ""
+
+
 @bp.route('/api/gateway/device-info', methods=['GET'])
 def gateway_device_info():
     """
@@ -36,6 +43,24 @@ def gateway_device_info():
         wifi_ssid = device.get("wifi_ssid") or device.get("ssid") or payload.get("wifi_ssid") or payload.get("ssid") or ""
         interfaces = device.get("interfaces") or payload.get("interfaces") or {}
         cellular_online = device.get("cellular_online") if "cellular_online" in device else payload.get("cellular_online")
+        firmware_version = _first_present(
+            device.get("firmware_version"),
+            device.get("firmwareVersion"),
+            device.get("fw_version"),
+            device.get("version"),
+            payload.get("firmware_version"),
+            payload.get("firmwareVersion"),
+            payload.get("fw_version"),
+            payload.get("version"),
+        )
+        hardware_version = _first_present(
+            device.get("hardware_version"),
+            device.get("hardwareVersion"),
+            device.get("hw_version"),
+            payload.get("hardware_version"),
+            payload.get("hardwareVersion"),
+            payload.get("hw_version"),
+        )
 
         return ok({
             "status": status,
@@ -44,7 +69,9 @@ def gateway_device_info():
             "vpn_ip": vpn_ip,
             "wifi_ssid": wifi_ssid,
             "interfaces": interfaces,
-            "cellular_online": cellular_online
+            "cellular_online": cellular_online,
+            "firmware_version": firmware_version,
+            "hardware_version": hardware_version,
         })
 
     except requests.exceptions.ConnectTimeout:

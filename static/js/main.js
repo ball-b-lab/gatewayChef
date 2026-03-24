@@ -1,5 +1,5 @@
 import { state, vars } from './state.js';
-import { refreshTooltips, updateTopStatusBanner, setBadge, setServiceStatus, setRuntimeHint } from './ui.js';
+import { refreshTooltips, updateTopStatusBanner, setBadge, setServiceStatus, setRuntimeHint, refreshGatewayBlockedState } from './ui.js';
 import {
     runReadPipeline,
     refreshGatewayStatus,
@@ -121,6 +121,14 @@ function applyDbProxyStatus() {
         badge.classList.add('bg-warning', 'text-dark');
         badge.title = 'Direkte DB-Verbindung (kein DB_API_PROVIDER_URL gesetzt).';
     }
+}
+
+function registerTabStateHandlers() {
+    document.querySelectorAll('#mainTabs [data-bs-toggle="tab"]').forEach(node => {
+        node.addEventListener('shown.bs.tab', () => {
+            refreshGatewayBlockedState();
+        });
+    });
 }
 
 function applyVpnProxyStatus() {
@@ -351,6 +359,8 @@ window.addEventListener('load', () => {
     updateSuggestedNameLabel();
     bindAutoRefreshPause();
     bindInputListeners();
+    registerTabStateHandlers();
+    refreshGatewayBlockedState();
     initStepperObserver();
 });
 

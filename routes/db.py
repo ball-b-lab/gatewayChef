@@ -13,6 +13,21 @@ from config import APP_MODE, API_SERVICE_TOKEN, DB_API_PROVIDER_URL, DB_API_TIME
 bp = Blueprint('db', __name__)
 
 
+def _normalize_optional_bool(value):
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    text = str(value).strip().lower()
+    if text in {"true", "1", "yes", "on"}:
+        return True
+    if text in {"false", "0", "no", "off"}:
+        return False
+    return None
+
+
 @bp.before_request
 def _require_api_token():
     if APP_MODE == "local" and DB_API_PROVIDER_URL:
@@ -412,7 +427,7 @@ def provision():
     lora_gateway_id = data.get('lora_gateway_id')
     lora_active_server = data.get('lora_active_server')
     lora_status = data.get('lora_status')
-    lora_pending = data.get('lora_pending')
+    lora_pending = _normalize_optional_bool(data.get('lora_pending'))
     final_check_ok = data.get('final_check_ok')
 
     if not eui and lora_gateway_eui:

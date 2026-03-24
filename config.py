@@ -47,6 +47,7 @@ CHIRPSTACK_URL = os.getenv("CHIRPSTACK_URL", "https://chirpstack.example.com")
 CHIRPSTACK_API_TOKEN = os.getenv("CHIRPSTACK_API_TOKEN", "")
 CHIRPSTACK_TENANT_ID = os.getenv("CHIRPSTACK_TENANT_ID", "")
 CHIRPSTACK_STATS_INTERVAL_SECS = int(os.getenv("CHIRPSTACK_STATS_INTERVAL_SECS", "30"))
+RECOMMENDED_GATEWAY_FIRMWARE = os.getenv("RECOMMENDED_GATEWAY_FIRMWARE", "").strip()
 
 # Optional cloud ping proxy (for local app that cannot reach VPN)
 VPN_PING_PROVIDER_URL = os.getenv("VPN_PING_PROVIDER_URL", "").rstrip("/")
