@@ -78,6 +78,11 @@ Bevorzugt in GatewayChef:
 - `CSV importieren` klicken
 - GatewayChef legt nur `gateway`-Profile in `gateway_inventory` an
 
+Sonderfall Altgeraet:
+
+- Wenn ein historischer Gateway bereits existiert, aber noch nie in `gateway_inventory` angelegt wurde, kann im Tab `Cloud Tabelle` ein einzelner manueller `gateway_inventory`-Eintrag erzeugt werden.
+- Dafuer werden mindestens `VPN IP` und `Private Key` benoetigt; `WiFi SSID` kann optional leer bleiben und wird dann aus der `VPN IP` abgeleitet.
+
 ## Hinweise
 
 - Die App nutzt freie Eintraege aus `gateway_inventory` mit `status_overall='FREE'`.

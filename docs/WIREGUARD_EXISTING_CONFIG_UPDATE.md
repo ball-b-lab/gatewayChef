@@ -135,6 +135,12 @@ Sauberer im Tagesbetrieb:
 - Der Import-Endpunkt legt nur `gateway`-Profile in `gateway_inventory` an
 - `workstation`-Profile bleiben bewusst nur in der WireGuard-Konfiguration
 
+Sonderfall fuer bestehende Altgeraete:
+
+- Wenn ein Gateway bereits draussen existiert, aber in `gateway_inventory` fehlt, kann im Tab `Cloud Tabelle` ein einzelner manueller Eintrag angelegt werden.
+- Dazu mindestens `VPN IP` und `Private Key` eintragen.
+- Danach koennen Name, Serial, SIM und die weiteren Provisioning-Schritte normal ueber den Workflow gespeichert werden.
+
 Das Script nutzt dieselbe DB-Konfiguration wie die App:
 
 - `DATABASE_URL=postgresql://...`

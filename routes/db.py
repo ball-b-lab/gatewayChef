@@ -1,4 +1,5 @@
 import json
+import ipaddress
 import psycopg2
 import requests
 from flask import Blueprint, Response, request
@@ -26,6 +27,23 @@ def _normalize_optional_bool(value):
     if text in {"false", "0", "no", "off"}:
         return False
     return None
+
+
+def _validate_manual_gateway_seed(vpn_ip, private_key, wifi_ssid):
+    normalized_vpn = normalize_vpn_ip(vpn_ip)
+    if not normalized_vpn:
+        return None, None, ("VPN IP fehlt.", 400)
+    try:
+        ipaddress.ip_address(normalized_vpn)
+    except ValueError:
+        return None, None, ("VPN IP ist ungueltig.", 400)
+    private_key_value = (private_key or "").strip()
+    if not private_key_value:
+        return None, None, ("Private Key fehlt.", 400)
+    wifi_value = (wifi_ssid or "").strip() or derive_wifi_ssid(normalized_vpn)
+    if not wifi_value:
+        return None, None, ("WiFi SSID konnte nicht abgeleitet werden.", 400)
+    return normalized_vpn, wifi_value, None
 
 
 @bp.before_request
@@ -393,6 +411,54 @@ def update_customer_data():
     except ProvisioningError as e:
         return error(e.message, e.status_code)
     except psycopg2.Error as e:
+        return error(f"Datenbank Fehler: {e}", 500)
+    finally:
+        if conn:
+            conn.close()
+
+
+@bp.route('/api/db/manual-gateway', methods=['POST'])
+def create_manual_gateway_seed():
+    """
+    Create a gateway_inventory seed row manually when no DB record exists yet.
+    """
+    data = request.json or {}
+    vpn_ip, wifi_ssid, validation_error = _validate_manual_gateway_seed(
+        data.get('vpn_ip'),
+        data.get('private_key'),
+        data.get('wifi_ssid'),
+    )
+    if validation_error:
+        return error(validation_error[0], validation_error[1])
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO gateway_inventory (vpn_ip, private_key, wifi_ssid, status_overall)
+            VALUES (%s, %s, %s, 'FREE')
+            RETURNING id
+            """,
+            (vpn_ip, data.get('private_key').strip(), wifi_ssid),
+        )
+        row = cur.fetchone()
+        conn.commit()
+        return ok({
+            "status": "success",
+            "id": row[0] if row else None,
+            "vpn_ip": vpn_ip,
+            "wifi_ssid": wifi_ssid,
+            "status_overall": "FREE",
+        })
+    except psycopg2.errors.UniqueViolation:
+        if conn:
+            conn.rollback()
+        return error("VPN IP existiert bereits in gateway_inventory.", 409)
+    except psycopg2.Error as e:
+        if conn:
+            conn.rollback()
         return error(f"Datenbank Fehler: {e}", 500)
     finally:
         if conn:

@@ -30,5 +30,7 @@ Stand: 2026-03-10
 ## Windows Packaging
 
 - Primary build entry: `build_windows.ps1`
+- Pull + build helper: `build_windows_pull.ps1`
 - PyInstaller spec: `gatewaychef.spec`
 - Expected output: `dist/GatewayChef/GatewayChef.exe`
+- Windows operator note: see `README_WINDOWS.md`

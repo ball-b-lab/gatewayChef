@@ -125,5 +125,77 @@ class ProvisionRouteBoolNormalizationTest(unittest.TestCase):
         self.assertIs(update_params[17], False)
 
 
+class ManualGatewayRouteTest(unittest.TestCase):
+    def setUp(self):
+        app = Flask(__name__)
+        app.register_blueprint(db_bp)
+        self.client = app.test_client()
+
+    @patch("routes.db.DB_API_PROVIDER_URL", "")
+    @patch("routes.db.APP_MODE", "local")
+    @patch("routes.db.get_db_connection")
+    def test_manual_gateway_route_creates_seed_row(self, get_db_connection_mock):
+        executed = []
+
+        class FakeCursor:
+            def execute(self, sql, params=None):
+                executed.append((sql, params))
+
+            def fetchone(self):
+                return (77,)
+
+        class FakeConnection:
+            def __init__(self):
+                self.cursor_obj = FakeCursor()
+                self.closed = False
+
+            def cursor(self):
+                return self.cursor_obj
+
+            def commit(self):
+                pass
+
+            def rollback(self):
+                pass
+
+            def close(self):
+                self.closed = True
+
+        get_db_connection_mock.return_value = FakeConnection()
+
+        response = self.client.post(
+            "/api/db/manual-gateway",
+            json={
+                "vpn_ip": "172.30.1.10",
+                "private_key": "priv-key-1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()["data"]
+        self.assertEqual(payload["vpn_ip"], "172.30.1.10")
+        self.assertEqual(payload["wifi_ssid"], "bbdbmon_1.10")
+        self.assertEqual(payload["status_overall"], "FREE")
+        insert_sql, insert_params = executed[-1]
+        self.assertIn("INSERT INTO gateway_inventory", insert_sql)
+        self.assertEqual(insert_params, ("172.30.1.10", "priv-key-1", "bbdbmon_1.10"))
+
+    @patch("routes.db.DB_API_PROVIDER_URL", "")
+    @patch("routes.db.APP_MODE", "local")
+    def test_manual_gateway_route_requires_private_key(self):
+        response = self.client.post(
+            "/api/db/manual-gateway",
+            json={
+                "vpn_ip": "172.30.1.10",
+                "private_key": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.get_json()
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["message"], "Private Key fehlt.")
+
+
 if __name__ == "__main__":
     unittest.main()

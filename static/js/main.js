@@ -13,6 +13,7 @@ import {
     formatVpnCidr,
     applyVpnIp,
     uploadGatewayInventoryCsv,
+    createManualGatewaySeed,
     changeCloudTablePage,
     saveCustomerData,
     fetchSimVendors,
@@ -69,6 +70,7 @@ window.copyVpnCidr = copyVpnCidr;
 window.formatVpnCidr = formatVpnCidr;
 window.applyVpnIp = applyVpnIp;
 window.uploadGatewayInventoryCsv = uploadGatewayInventoryCsv;
+window.createManualGatewaySeed = createManualGatewaySeed;
 window.changeCloudTablePage = changeCloudTablePage;
 window.saveCustomerData = saveCustomerData;
 window.fetchSimVendors = fetchSimVendors;

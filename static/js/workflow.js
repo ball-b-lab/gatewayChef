@@ -107,6 +107,23 @@ function normalizeOptionalBool(value) {
         return null;
     }
 
+function getCurrentGatewayIdentity() {
+        const eui = normalizeHexId(
+            document.getElementById('gwEui')?.value ||
+            document.getElementById('loraGatewayEui')?.value ||
+            getText('statusGatewayEui') ||
+            getText('targetGatewayEui') ||
+            ''
+        );
+        const serialNumber = (
+            document.getElementById('gwSn')?.value ||
+            getText('statusSerialNumber') ||
+            ''
+        ).trim();
+        const gatewayName = (document.getElementById('gwName')?.value || '').trim();
+        return { eui, serialNumber, gatewayName };
+    }
+
 function getRecommendedGatewayFirmware() {
         return normalizeVersionValue((window.RUNTIME_CONFIG || {}).recommended_gateway_firmware || '');
     }
@@ -794,6 +811,20 @@ const DatabaseAdapter = {
             } catch (e) {
                 return { ok: false, error: String(e) };
             }
+        },
+        async createManualGateway(vpnIp, privateKey, wifiSsid) {
+            try {
+                const res = await safeJson('/api/db/manual-gateway', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ vpn_ip: vpnIp, private_key: privateKey, wifi_ssid: wifiSsid })
+                });
+                const unwrapped = unwrap(res.data);
+                if (!unwrapped.ok) return { ok: false, error: unwrapped.error, data: unwrapped.data };
+                return { ok: true, data: unwrapped.data };
+            } catch (e) {
+                return { ok: false, error: String(e) };
+            }
         }
     };
 
@@ -923,6 +954,35 @@ export async function openCloudTableViewer() {
         }
         const offsetInput = document.getElementById('cloudTableOffset');
         if (offsetInput) offsetInput.value = '0';
+        await loadCloudTableViewer();
+    }
+
+export async function createManualGatewaySeed() {
+        const vpnIp = (document.getElementById('manualGatewayVpnIp')?.value || '').trim();
+        const privateKey = (document.getElementById('manualGatewayPrivateKey')?.value || '').trim();
+        const wifiSsid = (document.getElementById('manualGatewayWifiSsid')?.value || '').trim();
+        const statusEl = document.getElementById('manualGatewayCreateStatus');
+
+        if (!vpnIp || !privateKey) {
+            alert('Bitte mindestens VPN IP und Private Key eingeben.');
+            return;
+        }
+
+        if (statusEl) statusEl.textContent = 'Lege manuellen gateway_inventory-Eintrag an...';
+        const result = await DatabaseAdapter.createManualGateway(vpnIp, privateKey, wifiSsid);
+        if (!result.ok) {
+            if (statusEl) statusEl.textContent = `Fehler: ${result.error}`;
+            log(`!! Manueller Gateway-Eintrag fehlgeschlagen: ${result.error}`, 'error');
+            alert(`Manueller Eintrag fehlgeschlagen: ${result.error}`);
+            return;
+        }
+
+        if (statusEl) {
+            statusEl.textContent = `Eintrag fuer ${result.data.vpn_ip} angelegt (Status ${result.data.status_overall}, WiFi ${result.data.wifi_ssid}).`;
+        }
+        log(`.. Manueller Gateway-Eintrag fuer ${result.data.vpn_ip} angelegt.`, 'success');
+        const searchInput = document.getElementById('cloudTableSearch');
+        if (searchInput) searchInput.value = result.data.vpn_ip || '';
         await loadCloudTableViewer();
     }
 export async function runReadPipeline(options = {}) {
@@ -1716,12 +1776,16 @@ export async function applyVpnIp() {
         checkReady();
     }
 export async function saveCustomerData() {
-        const ip = document.getElementById('vpnIp').value;
-        const name = document.getElementById('gwName').value;
-        const sn = document.getElementById('gwSn').value;
+        const ip = normalizeVpnIp(document.getElementById('vpnIp').value);
+        const { serialNumber: currentSerial, gatewayName: currentName } = getCurrentGatewayIdentity();
+        const name = currentName;
+        const sn = currentSerial;
         const simIccid = document.getElementById('simIccid').value;
         const simVendorId = document.getElementById('simVendor').value;
         const simCardId = document.getElementById('simCardId').value;
+        const vpnKeyInput = document.getElementById('vpnKey');
+        let vpnKey = (vpnKeyInput?.value || '').trim();
+        const wifiSsid = (document.getElementById('gwWifiSsid')?.value || '').trim() || deriveWifiSsid(ip);
 
         if (!ip) {
             alert('Bitte eine VPN IP setzen.');
@@ -1732,25 +1796,70 @@ export async function saveCustomerData() {
             return;
         }
 
-        log('.. Speichere Kundendaten in DB...');
-        try {
+        // `Zuordnung speichern` must work directly with the suggested free VPN IP.
+        // `Apply` is only needed for explicit manual overrides, not for the standard flow.
+        vars.manualVpnTarget = ip;
+        if (!vpnKey && vars.reservedVpnIp === ip && vars.reservedVpnKey) {
+            vpnKey = vars.reservedVpnKey;
+            if (vpnKeyInput) vpnKeyInput.value = vpnKey;
+        }
+        updateConfigTargets();
+        syncDesiredState();
+        updateGatewayStatus();
+
+        const payload = {
+            vpn_ip: ip,
+            gateway_name: name,
+            serial_number: sn,
+            sim_iccid: simIccid,
+            sim_vendor_id: simVendorId,
+            sim_card_id: simCardId
+        };
+
+        async function submitCustomerUpdate() {
             const res = await fetch('/api/db/customer-update', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    vpn_ip: ip,
-                    gateway_name: name,
-                    serial_number: sn,
-                    sim_iccid: simIccid,
-                    sim_vendor_id: simVendorId,
-                    sim_card_id: simCardId
-                })
+                body: JSON.stringify(payload)
             });
             const data = await res.json();
-            const result = unwrap(data);
+            return unwrap(data);
+        }
+
+        log('.. Speichere Kundendaten in DB...');
+        try {
+            let result = await submitCustomerUpdate();
             if (!result.ok) {
-                log('!! Kundendaten speichern fehlgeschlagen: ' + result.error, 'error');
-                return;
+                const detail = formatDetailedError(result) || result.error;
+                if ((result.error || '').includes('Gateway nicht gefunden')) {
+                    if (!vpnKey) {
+                        log('!! Kundendaten speichern fehlgeschlagen: ' + detail, 'error');
+                        alert(`Zuordnung speichern fehlgeschlagen: ${detail}\n\nEs existiert noch kein gateway_inventory-Eintrag fuer diese VPN IP und es ist kein VPN Private Key geladen. Bitte zuerst eine neue VPN-IP beziehen oder den Sonderfall in der Cloud-Tabelle anlegen.`);
+                        return;
+                    }
+
+                    log(`.. Kein gateway_inventory-Eintrag fuer ${ip}. Lege automatisch Seed-Datensatz an...`, 'warn');
+                    const createResult = await DatabaseAdapter.createManualGateway(ip, vpnKey, wifiSsid);
+                    if (!createResult.ok) {
+                        log('!! Automatische Seed-Anlage fehlgeschlagen: ' + createResult.error, 'error');
+                        alert(`Zuordnung speichern fehlgeschlagen: ${detail}\n\nAutomatische Anlage des gateway_inventory-Eintrags fehlgeschlagen: ${createResult.error}`);
+                        return;
+                    }
+
+                    log(`.. gateway_inventory-Eintrag fuer ${createResult.data.vpn_ip} automatisch angelegt. Wiederhole Speichern...`, 'success');
+                    result = await submitCustomerUpdate();
+                    if (!result.ok) {
+                        const retryDetail = formatDetailedError(result) || result.error;
+                        log('!! Kundendaten speichern fehlgeschlagen (nach Seed-Anlage): ' + retryDetail, 'error');
+                        alert(`Zuordnung speichern fehlgeschlagen: ${retryDetail}\n\ngateway_inventory-Eintrag wurde angelegt, aber das eigentliche Kundendaten-Update ist weiterhin fehlgeschlagen.`);
+                        return;
+                    }
+                    alert(`gateway_inventory-Eintrag automatisch angelegt und Kundendaten fuer ${ip} gespeichert.`);
+                } else {
+                    log('!! Kundendaten speichern fehlgeschlagen: ' + detail, 'error');
+                    alert('Zuordnung speichern fehlgeschlagen: ' + detail);
+                    return;
+                }
             }
             if (result.data.sim_card_id) {
                 document.getElementById('simCardId').value = result.data.sim_card_id;
@@ -1762,8 +1871,10 @@ export async function saveCustomerData() {
             }
             
             log('.. Kundendaten gespeichert.', 'success');
+            await loadDbForGateway(ip, document.getElementById('gwEui').value || '', sn || '');
         } catch (e) {
             log('!! Fehler beim Speichern der Kundendaten: ' + e, 'error');
+            alert('Fehler beim Speichern der Kundendaten: ' + e);
         }
     }
 export async function uploadGatewayInventoryCsv() {
@@ -2185,9 +2296,7 @@ export async function confirmProvisioning() {
         }
     }
 export async function dryRunChirpstack() {
-        const eui = document.getElementById('gwEui').value;
-        const sn = document.getElementById('gwSn').value;
-        const name = document.getElementById('gwName').value;
+        const { eui, serialNumber: sn, gatewayName: name } = getCurrentGatewayIdentity();
 
         if (!eui || !sn || !name) {
             alert("Bitte EUI, Serial und Gateway Name setzen.");
@@ -2219,9 +2328,7 @@ export async function dryRunChirpstack() {
         }
     }
 export async function createChirpstackDevice() {
-        const eui = document.getElementById('gwEui').value;
-        const sn = document.getElementById('gwSn').value;
-        const name = document.getElementById('gwName').value;
+        const { eui, serialNumber: sn, gatewayName: name } = getCurrentGatewayIdentity();
 
         if (!isValidEui(eui)) {
             alert('Ungueltige EUI (' + eui + ').');

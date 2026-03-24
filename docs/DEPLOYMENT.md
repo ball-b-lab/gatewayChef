@@ -11,6 +11,19 @@ Release note:
 - **Python 3.12+**: Ensure Python is installed and added to your system PATH.
 - **Git**: For version control.
 
+## Windows Build Shortcut
+
+For Windows operators who want the latest `main` plus EXE build in one step:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build_windows_pull.ps1 -Clean
+```
+
+See also:
+- `README_WINDOWS.md`
+- `build_windows.ps1`
+- `build_windows_pull.ps1`
+
 ## Development Setup
 
 1.  **Clone the repository:**
