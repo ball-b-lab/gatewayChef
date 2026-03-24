@@ -825,6 +825,20 @@ const DatabaseAdapter = {
             } catch (e) {
                 return { ok: false, error: String(e) };
             }
+        },
+        async markDeployed(vpnIp) {
+            try {
+                const res = await safeJson('/api/db/mark-deployed', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ vpn_ip: vpnIp })
+                });
+                const unwrapped = unwrap(res.data);
+                if (!unwrapped.ok) return { ok: false, error: unwrapped.error, data: unwrapped.data };
+                return { ok: true, data: unwrapped.data };
+            } catch (e) {
+                return { ok: false, error: String(e) };
+            }
         }
     };
 
@@ -876,6 +890,11 @@ function renderCloudTableRows(rows) {
                 <td>${formatCloudTableText(row.sim_iccid || row.sim_id)}</td>
                 <td>${formatCloudTableText(row.sim_vendor_name)}</td>
                 <td>${escapeHtml(formatCloudTableDate(row.last_gateway_sync_at || row.assigned_at))}</td>
+                <td>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" onclick="markCloudTableDeployed('${escapeHtml(row.vpn_ip || '')}')" ${row.status_overall === 'DEPLOYED' ? 'disabled' : ''}>
+                        Als DEPLOYED
+                    </button>
+                </td>
             </tr>
         `).join('');
     }
@@ -983,6 +1002,29 @@ export async function createManualGatewaySeed() {
         log(`.. Manueller Gateway-Eintrag fuer ${result.data.vpn_ip} angelegt.`, 'success');
         const searchInput = document.getElementById('cloudTableSearch');
         if (searchInput) searchInput.value = result.data.vpn_ip || '';
+        await loadCloudTableViewer();
+    }
+
+export async function markCloudTableDeployed(vpnIp) {
+        const ip = String(vpnIp || '').trim();
+        if (!ip) {
+            alert('VPN IP fehlt.');
+            return;
+        }
+        if (!confirm(`Soll ${ip} als DEPLOYED markiert werden?`)) return;
+
+        const statusEl = document.getElementById('cloudTableStatus');
+        if (statusEl) statusEl.textContent = `Setze ${ip} auf DEPLOYED...`;
+        const result = await DatabaseAdapter.markDeployed(ip);
+        if (!result.ok) {
+            if (statusEl) statusEl.textContent = `Fehler: ${result.error}`;
+            log(`!! DEPLOYED-Markierung fehlgeschlagen (${ip}): ${result.error}`, 'error');
+            alert(`DEPLOYED setzen fehlgeschlagen: ${result.error}`);
+            return;
+        }
+
+        log(`.. ${ip} als DEPLOYED markiert.`, 'success');
+        if (statusEl) statusEl.textContent = result.data.message || `${ip} als DEPLOYED markiert.`;
         await loadCloudTableViewer();
     }
 export async function runReadPipeline(options = {}) {
@@ -1777,8 +1819,9 @@ export async function applyVpnIp() {
     }
 export async function saveCustomerData() {
         const ip = normalizeVpnIp(document.getElementById('vpnIp').value);
-        const { serialNumber: currentSerial, gatewayName: currentName } = getCurrentGatewayIdentity();
+        const { eui: currentEui, serialNumber: currentSerial, gatewayName: currentName } = getCurrentGatewayIdentity();
         const name = currentName;
+        const eui = currentEui;
         const sn = currentSerial;
         const simIccid = document.getElementById('simIccid').value;
         const simVendorId = document.getElementById('simVendor').value;
@@ -1814,6 +1857,8 @@ export async function saveCustomerData() {
             vpn_ip: ip,
             gateway_name: name,
             serial_number: sn,
+            eui: eui,
+            wifi_ssid: wifiSsid,
             sim_iccid: simIccid,
             sim_vendor_id: simVendorId,
             sim_card_id: simCardId
@@ -2767,6 +2812,21 @@ export async function createMilesightDevice() {
         }
         if (!name || (!sn && !eui)) {
             alert("Bitte Name und Serial (oder EUI) setzen.");
+            return;
+        }
+
+        const knownMilesight = state.observed.milesight;
+        if (knownMilesight && knownMilesight.exists === true) {
+            log('.. Milesight Device existiert bereits.', 'info');
+            setServiceStatus('milesight', {
+                connected: true,
+                statusText: 'Vorhanden',
+                updatedAt: new Date().toISOString(),
+                error: '-',
+                connectionText: 'API erreichbar',
+                detailText: 'Eintrag bereits vorhanden'
+            });
+            alert('Milesight Device existiert bereits.');
             return;
         }
 

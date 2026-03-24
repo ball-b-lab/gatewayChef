@@ -117,6 +117,21 @@ class ProvisioningServiceTest(unittest.TestCase):
         self.assertEqual(conn.rollback_calls, 0)
         assign_sim_mock.assert_called_once()
 
+    @patch("services.provisioning_service.assign_sim", return_value=None)
+    def test_update_customer_data_can_store_eui_and_wifi_ssid(self, assign_sim_mock):
+        conn = FakeConnection(rows=[(99, "FREE")])
+        service = ProvisioningService(conn)
+
+        result = service.update_customer_data(
+            vpn_ip="10.0.0.5",
+            eui="ABCDEF1234567890",
+            wifi_ssid="bbdbmon_0.5",
+        )
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(conn.commit_calls, 1)
+        assign_sim_mock.assert_called_once()
+
     def test_update_customer_data_requires_vpn_ip(self):
         conn = FakeConnection(rows=[])
         service = ProvisioningService(conn)

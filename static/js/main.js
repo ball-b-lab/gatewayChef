@@ -14,6 +14,7 @@ import {
     applyVpnIp,
     uploadGatewayInventoryCsv,
     createManualGatewaySeed,
+    markCloudTableDeployed,
     changeCloudTablePage,
     saveCustomerData,
     fetchSimVendors,
@@ -71,6 +72,7 @@ window.formatVpnCidr = formatVpnCidr;
 window.applyVpnIp = applyVpnIp;
 window.uploadGatewayInventoryCsv = uploadGatewayInventoryCsv;
 window.createManualGatewaySeed = createManualGatewaySeed;
+window.markCloudTableDeployed = markCloudTableDeployed;
 window.changeCloudTablePage = changeCloudTablePage;
 window.saveCustomerData = saveCustomerData;
 window.fetchSimVendors = fetchSimVendors;

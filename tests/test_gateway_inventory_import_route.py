@@ -197,5 +197,55 @@ class ManualGatewayRouteTest(unittest.TestCase):
         self.assertEqual(payload["error"]["message"], "Private Key fehlt.")
 
 
+class MarkDeployedRouteTest(unittest.TestCase):
+    def setUp(self):
+        app = Flask(__name__)
+        app.register_blueprint(db_bp)
+        self.client = app.test_client()
+
+    @patch("routes.db.DB_API_PROVIDER_URL", "")
+    @patch("routes.db.APP_MODE", "local")
+    @patch("routes.db.get_db_connection")
+    def test_mark_deployed_updates_existing_row(self, get_db_connection_mock):
+        executed = []
+
+        class FakeCursor:
+            rowcount = 1
+
+            def execute(self, sql, params=None):
+                executed.append((sql, params))
+
+        class FakeConnection:
+            def __init__(self):
+                self.cursor_obj = FakeCursor()
+
+            def cursor(self):
+                return self.cursor_obj
+
+            def commit(self):
+                pass
+
+            def rollback(self):
+                pass
+
+            def close(self):
+                pass
+
+        get_db_connection_mock.return_value = FakeConnection()
+
+        response = self.client.post(
+            "/api/db/mark-deployed",
+            json={"vpn_ip": "172.30.1.10"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()["data"]
+        self.assertEqual(payload["status"], "success")
+        self.assertIn("DEPLOYED", payload["message"])
+        update_sql, update_params = executed[-1]
+        self.assertIn("SET status_overall = 'DEPLOYED'", update_sql)
+        self.assertEqual(update_params, ("172.30.1.10",))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -63,12 +63,16 @@ Notes:
   - body: `{ vpn_ip?, eui?, serial_number? }`
   - `data`: `{ vpn_ip, eui, wifi_ssid, serial_number, gateway_name, sim_iccid, sim_vendor_id, sim_vendor_name }`
 - `POST /api/db/customer-update`
-  - body: `{ vpn_ip, gateway_name?, serial_number?, sim_iccid?, sim_vendor_id?, sim_card_id? }`
+  - body: `{ vpn_ip, gateway_name?, serial_number?, eui?, wifi_ssid?, sim_iccid?, sim_vendor_id?, sim_card_id? }`
   - `data`: `{ status: "success" }`
 - `POST /api/db/manual-gateway`
   - body: `{ vpn_ip, private_key, wifi_ssid? }`
   - creates a manual `gateway_inventory` seed row with `status_overall='FREE'`
   - `data`: `{ status: "success", id, vpn_ip, wifi_ssid, status_overall }`
+- `POST /api/db/mark-deployed`
+  - body: `{ vpn_ip }`
+  - marks an existing `gateway_inventory` row as `DEPLOYED`
+  - `data`: `{ status: "success", message }`
 - `POST /api/provision`
   - body: full provisioning payload from UI
   - `data`: `{ status: "success", message }`

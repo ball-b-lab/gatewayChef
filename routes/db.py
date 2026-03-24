@@ -385,6 +385,8 @@ def update_customer_data():
     vpn_ip = data.get('vpn_ip')
     gateway_name = data.get('gateway_name')
     serial_number = data.get('serial_number')
+    eui = data.get('eui')
+    wifi_ssid = data.get('wifi_ssid')
     sim_iccid = data.get('sim_iccid')
     sim_vendor_id = data.get('sim_vendor_id')
     sim_card_id = data.get('sim_card_id')
@@ -392,7 +394,7 @@ def update_customer_data():
     if not vpn_ip:
         return error("VPN IP fehlt.", 400)
 
-    if not any([gateway_name, serial_number, sim_iccid, sim_vendor_id, sim_card_id]):
+    if not any([gateway_name, serial_number, eui, wifi_ssid, sim_iccid, sim_vendor_id, sim_card_id]):
         return error("Keine Kundendaten vorhanden.", 400)
 
     conn = None
@@ -403,6 +405,8 @@ def update_customer_data():
             vpn_ip=vpn_ip,
             gateway_name=gateway_name,
             serial_number=serial_number,
+            eui=eui,
+            wifi_ssid=wifi_ssid,
             sim_iccid=sim_iccid,
             sim_vendor_id=sim_vendor_id,
             sim_card_id=sim_card_id,
@@ -695,6 +699,44 @@ def confirm_provision():
         conn.commit()
         return ok({"status": "success", "message": f"Gateway {vpn_ip} als DEPLOYED markiert."})
 
+    except psycopg2.Error as e:
+        if conn:
+            conn.rollback()
+        return error(f"Datenbank Update Fehler: {e}", 500)
+    finally:
+        if conn:
+            conn.close()
+
+
+@bp.route('/api/db/mark-deployed', methods=['POST'])
+def mark_gateway_deployed():
+    """
+    Mark an existing gateway_inventory row as DEPLOYED by VPN IP.
+    """
+    data = request.json or {}
+    vpn_ip = normalize_vpn_ip(data.get('vpn_ip'))
+    if not vpn_ip:
+        return error("VPN IP fehlt.", 400)
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE gateway_inventory
+            SET status_overall = 'DEPLOYED',
+                conf_gateway_done = TRUE,
+                last_gateway_sync_at = NOW()
+            WHERE vpn_ip = %s
+            """,
+            (vpn_ip,),
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            return error("Gateway nicht gefunden.", 404)
+        conn.commit()
+        return ok({"status": "success", "message": f"Gateway {vpn_ip} als DEPLOYED markiert."})
     except psycopg2.Error as e:
         if conn:
             conn.rollback()

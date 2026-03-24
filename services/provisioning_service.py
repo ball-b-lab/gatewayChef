@@ -45,6 +45,8 @@ class ProvisioningService:
         vpn_ip,
         gateway_name=None,
         serial_number=None,
+        eui=None,
+        wifi_ssid=None,
         sim_iccid=None,
         sim_vendor_id=None,
         sim_card_id=None,
@@ -52,7 +54,7 @@ class ProvisioningService:
         if not vpn_ip:
             raise ProvisioningError("VPN IP fehlt.", 400)
 
-        if not any([gateway_name, serial_number, sim_iccid, sim_vendor_id, sim_card_id]):
+        if not any([gateway_name, serial_number, eui, wifi_ssid, sim_iccid, sim_vendor_id, sim_card_id]):
             raise ProvisioningError("Keine Kundendaten vorhanden.", 400)
 
         try:
@@ -83,6 +85,8 @@ class ProvisioningService:
                     current_status=current_status,
                     gateway_name=gateway_name,
                     serial_number=serial_number,
+                    eui=eui,
+                    wifi_ssid=wifi_ssid,
                     assigned_sim_id=assigned_sim_id,
                 )
 

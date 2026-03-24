@@ -44,6 +44,8 @@ class GatewayInventoryRepository:
         current_status,
         gateway_name=None,
         serial_number=None,
+        eui=None,
+        wifi_ssid=None,
         assigned_sim_id=None,
     ):
         update_fields = []
@@ -58,6 +60,12 @@ class GatewayInventoryRepository:
         if serial_number:
             update_fields.append("serial_number = %s")
             params.append(serial_number)
+        if eui:
+            update_fields.append("eui = %s")
+            params.append(eui)
+        if wifi_ssid:
+            update_fields.append("wifi_ssid = %s")
+            params.append(wifi_ssid)
         if assigned_sim_id:
             update_fields.append("sim_card_id = %s")
             params.append(assigned_sim_id)
