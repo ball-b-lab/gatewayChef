@@ -1143,7 +1143,7 @@ export function applyGatewayState(deviceInfo, loraInfo) {
             document.getElementById('gatewayGoldenBadge').style.display = 'none';
             if (!vars.manualVpnTarget && deviceInfo.vpn_ip) {
                 document.getElementById('vpnIp').value = deviceInfo.vpn_ip;
-                fetchVpnKeyForGateway(deviceInfo.vpn_ip);
+                fetchVpnKeyForGateway(deviceInfo.vpn_ip, { silentNotFound: true, source: 'gateway' });
             }
         }
         if (deviceInfo.wifi_ssid) {
@@ -2022,9 +2022,10 @@ export async function fetchNextSim() {
         }
     }
 export async function fetchIp() {
-        const gatewayVpn = state.observed.gateway ? state.observed.gateway.vpn_ip : '';
+        const gatewayVpn = normalizeVpnIp(state.observed.gateway ? state.observed.gateway.vpn_ip : '');
         const gatewayId = state.observed.lora ? state.observed.lora.gatewayId : (state.observed.gateway ? state.observed.gateway.eui : '');
-        if (gatewayVpn && String(gatewayId || '').toLowerCase() !== 'cafe') {
+        const gatewayVpnSet = gatewayVpn && gatewayVpn !== '0.0.0.0';
+        if (gatewayVpnSet && String(gatewayId || '').toLowerCase() !== 'cafe') {
             log('.. Gateway VPN ist gesetzt. DB-IP nur manuell/optional.', 'info');
             return;
         }
@@ -2055,7 +2056,7 @@ export async function fetchIp() {
             log('!! Netzwerkfehler beim Fetch: ' + e, 'error');
         }
     }
-export async function fetchVpnKeyForGateway(vpnIp) {
+export async function fetchVpnKeyForGateway(vpnIp, options = {}) {
         if (!vpnIp) return;
         try {
             const res = await fetch('/api/db/vpn-key', {
@@ -2066,6 +2067,10 @@ export async function fetchVpnKeyForGateway(vpnIp) {
             const data = await res.json();
             const result = unwrap(data);
             if (!result.ok) {
+                if (options.silentNotFound && String(result.error || '').includes('VPN IP nicht gefunden')) {
+                    log(`.. Kein DB-VPN-Key fuer aktuelle Gateway VPN ${vpnIp} vorhanden. Neuer Eintrag kann normal ueber Zuordnung speichern angelegt werden.`, 'info');
+                    return;
+                }
                 log('!! VPN Key nicht gefunden: ' + result.error, 'error');
                 return;
             }
