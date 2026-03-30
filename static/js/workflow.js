@@ -107,6 +107,11 @@ function normalizeOptionalBool(value) {
         return null;
     }
 
+function normalizeUiTextValue(value) {
+        const text = String(value || '').trim();
+        return text === '-' ? '' : text;
+    }
+
 function getCurrentGatewayIdentity() {
         const eui = normalizeHexId(
             document.getElementById('gwEui')?.value ||
@@ -115,12 +120,13 @@ function getCurrentGatewayIdentity() {
             getText('targetGatewayEui') ||
             ''
         );
-        const serialNumber = (
+        const serialNumber = normalizeUiTextValue(
+            document.getElementById('serialNumberInput')?.value ||
             document.getElementById('gwSn')?.value ||
             getText('statusSerialNumber') ||
             ''
-        ).trim();
-        const gatewayName = (document.getElementById('gwName')?.value || '').trim();
+        );
+        const gatewayName = normalizeUiTextValue(document.getElementById('gwName')?.value || '');
         return { eui, serialNumber, gatewayName };
     }
 
@@ -440,7 +446,7 @@ function collectReadinessChecks() {
         const mile = state.observed.milesight;
         const web = state.observed.webservice;
         const dbRecord = state.observed.db;
-        const knownGatewayAck = !isKnownGatewayPendingAcknowledgement();
+        const knownGatewayAck = true;
 
         return [
             { label: `Gateway erfolgreich gelesen`, ok: state.readPhaseComplete },
@@ -459,7 +465,7 @@ function collectReadinessChecks() {
             { label: `ChirpStack Eintrag vorhanden`, ok: !!(chirp && chirp.exists === true) },
             { label: `Milesight Eintrag vorhanden`, ok: !!(mile && mile.exists === true) },
             { label: `Webservice Eintrag vorhanden`, ok: !!(web && web.exists === true) },
-            { label: `Bekannter Gateway wurde bewusst bestaetigt`, ok: knownGatewayAck },
+            { label: `Bekannter Gateway Hinweis gelesen`, ok: knownGatewayAck },
             { label: `Cloud DB Stand ist gespeichert`, ok: vars.lastProvisionSavedOk || !!dbRecord }
         ];
     }
@@ -497,24 +503,20 @@ function updateFinalizeActions() {
         const confirmBtn = document.getElementById('btnConfirmProvision');
         const hintEl = document.getElementById('finalActionHint');
         const ip = normalizeVpnIp(vars.manualVpnTarget || document.getElementById('vpnIp')?.value || '');
-        const knownGatewayNeedsAck = isKnownGatewayPendingAcknowledgement();
         const readyToSave = !!(
             state.readPhaseComplete &&
             vars.finalCheckOk &&
-            !knownGatewayNeedsAck &&
             ip &&
             document.getElementById('gwName')?.value &&
             document.getElementById('gwSn')?.value
         );
-        const readyToConfirm = !!(vars.finalCheckOk && vars.lastProvisionSavedOk && ip && !vars.lastProvisionConfirmed && !knownGatewayNeedsAck);
+        const readyToConfirm = !!(vars.finalCheckOk && vars.lastProvisionSavedOk && ip && !vars.lastProvisionConfirmed);
 
         if (saveBtn) saveBtn.disabled = !readyToSave;
         if (confirmBtn) confirmBtn.disabled = !readyToConfirm;
         if (hintEl) {
             if (!vars.finalCheckOk) {
                 hintEl.textContent = 'Erst Schritt 4 Pruefung & Integrationen abschliessen.';
-            } else if (knownGatewayNeedsAck) {
-                hintEl.textContent = 'Bekannten Gateway zuerst bestaetigen.';
             } else if (vars.lastProvisionConfirmed) {
                 hintEl.textContent = 'Gateway ist final freigegeben.';
             } else if (!vars.lastProvisionSavedOk) {
@@ -536,11 +538,6 @@ function buildKnownGatewaySignature(record, gatewayEui) {
         ].join('|');
     }
 
-function isKnownGatewayPendingAcknowledgement() {
-        const notice = document.getElementById('knownGatewayNotice');
-        return !!notice && !notice.classList.contains('d-none') && !vars.knownGatewayAcknowledged;
-    }
-
 function updateKnownGatewayNotice() {
         const notice = document.getElementById('knownGatewayNotice');
         const textEl = document.getElementById('knownGatewayNoticeText');
@@ -555,8 +552,7 @@ function updateKnownGatewayNotice() {
             notice.classList.add('d-none');
             textEl.textContent = '-';
             metaEl.textContent = '-';
-            stateEl.textContent = 'Bestaetigung offen';
-            vars.knownGatewayAcknowledged = false;
+            stateEl.textContent = 'Hinweis';
             vars.lastKnownGatewaySignature = '';
             updateFinalizeActions();
             return;
@@ -564,28 +560,16 @@ function updateKnownGatewayNotice() {
 
         const signature = buildKnownGatewaySignature(record, gatewayEui);
         if (signature !== vars.lastKnownGatewaySignature) {
-            vars.knownGatewayAcknowledged = false;
             vars.lastKnownGatewaySignature = signature;
         }
 
         notice.classList.remove('d-none');
         textEl.textContent = `DB-Eintrag gefunden: ${record.gateway_name || '-'} | VPN ${record.vpn_ip || '-'} | Serial ${record.serial_number || '-'}`;
-        metaEl.textContent = `Status: ${record.status_overall || '-'} | EUI: ${record.eui || '-'}`;
-        stateEl.textContent = vars.knownGatewayAcknowledged ? 'Bestaetigt' : 'Bestaetigung offen';
-        stateEl.classList.remove('bg-warning', 'text-dark', 'bg-success');
-        if (vars.knownGatewayAcknowledged) {
-            stateEl.classList.add('bg-success');
-        } else {
-            stateEl.classList.add('bg-warning', 'text-dark');
-        }
+        metaEl.textContent = `Status: ${record.status_overall || '-'} | EUI: ${record.eui || '-'} | Speichern/Freigeben unten verwenden.`;
+        stateEl.textContent = 'Hinweis';
+        stateEl.classList.remove('bg-success');
+        stateEl.classList.add('bg-warning', 'text-dark');
         updateFinalizeActions();
-    }
-
-export function acknowledgeKnownGateway() {
-        if (!state.observed.db) return;
-        vars.knownGatewayAcknowledged = true;
-        updateKnownGatewayNotice();
-        log('.. Bekannter Gateway bestaetigt.', 'success');
     }
 
 function renderClientSearchResults(items) {
@@ -1402,26 +1386,11 @@ function updateSerialStatus(value) {
         const statusSnEl = document.getElementById('statusSerialNumber');
         if (statusSnEl) statusSnEl.textContent = value || '-';
         const serialDetailsEl = document.getElementById('statusSerialDetails');
-        if (serialDetailsEl) serialDetailsEl.textContent = value ? 'Vorhanden' : 'Seriennummer am Gateway';
+        if (serialDetailsEl) serialDetailsEl.textContent = value ? 'Vorhanden' : 'Manuell in Schritt 2 oder aus DB';
         setRowState('rowSerialNumber', value && value !== '-' ? 'ok' : 'na');
         const serialInput = document.getElementById('serialNumberInput');
         if (serialInput && document.activeElement !== serialInput) {
             serialInput.value = value || '';
-        }
-    }
-export function toggleSerialNumberEdit(forceOpen) {
-        const editGroup = document.getElementById('serialNumberEditGroup');
-        if (!editGroup) return;
-        const shouldOpen = typeof forceOpen === 'boolean'
-            ? forceOpen
-            : editGroup.classList.contains('d-none');
-        editGroup.classList.toggle('d-none', !shouldOpen);
-        if (shouldOpen) {
-            const serialInput = document.getElementById('serialNumberInput');
-            if (serialInput) {
-                serialInput.focus();
-                serialInput.select();
-            }
         }
     }
 export async function setSerialNumberFromStatus() {
@@ -1436,7 +1405,6 @@ export async function setSerialNumberFromStatus() {
         if (gwSn) gwSn.value = value;
         vars.allowMilesightSerialFill = false;
         updateSerialStatus(value);
-        toggleSerialNumberEdit(false);
         invalidateFinalCheck();
         checkReady();
         syncDesiredState();
@@ -2230,10 +2198,6 @@ export async function pushData() {
             alert("Bitte geben Sie einen Gateway Namen und die Serial Number ein!");
             return;
         }
-        if (isKnownGatewayPendingAcknowledgement()) {
-            alert("Dieser Gateway ist in der DB bereits bekannt. Bitte den Hinweis zuerst bestaetigen.");
-            return;
-        }
         if (!vars.finalCheckOk) {
             alert("Bitte zuerst Schritt 4 Pruefung & Integrationen erfolgreich abschliessen.");
             return;
@@ -2312,10 +2276,6 @@ export async function confirmProvisioning() {
         const ip = normalizeVpnIp(vars.manualVpnTarget || document.getElementById('vpnIp')?.value || '');
         if (!vars.finalCheckOk) {
             alert('Finale Freigabe erst nach gruener Pruefung & Integrationen.');
-            return;
-        }
-        if (isKnownGatewayPendingAcknowledgement()) {
-            alert('Bitte zuerst bestaetigen, dass der bereits bekannte Gateway bewusst bearbeitet wird.');
             return;
         }
         if (!vars.lastProvisionSavedOk) {
@@ -2548,10 +2508,14 @@ export async function checkMilesightExists(options = {}) {
         document.getElementById('btnMilesightCreate').disabled = false;
 
         try {
+            const serialNumber = (document.getElementById('gwSn')?.value || document.getElementById('serialNumberInput')?.value || '').trim();
             const res = await fetch('/api/milesight/check', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ eui: eui })
+                body: JSON.stringify({
+                    eui: eui,
+                    serial_number: serialNumber || undefined
+                })
             });
             const data = await res.json();
             const result = unwrap(data);

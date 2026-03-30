@@ -41,7 +41,6 @@ A robust Flask-based web application for provisioning Milesight LoRa Gateways. I
 
 3.  **Run:**
     ```bash
-    python scripts/migrate.py
     python app.py
     ```
     The application will automatically open `http://localhost:5000` in your default browser.

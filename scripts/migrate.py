@@ -7,7 +7,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from config import APP_MODE, DATABASE_URL, DB_API_PROVIDER_URL, DB_HOST
 from db.connection import get_db_connection
+
+
+def should_skip_migrations():
+    using_db_proxy = APP_MODE == "local" and bool(DB_API_PROVIDER_URL)
+    has_direct_db = bool((DATABASE_URL or "").strip() or (DB_HOST or "").strip())
+    return using_db_proxy and not has_direct_db
 
 
 def apply_migrations():
@@ -65,4 +72,7 @@ def apply_migrations():
 
 if __name__ == "__main__":
     os.chdir(PROJECT_ROOT)
+    if should_skip_migrations():
+        print("SKIP migrations: local runner uses DB API proxy and has no direct DB connection configured.")
+        raise SystemExit(0)
     apply_migrations()

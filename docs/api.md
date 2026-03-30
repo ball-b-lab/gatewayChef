@@ -129,7 +129,8 @@ Notes:
 - `GET /api/milesight/config`
   - `data`: `{ ready: boolean, missing: [] }`
 - `POST /api/milesight/check`
-  - body: `{ eui }`
+  - body: `{ eui?, serial_number? }`
+  - checks first by `eui`; if needed falls back to `serial_number` for legacy/serial-based Milesight entries
   - `data`: `{ status: "success", exists, serial_number, name, model, details }`
 - `POST /api/milesight/command`
   - body: `{ eui, gateway_name }`

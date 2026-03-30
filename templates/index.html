@@ -134,6 +134,14 @@
                                         <button class="btn btn-outline-primary" type="button" onclick="fetchIp()">Get New</button>
                                     </div>
                                 </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Serial Number</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="serialNumberInput" placeholder="Serial Number">
+                                        <button class="btn btn-outline-primary" type="button" onclick="setSerialNumberFromStatus()">Speichern</button>
+                                    </div>
+                                    <div class="form-text small text-muted">Wird bei bestehendem Gateway aus der DB geladen. Falls nicht vorhanden, hier manuell eintragen.</div>
+                                </div>
                                 <div class="w-100"></div>
                                 <div class="col-md-6">
                                     <label class="form-label">SIM Vendor</label>
@@ -166,8 +174,7 @@
                                                 <div class="small text-muted" id="knownGatewayNoticeMeta">-</div>
                                             </div>
                                             <div class="d-flex align-items-center gap-2">
-                                                <span class="badge bg-warning text-dark" id="knownGatewayNoticeState">Bestaetigung offen</span>
-                                                <button class="btn btn-sm btn-outline-dark" type="button" onclick="acknowledgeKnownGateway()">Bestaetigen</button>
+                                                <span class="badge bg-warning text-dark" id="knownGatewayNoticeState">Hinweis</span>
                                             </div>
                                         </div>
                                     </div>
@@ -339,7 +346,7 @@
                                         <tr id="rowSerialNumber">
                                             <td>Serial Number</td>
                                             <td id="statusSerialNumber">-</td>
-                                            <td id="statusSerialDetails">Fix im Gateway</td>
+                                            <td id="statusSerialDetails">Manuell in Schritt 2 oder aus DB</td>
                                             <td>-</td>
                                         </tr>
                                         <tr id="rowFirmwareVersion">

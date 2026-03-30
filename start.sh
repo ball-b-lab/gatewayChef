@@ -24,10 +24,6 @@ pip install --upgrade pip --quiet
 echo "Installing dependencies..."
 pip install -r requirements.txt
 
-# 5. Run Migrations
-echo "Running migrations..."
-python scripts/migrate.py
-
-# 6. Start Application
+# 5. Start Application
 echo "Starting App..."
 python app.py

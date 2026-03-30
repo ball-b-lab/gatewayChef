@@ -54,10 +54,8 @@ import {
     handleClientSearchInput,
     loadClientGateways,
     setSuggestedName,
-    acknowledgeKnownGateway,
     updateSuggestedNameLabel,
-    setSerialNumberFromStatus,
-    toggleSerialNumberEdit
+    setSerialNumberFromStatus
 } from './workflow.js';
 
 // Expose handlers for inline onclick attributes
@@ -102,9 +100,7 @@ window.handleEuiChange = handleEuiChange;
 window.openHelp = openHelp;
 window.loadClientGateways = loadClientGateways;
 window.setSuggestedName = setSuggestedName;
-window.acknowledgeKnownGateway = acknowledgeKnownGateway;
 window.setSerialNumberFromStatus = setSerialNumberFromStatus;
-window.toggleSerialNumberEdit = toggleSerialNumberEdit;
 window.checkVpnReachability = checkVpnReachability;
 
 function applyDbProxyStatus() {
@@ -217,6 +213,7 @@ function bindAutoRefreshPause() {
 function bindInputListeners() {
     const gwName = document.getElementById('gwName');
     const gwSn = document.getElementById('gwSn');
+    const serialNumberInput = document.getElementById('serialNumberInput');
     const gwEui = document.getElementById('gwEui');
     const simIccid = document.getElementById('simIccid');
     const vpnIp = document.getElementById('vpnIp');
@@ -238,6 +235,15 @@ function bindInputListeners() {
     }
     if (gwSn) {
         gwSn.addEventListener('input', () => {
+            vars.allowMilesightSerialFill = false;
+            invalidateFinalCheck();
+            checkReady();
+            syncDesiredState();
+        });
+    }
+    if (serialNumberInput) {
+        serialNumberInput.addEventListener('input', () => {
+            if (gwSn) gwSn.value = serialNumberInput.value;
             vars.allowMilesightSerialFill = false;
             invalidateFinalCheck();
             checkReady();

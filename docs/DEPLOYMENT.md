@@ -55,7 +55,6 @@ See also:
 
 5.  **Run locally:**
     ```bash
-    python scripts/migrate.py
     python app.py
     ```
     The application will open in your default browser at `http://localhost:5000`.
@@ -77,7 +76,7 @@ See also:
     docker compose down
     ```
 
-The app container runs `python scripts/migrate.py && python app.py` automatically.
+The app container starts the application directly with `python app.py`.
 
 ## Legacy DB Import (Einmalig)
 

@@ -8,6 +8,50 @@ from utils.response import ok, error
 bp = Blueprint('milesight', __name__)
 
 
+def _matches_identifier(item, identifier_key, identifier_value):
+    expected = (identifier_value or "").strip().upper()
+    if not expected:
+        return False
+    candidates = []
+    if identifier_key == "devEUI":
+        candidates.extend([
+            item.get("devEUI"),
+        ])
+    elif identifier_key == "snDevEUI":
+        candidates.extend([
+            item.get("snDevEUI"),
+            item.get("sn"),
+        ])
+    else:
+        candidates.extend([
+            item.get(identifier_key),
+        ])
+    normalized_candidates = {str(value).strip().upper() for value in candidates if value}
+    return expected in normalized_candidates
+
+
+def _search_milesight_device(headers, identifier_key, identifier_value):
+    url = f"{MILESIGHT_URL}/device/openapi/v1/devices/search"
+    body = {
+        "pageSize": 1,
+        "pageNumber": 1,
+        identifier_key: identifier_value
+    }
+    resp = requests.post(url, headers=headers, json=body, timeout=8)
+    if resp.status_code != 200:
+        return None, error(f"Milesight Error {resp.status_code}", resp.status_code)
+    try:
+        payload = resp.json()
+    except ValueError:
+        return None, error("Invalid JSON response from Milesight", 502)
+    content = payload.get("data", {}).get("content", [])
+    if isinstance(content, list) and content:
+        for item in content:
+            if _matches_identifier(item, identifier_key, identifier_value):
+                return item, None
+    return None, None
+
+
 @bp.route('/api/milesight/config', methods=['GET'])
 def milesight_config():
     missing = get_milesight_missing()
@@ -17,13 +61,14 @@ def milesight_config():
 @bp.route('/api/milesight/check', methods=['POST'])
 def milesight_check():
     """
-    Checks Milesight Development Platform for a device by EUI.
+    Checks Milesight Development Platform for a device by EUI and optional serial.
     """
-    data = request.json
-    eui = data.get('eui')
+    data = request.json or {}
+    eui = (data.get('eui') or '').strip()
+    requested_serial_number = (data.get('serial_number') or '').strip()
 
-    if not eui:
-        return error("Fehlende EUI.", 400)
+    if not eui and not requested_serial_number:
+        return error("Fehlende EUI oder Serial.", 400)
 
     missing = get_milesight_missing()
     if missing:
@@ -34,41 +79,44 @@ def milesight_check():
     except Exception as e:
         return error(f"Milesight Token Fehler: {e}", 502)
 
-    url = f"{MILESIGHT_URL}/device/openapi/v1/devices/search"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
     }
-    body = {
-        "pageSize": 1,
-        "pageNumber": 1,
-        "devEUI": eui
-    }
 
     try:
-        resp = requests.post(url, headers=headers, json=body, timeout=8)
+        item = None
+        route_error = None
+        search_candidates = []
+        if eui:
+            search_candidates.extend([
+                ("snDevEUI", eui),
+                ("devEUI", eui),
+            ])
+        if requested_serial_number:
+            search_candidates.extend([
+                ("snDevEUI", requested_serial_number),
+                ("devEUI", requested_serial_number),
+            ])
+        for identifier_key, identifier_value in search_candidates:
+            item, route_error = _search_milesight_device(headers, identifier_key, identifier_value)
+            if route_error or item:
+                break
     except requests.RequestException as e:
         return error(f"Milesight Request Fehler: {e}", 502)
+    if route_error:
+        return route_error
 
-    if resp.status_code != 200:
-        return error(f"Milesight Error {resp.status_code}", resp.status_code)
-
-    try:
-        payload = resp.json()
-    except ValueError:
-        return error("Invalid JSON response from Milesight", 502)
-
-    content = payload.get("data", {}).get("content", [])
     exists = False
     serial_number = None
     device_name = None
     device_model = None
     device_details = {}
-    if isinstance(content, list) and content:
-        item = content[0]
+    if item:
         dev_eui = (item.get("devEUI") or "").upper()
         sn_dev_eui = (item.get("snDevEUI") or "").upper()
-        exists = eui.upper() in (dev_eui, sn_dev_eui)
+        candidate_values = {value.upper() for value in (eui, requested_serial_number) if value}
+        exists = bool(candidate_values.intersection({dev_eui, sn_dev_eui}))
         if exists:
             serial_number = item.get("sn") or item.get("serial_number")
             device_name = item.get("name")
@@ -165,34 +213,22 @@ def milesight_dry_run():
     except Exception as e:
         return error(f"Milesight Token Fehler: {e}", 502)
 
-    search_url = f"{MILESIGHT_URL}/device/openapi/v1/devices/search"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
     }
-    body = {
-        "pageSize": 1,
-        "pageNumber": 1,
-        "snDevEUI": eui
-    }
 
     try:
-        resp = requests.post(search_url, headers=headers, json=body, timeout=8)
+        item, route_error = _search_milesight_device(headers, "snDevEUI", eui)
+        if not item:
+            item, route_error = _search_milesight_device(headers, "devEUI", eui)
     except requests.RequestException as e:
         return error(f"Milesight Request Fehler: {e}", 502)
+    if route_error:
+        return route_error
 
-    if resp.status_code != 200:
-        return error(f"Milesight Error {resp.status_code}", resp.status_code)
-
-    try:
-        payload = resp.json()
-    except ValueError:
-        return error("Invalid JSON response from Milesight", 502)
-
-    content = payload.get("data", {}).get("content", [])
     exists = False
-    if isinstance(content, list) and content:
-        item = content[0]
+    if item:
         dev_eui = (item.get("devEUI") or "").upper()
         sn_dev_eui = (item.get("snDevEUI") or "").upper()
         exists = eui.upper() in (dev_eui, sn_dev_eui)

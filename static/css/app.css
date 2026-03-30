@@ -53,6 +53,17 @@ body { padding-top: 20px; background-color: #f0f2f5; font-family: 'Segoe UI', Ta
 .status-table th,
 .status-table td { vertical-align: middle; padding: 0.4rem 0.5rem; }
 .status-table td { white-space: nowrap; }
+.status-table th:nth-child(3),
+.status-table td:nth-child(3) {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+.status-table th:nth-child(4),
+.status-table td:nth-child(4) {
+    width: 150px;
+    white-space: nowrap;
+}
 .status-cell { font-size: 0.85rem; }
 .external-table th,
 .external-table td {

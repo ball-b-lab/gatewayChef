@@ -4,6 +4,7 @@ import webbrowser
 import os
 import sys
 import subprocess
+import requests
 from pathlib import Path
 from flask import Flask, render_template
 from werkzeug.exceptions import HTTPException
@@ -22,6 +23,7 @@ from config import (
     DB_API_PROVIDER_URL,
     VPN_PING_PROVIDER_URL,
     RECOMMENDED_GATEWAY_FIRMWARE,
+    API_SERVICE_TOKEN,
 )
 from routes.gateway import bp as gateway_bp
 from routes.db import bp as db_bp
@@ -55,6 +57,54 @@ def _version_payload():
         "build_tag": os.getenv("APP_BUILD_TAG", "").strip() or "unknown",
         "build_time": os.getenv("APP_BUILD_TIME", "").strip() or "unknown",
     }
+
+
+def _summarize_response_body(resp):
+    try:
+        payload = resp.json()
+        if isinstance(payload, dict):
+            if payload.get("error", {}).get("message"):
+                return payload["error"]["message"]
+            if payload.get("data", {}).get("message"):
+                return payload["data"]["message"]
+            if payload.get("data", {}).get("build_sha"):
+                return f"build_sha={payload['data'].get('build_sha')} app_mode={payload['data'].get('app_mode')}"
+            if payload.get("data", {}).get("count") is not None:
+                return f"count={payload['data'].get('count')} total={payload['data'].get('total_count')}"
+        return str(payload)[:200]
+    except ValueError:
+        return (resp.text or "")[:200]
+
+
+def _run_db_proxy_preflight():
+    if APP_MODE != "local" or not DB_API_PROVIDER_URL:
+        return
+
+    provider = DB_API_PROVIDER_URL.rstrip("/")
+    headers = {}
+    if API_SERVICE_TOKEN:
+        headers["X-API-Token"] = API_SERVICE_TOKEN
+
+    checks = [
+        ("version", "GET", f"{provider}/api/version", {}),
+        ("db_table", "GET", f"{provider}/api/db/table-view?limit=1", {"headers": headers}),
+    ]
+
+    print("--- DB Proxy Preflight ---", flush=True)
+    print(f"Provider: {provider}", flush=True)
+    print(f"API token configured: {'yes' if API_SERVICE_TOKEN else 'no'}", flush=True)
+
+    for label, method, url, extra in checks:
+        try:
+            resp = requests.request(method, url, timeout=6, **extra)
+            summary = _summarize_response_body(resp)
+            print(f"[preflight:{label}] HTTP {resp.status_code} {url}", flush=True)
+            if summary:
+                print(f"[preflight:{label}] {summary}", flush=True)
+        except requests.RequestException as exc:
+            print(f"[preflight:{label}] REQUEST FAILED {url}", flush=True)
+            print(f"[preflight:{label}] {exc}", flush=True)
+    print("--------------------------", flush=True)
 
 app = Flask(
     __name__,
@@ -135,6 +185,8 @@ if __name__ == '__main__':
 
     if not DB_PASSWORD and not DATABASE_URL:
         print("WARNUNG: Weder DB_PASSWORD noch DATABASE_URL gefunden!")
+
+    _run_db_proxy_preflight()
 
     open_browser_enabled = os.getenv("OPEN_BROWSER", "true").lower() == "true"
     if open_browser_enabled:

@@ -13,7 +13,7 @@ Stand: 2026-03-06
    - `DB_HOST` auf internen DB-Service
    - `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
    - `JWT_SECRET`
-3. Sicherstellen, dass die App beim Start Migrationen ausfuehrt (`python scripts/migrate.py`).
+3. Falls fuer den Cutover noetig, Migrationen einmalig manuell ausfuehren (`python scripts/migrate.py`).
 
 ## B) Datenuebernahme (Einmalig)
 1. Quell-/Ziel-URLs bereitstellen:
