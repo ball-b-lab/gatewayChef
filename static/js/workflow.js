@@ -1380,7 +1380,12 @@ export function formatVpnCidr(ip) {
     }
 export function normalizeVpnIp(ip) {
         if (!ip) return '';
-        return ip.split('/')[0];
+        const normalized = String(ip).trim().split('/')[0];
+        if (!normalized) return '';
+        if (['0.0.0.0', 'not_configured', 'not-configured', 'unset', '-'].includes(normalized.toLowerCase())) {
+            return '';
+        }
+        return normalized;
     }
 function updateSerialStatus(value) {
         const statusSnEl = document.getElementById('statusSerialNumber');

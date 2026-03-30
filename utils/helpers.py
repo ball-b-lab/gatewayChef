@@ -24,6 +24,11 @@ def derive_wifi_ssid(vpn_ip):
 def normalize_vpn_ip(vpn_ip):
     if vpn_ip is None:
         return None
-    if isinstance(vpn_ip, str) and "/" in vpn_ip:
-        return vpn_ip.split("/")[0]
+    if isinstance(vpn_ip, str):
+        normalized = vpn_ip.strip()
+        if "/" in normalized:
+            normalized = normalized.split("/")[0]
+        if normalized.lower() in {"", "0.0.0.0", "not_configured", "not-configured", "unset", "-"}:
+            return None
+        return normalized
     return vpn_ip
