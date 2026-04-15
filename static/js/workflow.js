@@ -1032,7 +1032,7 @@ export async function runReadPipeline(options = {}) {
         setGatewayBlocked(false);
         setConnectionState(true, 'Gateway erreichbar.');
         try {
-            applyGatewayState(deviceResult.data, null);
+            await applyGatewayState(deviceResult.data, null);
         } catch (e) {
             log('!! Fehler beim Anwenden der Gateway-Daten: ' + e, 'error');
         }
@@ -1043,7 +1043,7 @@ export async function runReadPipeline(options = {}) {
             if (loraResult.ok) {
                 state.observed.lora = loraResult.data;
                 try {
-                    applyGatewayState(deviceResult.data, loraResult.data);
+                    await applyGatewayState(deviceResult.data, loraResult.data);
                 } catch (e) {
                     log('!! Fehler beim Anwenden der LoRa-Daten: ' + e, 'error');
                 }
@@ -1051,7 +1051,7 @@ export async function runReadPipeline(options = {}) {
             } else {
                 state.observed.lora = null;
                 try {
-                    applyGatewayState(deviceResult.data, null);
+                    await applyGatewayState(deviceResult.data, null);
                 } catch (e) {
                     log('!! Fehler beim Anwenden der Gateway-Daten: ' + e, 'error');
                 }
@@ -1070,7 +1070,7 @@ export async function runReadPipeline(options = {}) {
         updateSectionStatuses();
         scheduleFinalCheck();
     }
-export function applyGatewayState(deviceInfo, loraInfo) {
+export async function applyGatewayState(deviceInfo, loraInfo) {
         if (!deviceInfo) return;
         const rawMac = deviceInfo.mac || '';
         const derivedEui = deriveEuiFromMac(rawMac);
@@ -1141,9 +1141,23 @@ export function applyGatewayState(deviceInfo, loraInfo) {
             }
         } else {
             document.getElementById('gatewayGoldenBadge').style.display = 'none';
-            if (!vars.manualVpnTarget && deviceInfo.vpn_ip) {
-                document.getElementById('vpnIp').value = deviceInfo.vpn_ip;
-                fetchVpnKeyForGateway(deviceInfo.vpn_ip, { silentNotFound: true, source: 'gateway' });
+            
+            // For non-golden gateways, also try to find existing DB entry by EUI
+            if (!vars.manualVpnTarget && rawEui) {
+                console.log(`[debug] Checking DB for non-golden gateway by EUI: ${rawEui}`);
+                const dbRecord = await loadDbForGateway('', rawEui, '');
+                if (dbRecord && dbRecord.vpn_ip) {
+                    console.log(`[debug] Found gateway in database with VPN IP: ${dbRecord.vpn_ip}`);
+                    document.getElementById('vpnIp').value = dbRecord.vpn_ip;
+                    fetchVpnKeyForGateway(dbRecord.vpn_ip, { silentNotFound: true, source: 'database' });
+                } else if (deviceInfo.vpn_ip) {
+                    // Fallback to VPN IP from gateway if available
+                    console.log(`[debug] Gateway has VPN IP ${deviceInfo.vpn_ip}, fetching VPN key...`);
+                    document.getElementById('vpnIp').value = deviceInfo.vpn_ip;
+                    fetchVpnKeyForGateway(deviceInfo.vpn_ip, { silentNotFound: true, source: 'gateway' });
+                } else {
+                    console.log(`[debug] No VPN IP found for gateway EUI ${rawEui}`);
+                }
             }
         }
         if (deviceInfo.wifi_ssid) {

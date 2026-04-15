@@ -31,14 +31,26 @@ class ProvisioningService:
         if not vpn_ip:
             raise ProvisioningError("VPN IP fehlt.", 400)
 
+        print(f"[provisioning_service] Fetching VPN key for vpn_ip: {vpn_ip}", flush=True)
+        
         with self.connection.cursor() as cursor:
             repo = GatewayInventoryRepository(cursor)
             row = repo.fetch_vpn_key_by_ip(vpn_ip)
+            
+        print(f"[provisioning_service] Query result: {row}", flush=True)
 
         if not row:
             raise ProvisioningError("VPN IP nicht gefunden.", 404)
 
-        return {"private_key": row[0], "serial_number": row[1]}
+        # Check if private_key is None or empty
+        private_key = row[0]
+        serial_number = row[1]
+        
+        print(f"[provisioning_service] private_key is None: {private_key is None}", flush=True)
+        print(f"[provisioning_service] private_key empty: {not private_key}", flush=True)
+        print(f"[provisioning_service] serial_number: {serial_number}", flush=True)
+        
+        return {"private_key": private_key, "serial_number": serial_number}
 
     def update_customer_data(
         self,

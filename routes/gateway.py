@@ -1,6 +1,7 @@
 import json
 import traceback
 import requests
+import subprocess
 from flask import Blueprint
 from config import GATEWAY_URL, DEVICE_INFO_PATH, DEVICE_INFO_LORA_PATH, CELLULAR_STATUS_PATH
 from utils.helpers import calculate_eui
@@ -39,6 +40,8 @@ def gateway_device_info():
         raw_mac = device.get("mac") or payload.get("mac") or ""
         eui = device.get("eui") or calculate_eui(raw_mac)
         vpn_ip = device.get("vpn_ip") or payload.get("vpn_ip") or ""
+        
+        print(f"[gateway/device-info] Extracted VPN IP: '{vpn_ip}', EUI: '{eui}', MAC: '{raw_mac}'", flush=True)
         status = payload.get("status")
         wifi_ssid = device.get("wifi_ssid") or device.get("ssid") or payload.get("wifi_ssid") or payload.get("ssid") or ""
         interfaces = device.get("interfaces") or payload.get("interfaces") or {}
@@ -76,8 +79,69 @@ def gateway_device_info():
 
     except requests.exceptions.ConnectTimeout:
         return error("Gateway Zeitüberschreitung (Timeout). Prüfe Verbindung.", 504)
-    except requests.exceptions.ConnectionError:
-        return error("Gateway nicht erreichbar (Verbindungsfehler).", 502)
+    except requests.exceptions.ConnectionError as e:
+        print(f"[gateway/device-info] Requests connection failed: {e}", flush=True)
+        # Try curl as fallback since requests can't connect
+        print(f"[gateway/device-info] Trying curl fallback...", flush=True)
+        try:
+            url = f"{GATEWAY_URL}{DEVICE_INFO_PATH}"
+            # Use curl with -k to ignore self-signed SSL certificate
+            result = subprocess.run(['curl', '-s', '-L', '-k', '-m', '5', url], 
+                                  capture_output=True, text=True, timeout=10)
+            if result.returncode != 0:
+                print(f"[gateway/device-info] Curl failed with code {result.returncode}", flush=True)
+                return error("Gateway nicht erreichbar (Verbindungsfehler).", 502)
+            
+            try:
+                payload = json.loads(result.stdout)
+            except json.JSONDecodeError:
+                print(f"[gateway/device-info] Invalid JSON from curl", flush=True)
+                return error("Invalid JSON response from Gateway", 502)
+            
+            print(f"[gateway/device-info] Curl success: payload={json.dumps(payload, ensure_ascii=True)}", flush=True)
+            
+            device = payload.get("device", {}) if isinstance(payload, dict) else {}
+            raw_mac = device.get("mac") or payload.get("mac") or ""
+            eui = device.get("eui") or calculate_eui(raw_mac)
+            vpn_ip = device.get("vpn_ip") or payload.get("vpn_ip") or ""
+            status = payload.get("status")
+            wifi_ssid = device.get("wifi_ssid") or device.get("ssid") or payload.get("wifi_ssid") or payload.get("ssid") or ""
+            interfaces = device.get("interfaces") or payload.get("interfaces") or {}
+            cellular_online = device.get("cellular_online") if "cellular_online" in device else payload.get("cellular_online")
+            firmware_version = _first_present(
+                device.get("firmware_version"),
+                device.get("firmwareVersion"),
+                device.get("fw_version"),
+                device.get("version"),
+                payload.get("firmware_version"),
+                payload.get("firmwareVersion"),
+                payload.get("fw_version"),
+                payload.get("version"),
+            )
+            hardware_version = _first_present(
+                device.get("hardware_version"),
+                device.get("hardwareVersion"),
+                device.get("hw_version"),
+                payload.get("hardware_version"),
+                payload.get("hardwareVersion"),
+                payload.get("hw_version"),
+            )
+
+            return ok({
+                "status": status,
+                "mac": raw_mac,
+                "eui": eui,
+                "vpn_ip": vpn_ip,
+                "wifi_ssid": wifi_ssid,
+                "interfaces": interfaces,
+                "cellular_online": cellular_online,
+                "firmware_version": firmware_version,
+                "hardware_version": hardware_version,
+            })
+            
+        except Exception as curl_err:
+            print(f"[gateway/device-info] Curl fallback failed: {curl_err}", flush=True)
+            return error("Gateway nicht erreichbar (Verbindungsfehler).", 502)
     except Exception as e:
         traceback.print_exc()
         return error(f"Critical Error: {str(e)}", 500)
