@@ -705,13 +705,19 @@ export function buildSuggestedName() {
         const clientId = (document.getElementById('clientId')?.value || vars.selectedClientId || '').trim();
         const clientName = (vars.selectedClientName || '').trim();
         const parts = [];
-        if (vpnSuffix) parts.push(vpnSuffix);
+        
+        // Always include VPN IP suffix when available
+        if (vpnSuffix) {
+            parts.push(vpnSuffix);
+        }
+        
         if (clientId && clientName) {
             parts.push(`${clientId} - ${clientName}`);
         } else {
             if (clientId) parts.push(clientId);
             if (clientName) parts.push(clientName);
         }
+        
         return parts.join(' ').trim();
     }
 
@@ -1079,6 +1085,11 @@ export async function applyGatewayState(deviceInfo, loraInfo) {
         const derivedGatewayEui = normalizeHexId(derivedEui || '');
         const rawEui = loraGatewayEui || deviceGatewayEui || derivedGatewayEui || '';
         const gatewayVpnIp = normalizeVpnIp(deviceInfo.vpn_ip || '');
+        
+        // Check if VPN is 0.0.0.0 and no existing gateway selected
+        const isVpnUnset = gatewayVpnIp === '' && deviceInfo.vpn_ip === '0.0.0.0';
+        const hasExistingGateway = state.observed.db && state.observed.db.vpn_ip;
+        
         if ((gatewayVpnIp && gatewayVpnIp !== vars.lastGatewayVpnIp) || (!gatewayVpnIp && vars.lastGatewayVpnIp)) {
             resetGatewayScopedFields();
             vars.lastGatewayVpnIp = gatewayVpnIp;
@@ -1088,6 +1099,12 @@ export async function applyGatewayState(deviceInfo, loraInfo) {
                 loadDbForGateway(gatewayVpnIp, rawEui, '');
             } else {
                 log('.. Gateway ohne VPN IP erkannt. Felder geleert.', 'info');
+                
+                // Auto-suggest VPN IP when VPN is 0.0.0.0 and no existing gateway selected
+                if (isVpnUnset && !hasExistingGateway && !vars.manualVpnTarget) {
+                    log('.. VPN IP ist 0.0.0.0 und kein bestehendes Gateway ausgewählt. Beziehe neue VPN IP...', 'info');
+                    await fetchIp();
+                }
             }
         }
         document.getElementById('gwMac').value = rawMac;
@@ -1506,6 +1523,8 @@ async function resolveKnownGatewayOrReserveIp(eui) {
                 return true;
             }
         }
+        
+        // Auto-suggest VPN IP when no existing gateway found
         await fetchIp();
         checkVpnReachability();
         return false;
@@ -1762,7 +1781,7 @@ export function copyVpnCidr() {
         const ip = document.getElementById('vpnIp').value;
         copyText(formatVpnCidr(ip), 'vpn_ip/32');
     }
-export async function applyVpnIp() {
+export async function saveVpnIp() {
         const ip = document.getElementById('vpnIp').value;
         if (!ip) {
             alert('Bitte eine VPN IP eingeben.');

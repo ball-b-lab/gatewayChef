@@ -11,7 +11,7 @@ import {
     copyField,
     copyVpnCidr,
     formatVpnCidr,
-    applyVpnIp,
+    saveVpnIp,
     uploadGatewayInventoryCsv,
     createManualGatewaySeed,
     markCloudTableDeployed,
@@ -67,7 +67,7 @@ window.copyAndOpen = copyAndOpen;
 window.copyField = copyField;
 window.copyVpnCidr = copyVpnCidr;
 window.formatVpnCidr = formatVpnCidr;
-window.applyVpnIp = applyVpnIp;
+window.saveVpnIp = saveVpnIp;
 window.uploadGatewayInventoryCsv = uploadGatewayInventoryCsv;
 window.createManualGatewaySeed = createManualGatewaySeed;
 window.markCloudTableDeployed = markCloudTableDeployed;
