@@ -1086,8 +1086,11 @@ export async function applyGatewayState(deviceInfo, loraInfo) {
         const rawEui = loraGatewayEui || deviceGatewayEui || derivedGatewayEui || '';
         const gatewayVpnIp = normalizeVpnIp(deviceInfo.vpn_ip || '');
         
-        // Check if VPN is 0.0.0.0 and no existing gateway selected
-        const isVpnUnset = gatewayVpnIp === '' && deviceInfo.vpn_ip === '0.0.0.0';
+        // Check if VPN is unconfigured (0.0.0.0 or not_configured) and no existing gateway selected
+        const isVpnUnset = gatewayVpnIp === '' && 
+                          (deviceInfo.vpn_ip === '0.0.0.0' || 
+                           deviceInfo.vpn_ip === 'not_configured' ||
+                           deviceInfo.vpn_ip === 'not-configured');
         const hasExistingGateway = state.observed.db && state.observed.db.vpn_ip;
         
         if ((gatewayVpnIp && gatewayVpnIp !== vars.lastGatewayVpnIp) || (!gatewayVpnIp && vars.lastGatewayVpnIp)) {
@@ -1148,7 +1151,9 @@ export async function applyGatewayState(deviceInfo, loraInfo) {
         if (isGolden) {
             document.getElementById('gatewayGoldenBadge').style.display = 'inline-block';
             if (!vars.manualVpnTarget) {
-                if (deviceInfo.vpn_ip === '0.0.0.0') {
+                if (deviceInfo.vpn_ip === '0.0.0.0' || 
+                    deviceInfo.vpn_ip === 'not_configured' ||
+                    deviceInfo.vpn_ip === 'not-configured') {
                     document.getElementById('vpnIp').value = '';
                 } else if (deviceInfo.vpn_ip) {
                     document.getElementById('vpnIp').value = deviceInfo.vpn_ip;
@@ -1167,8 +1172,11 @@ export async function applyGatewayState(deviceInfo, loraInfo) {
                     console.log(`[debug] Found gateway in database with VPN IP: ${dbRecord.vpn_ip}`);
                     document.getElementById('vpnIp').value = dbRecord.vpn_ip;
                     fetchVpnKeyForGateway(dbRecord.vpn_ip, { silentNotFound: true, source: 'database' });
-                } else if (deviceInfo.vpn_ip && deviceInfo.vpn_ip !== '0.0.0.0') {
-                    // Fallback to VPN IP from gateway if available and not 0.0.0.0
+                } else if (deviceInfo.vpn_ip && 
+                          deviceInfo.vpn_ip !== '0.0.0.0' && 
+                          deviceInfo.vpn_ip !== 'not_configured' &&
+                          deviceInfo.vpn_ip !== 'not-configured') {
+                    // Fallback to VPN IP from gateway if available and not unconfigured
                     console.log(`[debug] Gateway has VPN IP ${deviceInfo.vpn_ip}, fetching VPN key...`);
                     document.getElementById('vpnIp').value = deviceInfo.vpn_ip;
                     fetchVpnKeyForGateway(deviceInfo.vpn_ip, { silentNotFound: true, source: 'gateway' });
