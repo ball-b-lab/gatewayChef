@@ -1167,13 +1167,15 @@ export async function applyGatewayState(deviceInfo, loraInfo) {
                     console.log(`[debug] Found gateway in database with VPN IP: ${dbRecord.vpn_ip}`);
                     document.getElementById('vpnIp').value = dbRecord.vpn_ip;
                     fetchVpnKeyForGateway(dbRecord.vpn_ip, { silentNotFound: true, source: 'database' });
-                } else if (deviceInfo.vpn_ip) {
-                    // Fallback to VPN IP from gateway if available
+                } else if (deviceInfo.vpn_ip && deviceInfo.vpn_ip !== '0.0.0.0') {
+                    // Fallback to VPN IP from gateway if available and not 0.0.0.0
                     console.log(`[debug] Gateway has VPN IP ${deviceInfo.vpn_ip}, fetching VPN key...`);
                     document.getElementById('vpnIp').value = deviceInfo.vpn_ip;
                     fetchVpnKeyForGateway(deviceInfo.vpn_ip, { silentNotFound: true, source: 'gateway' });
                 } else {
-                    console.log(`[debug] No VPN IP found for gateway EUI ${rawEui}`);
+                    console.log(`[debug] No VPN IP found for gateway EUI ${rawEui}. Auto-suggesting new VPN IP...`);
+                    // Auto-suggest VPN IP when no existing gateway found and VPN is not configured
+                    await fetchIp();
                 }
             }
         }
@@ -2086,6 +2088,7 @@ export async function fetchIp() {
                 updateConfigTargets();
                 syncDesiredState();
                 updateGatewayStatus();
+                updateSuggestedNameLabel();
                 log('.. VPN IP gefunden: ' + result.data.vpn_ip, 'success');
                 invalidateFinalCheck();
                 checkReady();
