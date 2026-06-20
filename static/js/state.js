@@ -47,5 +47,6 @@ export const vars = {
     lastProvisionSavedOk: false,
     lastProvisionConfirmed: false,
     knownGatewayAcknowledged: false,
-    lastKnownGatewaySignature: ''
+    lastKnownGatewaySignature: '',
+    cloudVpnHealthOk: false
 };

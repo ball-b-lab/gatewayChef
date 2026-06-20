@@ -458,7 +458,7 @@ function collectReadinessChecks() {
             { label: `WiFi-SSID stimmt (${currentWifiSsid || '-'} -> ${targetWifiSsid || '-'})`, ok: !!currentWifiSsid && currentWifiSsid === targetWifiSsid },
             { label: `SIM-Vendor gesetzt`, ok: !!simVendor },
             { label: `SIM-ICCID gesetzt`, ok: !!simIccid },
-            { label: `Gateway meldet die richtige VPN-IP (${gwVpnReported || '-'} -> ${targetVpnIp || '-'})`, ok: !!normalizedGwVpnReported && normalizedGwVpnReported === normalizedTargetVpnIp },
+            { label: `VPN korrekt konfiguriert (wg0 up)`, ok: isVpnConfigured(state.observed.gateway) },
             { label: `LoRa Gateway-ID stimmt (${loraGatewayId || '-'} -> ${targetGatewayId || '-'})`, ok: !!normalizedLoraGatewayId && normalizedLoraGatewayId === normalizedTargetGatewayId },
             { label: `LoRa Active Server gesetzt`, ok: !!loraActiveServer },
             { label: `LoRa Status ist online`, ok: String(loraStatus) === '1' },
@@ -1428,6 +1428,22 @@ export function normalizeVpnIp(ip) {
         }
         return normalized;
     }
+
+export function isVpnConfigured(deviceInfo) {
+        if (!deviceInfo) return false;
+        
+        const interfaces = deviceInfo.interfaces || {};
+        const wg0 = interfaces.wg0 || {};
+        const vpnIp = normalizeVpnIp(deviceInfo.vpn_ip);
+        
+        // VPN is configured if:
+        // 1. wg0 interface exists and is up
+        // 2. VPN IP is valid (not 0.0.0.0/not_configured)
+        return wg0.up === true && 
+               vpnIp && 
+               vpnIp !== '0.0.0.0' && 
+               vpnIp !== 'not_configured';
+    }
 function updateSerialStatus(value) {
         const statusSnEl = document.getElementById('statusSerialNumber');
         if (statusSnEl) statusSnEl.textContent = value || '-';
@@ -1679,6 +1695,8 @@ export async function checkVpnReachability() {
         const vpnIp = getSelectedVpnTarget();
         const statusEl = document.getElementById('statusVpnReach');
         const detailsEl = document.getElementById('statusVpnReachDetails');
+        const gateway = state.observed.gateway || {};
+        
         if (!vpnIp || vpnIp === '-') {
             statusEl.textContent = 'Fehler';
             if (detailsEl) detailsEl.textContent = 'Keine Ziel-VPN verfuegbar';
@@ -1686,8 +1704,13 @@ export async function checkVpnReachability() {
             setRuntimeHint('VPN-Pruefung fehlgeschlagen: keine Ziel-VPN verfuegbar.', 'warn');
             return;
         }
+        
         const reportedVpn = normalizeVpnIp(document.getElementById('gwVpnReported').value || '');
         const reportedMatch = reportedVpn && reportedVpn === vpnIp;
+        
+        // Check WireGuard interface status first (primary indicator)
+        const vpnConfigured = isVpnConfigured(gateway);
+        
         if (!reportedVpn && !reportedMatch) {
             statusEl.textContent = 'Fehlt';
             if (detailsEl) detailsEl.textContent = 'Gateway meldet keine VPN-IP';
@@ -1699,9 +1722,19 @@ export async function checkVpnReachability() {
             if (detailsEl) detailsEl.textContent = reportedMatch ? 'Gateway meldet passende VPN-IP, Health-Pruefung laeuft' : 'Automatische Health-Pruefung laeuft';
             setRowState('rowVpnReach', 'na');
         }
+        
         if (reportedMatch) {
             statusEl.title = 'Gateway reports matching VPN IP';
         }
+        
+        // Update status based on WireGuard configuration
+        if (vpnConfigured) {
+            statusEl.textContent = 'Konfiguriert';
+            if (detailsEl) detailsEl.textContent = 'wg0 Interface up';
+            setRowState('rowVpnReach', 'ok');
+        }
+        
+        // Attempt cloud proxy check as secondary confirmation (non-blocking)
         try {
             const res = await safeJson('/api/network/gateway-health', {
                 method: 'POST',
@@ -1710,32 +1743,60 @@ export async function checkVpnReachability() {
             }, 4500);
             const result = unwrap(res.data);
             if (!result.ok) {
-                setOperatorHintForError(result.error);
-                statusEl.textContent = 'Fehler';
-                statusEl.title = result.error;
-                if (detailsEl) detailsEl.textContent = result.error || 'VPN Health Check fehlgeschlagen';
-                setRowState('rowVpnReach', 'bad');
+                // Cloud check failed, but VPN is configured - show warning instead of error
+                if (vpnConfigured) {
+                    statusEl.textContent = 'Konfiguriert';
+                    statusEl.title = result.error;
+                    if (detailsEl) detailsEl.textContent = `wg0 up | Cloud: ${result.error}`;
+                    setRowState('rowVpnReach', 'ok');
+                } else {
+                    setOperatorHintForError(result.error);
+                    statusEl.textContent = 'Fehler';
+                    statusEl.title = result.error;
+                    if (detailsEl) detailsEl.textContent = result.error || 'VPN Health Check fehlgeschlagen';
+                    setRowState('rowVpnReach', 'bad');
+                }
                 return;
             }
             const reachable = result.data && result.data.ok;
+            vars.cloudVpnHealthOk = reachable;
             const via = result.data && result.data.via ? ` | via ${result.data.via}` : '';
-            statusEl.textContent = reachable ? 'OK' : 'Fehler';
-            statusEl.title = (result.data && result.data.url ? `${result.data.url}${via}` : via).trim();
-            if (detailsEl) detailsEl.textContent = reachable
-                ? `Automatisch geprueft${via}`
-                : `Health Check fehlgeschlagen${via}`;
-            setRowState('rowVpnReach', reachable ? 'ok' : 'bad');
-            if (!reachable) {
+            
+            if (vpnConfigured) {
+                statusEl.textContent = 'Konfiguriert';
+                statusEl.title = (result.data && result.data.url ? `${result.data.url}${via}` : via).trim();
+                if (detailsEl) detailsEl.textContent = reachable
+                    ? `wg0 up | Cloud: OK${via}`
+                    : `wg0 up | Cloud: Fehlgeschlagen${via}`;
+                setRowState('rowVpnReach', 'ok'); // VPN configured, cloud check is secondary
+            } else {
+                statusEl.textContent = reachable ? 'OK' : 'Fehler';
+                statusEl.title = (result.data && result.data.url ? `${result.data.url}${via}` : via).trim();
+                if (detailsEl) detailsEl.textContent = reachable
+                    ? `Automatisch geprueft${via}`
+                    : `Health Check fehlgeschlagen${via}`;
+                setRowState('rowVpnReach', reachable ? 'ok' : 'bad');
+            }
+            
+            if (!reachable && !vpnConfigured) {
                 setRuntimeHint('VPN Health Check fehlgeschlagen: Cloud API, Firewall oder VPN-Tunnel pruefen.', 'warn');
             } else {
                 setRuntimeHint('', 'muted');
             }
         } catch (e) {
-            statusEl.textContent = 'Fehler';
-            statusEl.title = String(e);
-            if (detailsEl) detailsEl.textContent = String(e);
-            setRowState('rowVpnReach', 'bad');
-            setOperatorHintForError(String(e));
+            // Cloud check exception, but VPN is configured - show warning instead of error
+            if (vpnConfigured) {
+                statusEl.textContent = 'Konfiguriert';
+                statusEl.title = String(e);
+                if (detailsEl) detailsEl.textContent = `wg0 up | Cloud: ${String(e)}`;
+                setRowState('rowVpnReach', 'ok');
+            } else {
+                statusEl.textContent = 'Fehler';
+                statusEl.title = String(e);
+                if (detailsEl) detailsEl.textContent = String(e);
+                setRowState('rowVpnReach', 'bad');
+                setOperatorHintForError(String(e));
+            }
         }
     }
 export function applyDbMismatch(statusCellId, gatewayVal, dbVal) {
@@ -2184,6 +2245,7 @@ export function invalidateFinalCheck() {
         vars.lastFinalChecks = [];
         vars.lastProvisionSavedOk = false;
         vars.lastProvisionConfirmed = false;
+        vars.cloudVpnHealthOk = false; // Reset cloud health status
         setBadge('badgeFinalCheck', 'Konfigurations Check: -', 'idle');
         renderFinalSummary();
         updateSectionStatuses();
@@ -2252,9 +2314,22 @@ export async function pushData() {
             alert("Bitte geben Sie einen Gateway Namen und die Serial Number ein!");
             return;
         }
+        // Check if VPN is configured but cloud health check failed
+        const vpnConfigured = isVpnConfigured(gateway);
+        const cloudHealthFailed = !vars.cloudVpnHealthOk;
+        
         if (!vars.finalCheckOk) {
-            alert("Bitte zuerst Schritt 4 Pruefung & Integrationen erfolgreich abschliessen.");
-            return;
+            // Allow manual override if VPN is configured but cloud check failed
+            if (vpnConfigured && cloudHealthFailed) {
+                if (!confirm("VPN Test ist fehlgeschlagen. Trotzdem speichern?")) {
+                    return;
+                }
+                // Log the manual override
+                log("VPN cloud check failed, manual override used", "warn");
+            } else {
+                alert("Bitte zuerst Schritt 4 Pruefung & Integrationen erfolgreich abschliessen.");
+                return;
+            }
         }
 
         if (!confirm(`Soll Gateway '${name}' mit IP ${ip} in der Cloud DB gespeichert werden?`)) return;
