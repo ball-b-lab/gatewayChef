@@ -37,7 +37,7 @@ class ProvisioningService:
             repo = GatewayInventoryRepository(cursor)
             row = repo.fetch_vpn_key_by_ip(vpn_ip)
             
-        print(f"[provisioning_service] Query result: {row}", flush=True)
+        print(f"[provisioning_service] found={bool(row)}", flush=True)
 
         if not row:
             raise ProvisioningError("VPN IP nicht gefunden.", 404)

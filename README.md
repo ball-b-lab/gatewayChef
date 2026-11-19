@@ -10,6 +10,7 @@ A robust Flask-based web application for provisioning Milesight LoRa Gateways. I
 -   **[API Reference](docs/api.md)**: Detailed specification of the backend JSON API.
 -   **[Release Baseline](docs/RELEASE_BASELINE.md)**: Current supported baseline, release branch and cleanup decisions.
 -   **[Gateway Auto-Config](docs/GATEWAY_AUTOCONFIG.md)**: Prototype to configure UG65 gateways directly via their web API.
+-   **[Gateway Setup Konzept](docs/GATEWAY_SETUP_KONZEPT.md)**: End-to-end pipeline (DB, Gateway, VPN, Milesight, Webservice) with checks per step, swappable adapters, Windows launcher.
 -   **[Agent Notes](AGENTS.md)**: Guardrails for later AI-assisted changes.
 
 ## ✨ Features
