@@ -60,6 +60,8 @@ Notes:
     Aufrufe bekommen nie dieselbe IP.
   - `data`: `{ vpn_ip, private_key, reused, server_public_key }`
   - `404`, wenn der Pool leer ist
+- `GET /api/db/gateways`
+  - alle Einträge außer `FREE`: `[{ vpn_ip, eui, gateway_name, serial_number, status_overall, last_sync }]`, ohne Keys
 - `GET /api/db/pool-status`
   - `data`: `{ free, total, vpn_ips }` (für `scripts/pool_refill.py`)
 - `POST /api/db/vpn-key`
@@ -152,3 +154,19 @@ Notes:
 - `POST /api/milesight/create`
   - body: `{ eui?, serial_number?, gateway_name }`
   - `data`: `{ status: "success", data, request_id }`
+
+### Flotte (nur Station/lokal, nicht im `cloud_api`-Modus)
+Ohne `apply: true` wird immer nur geprüft.
+- `GET /fleet`: Weboberfläche
+- `GET /api/fleet/status?deep=1&ip=a,b`: Erreichbarkeit über VPN und EUI-Abgleich; `deep` liest zusätzlich
+  Firmware, WLAN-Region und Flow-Version
+- `GET /api/fleet/catalog`: Patches, Flow-Bundles, freigegebene Firmwares
+- `POST /api/fleet/patch` `{ vpn_ip, name, apply, allow_risky }`
+  - `data.result`: `ok | would_change | changed | skipped | offline | failed`
+- `POST /api/fleet/nodered` `{ vpn_ip, version, apply }`
+  - `data.result`: `ok | would_change | updated | unchanged | failed | offline`; bei `failed` zusätzlich
+    `rolled_back` und `rollback_ok`
+- `POST /api/fleet/firmware` `{ vpn_ip, version, apply }`
+  - `data.result`: `ok | would_change | updated | failed | offline`, dazu `checks: [{label, ok, info}]`
+    (Upload, Neustart, Firmware, upgrade_error, Schnittstelle, Node-RED-Flows erhalten)
+- `GET /api/fleet/catalog` enthält zusätzlich `firmware_images` und `firmware_upload_configured`

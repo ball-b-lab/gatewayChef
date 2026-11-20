@@ -100,3 +100,4 @@ Optional write smoke (uses test data):
 ```bash
 RUN_WRITE_SMOKE=true TEST_VPN_IP='10.0.0.123' BASE_URL='http://localhost:5000' ./scripts/smoke_test.sh
 ```
+- Linux-Station (Einrichtung + Flotte): `docs/LINUX_STATION.md`

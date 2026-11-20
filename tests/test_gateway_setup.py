@@ -1,4 +1,6 @@
+import os
 import unittest
+from unittest import mock
 
 from services.setup import checks
 from services.setup.adapters.base import Inventory, Registry
@@ -200,13 +202,33 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(st["Vorpruefung"], OK)
         self.assertEqual(st["Register: webservice"], SKIPPED)
 
-    def test_wrong_firmware_stops_early(self):
+    def test_new_firmware_with_same_interface_proceeds_with_warning(self):
+        inv = MemInventory({VPN: _row(eui=EUI)})
+        p = _pipeline(inv, [])
+        p.client = UG65Client(session=FakeSession(_configured_state(), firmware="60.0.0.50"))
+        results = p.run(Gateway(vpn_ip=VPN, serial_number="SN1", sim_iccid="8949", sim_vendor_id="1"), apply=True)
+        st = _status(results)
+        self.assertEqual(st["Vorpruefung"], WARN)
+        self.assertNotEqual(st["Gateway-Konfiguration"], FAIL)
+        self.assertIn("Schnittstelle wie 60.0.0.49", format_results(results))
+
+    def test_strict_policy_or_changed_interface_stops_early(self):
         inv = MemInventory({VPN: _row()})
         p = _pipeline(inv, [])
         p.client = UG65Client(session=FakeSession(_configured_state(), firmware="60.0.0.50"))
-        results = p.run(Gateway(vpn_ip=VPN), apply=True)
+        with mock.patch.dict(os.environ, {"FIRMWARE_POLICY": "strict"}):
+            results = p.run(Gateway(vpn_ip=VPN), apply=True)
         self.assertEqual([r.step for r in results], ["Vorpruefung"])
         self.assertEqual(results[0].status, FAIL)
+
+        state = _configured_state()
+        wifi = state[("yruo_wifi", "yruo_wifi")][0]["value"]
+        wifi["region"] = wifi.pop("country_code")
+        p = _pipeline(MemInventory({VPN: _row()}), [])
+        p.client = UG65Client(session=FakeSession(state, firmware="60.0.0.50"))
+        results = p.run(Gateway(vpn_ip=VPN), apply=True)
+        self.assertEqual([r.step for r in results], ["Vorpruefung"])
+        self.assertIn("Feld fehlt (country_code)", format_results(results))
 
 
 class ChecksTest(unittest.TestCase):

@@ -11,7 +11,12 @@ Release note:
 - **Python 3.12+**: Ensure Python is installed and added to your system PATH.
 - **Git**: For version control.
 
-## Windows Launcher (empfohlen)
+## Linux-Station (empfohlen für Einrichtung und Flotte)
+
+`scripts/linux/install.sh` richtet einen Linux-Rechner als Station ein (systemd-Dienst, Code-Update bei jedem
+Start von `main`, `.env` in `/etc/gatewaychef/env`). Details: `docs/LINUX_STATION.md`.
+
+## Windows Launcher (Einzelplatz)
 
 Statt die EXE zu bauen: `scripts/windows/gatewaychef.cmd` und `gatewaychef.ps1` einmal auf den
 Operator-PC kopieren (z. B. Desktop) und per Doppelklick starten. Der Launcher installiert `uv`,

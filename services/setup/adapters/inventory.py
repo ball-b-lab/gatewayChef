@@ -77,6 +77,9 @@ class DbInventory(Inventory):
     def pool_status(self):
         return self._service("pool_status")
 
+    def list_gateways(self):
+        return self._service("list_gateways")
+
     def import_csv(self, csv_text):
         return self._service("import_gateway_inventory_csv", csv_text)
 
@@ -154,6 +157,9 @@ class ApiInventory(Inventory):
 
     def pool_status(self):
         return self._call("GET", "/api/db/pool-status")
+
+    def list_gateways(self):
+        return self._call("GET", "/api/db/gateways")
 
     def import_csv(self, csv_text):
         try:

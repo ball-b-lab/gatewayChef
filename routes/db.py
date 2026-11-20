@@ -132,6 +132,22 @@ def reserve_ip():
             conn.close()
 
 
+@bp.route('/api/db/gateways', methods=['GET'])
+def list_gateways():
+    """
+    All gateways that are not FREE (vpn_ip, eui, name, serial, status). No keys.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        return ok(ProvisioningService(conn).list_gateways())
+    except psycopg2.Error as e:
+        return error(f"Datenbank Fehler: {e}", 500)
+    finally:
+        if conn:
+            conn.close()
+
+
 @bp.route('/api/db/pool-status', methods=['GET'])
 def pool_status():
     """

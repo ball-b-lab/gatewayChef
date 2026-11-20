@@ -28,6 +28,10 @@ class Inventory(ABC):
         """atomically bind the next FREE row to eui (or return the row already bound);
         dict with vpn_ip, private_key, server_public_key"""
 
+    def list_gateways(self):
+        """[{vpn_ip, eui, gateway_name, serial_number, status_overall, last_sync}] for all non-FREE rows"""
+        raise NotImplementedError
+
     def pool_status(self):
         """dict with free, total, vpn_ips"""
         raise NotImplementedError

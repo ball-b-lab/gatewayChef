@@ -24,10 +24,27 @@ from services.setup.model import Gateway  # noqa: E402
 from services.setup.pipeline import exit_code, format_results, from_env  # noqa: E402
 
 
+def find_gateway(candidates, http=None):
+    """First LAN address that answers like a UG65 (Node-RED device-info). Falls back to the first one."""
+    import requests
+    http = http or requests
+    hosts = [h.strip() for h in candidates.split(",") if h.strip()]
+    for h in hosts:
+        try:
+            if http.get(f"http://{h}/node-red/device-info", timeout=2).status_code == 200:
+                if len(hosts) > 1:
+                    print(f"Gateway gefunden unter {h}")
+                return h
+        except requests.RequestException:
+            continue
+    return hosts[0]
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--host", default=os.getenv("GATEWAY_IP", "192.168.1.1"))
-    p.add_argument("--profile", default=os.getenv("GATEWAY_PROFILE", "ug65-60.0.0.49"))
+    p.add_argument("--host", help="Gateway-IP im LAN. Standard: erste antwortende aus GATEWAY_LAN_CANDIDATES "
+                   "(kommagetrennt), sonst GATEWAY_IP und 192.168.23.150")
+    p.add_argument("--profile", default=os.getenv("GATEWAY_PROFILE", "auto"))
     p.add_argument("--vpn-ip")
     p.add_argument("--new", action="store_true", help="freie VPN-IP aus dem Pool nehmen")
     p.add_argument("--serial")
@@ -45,8 +62,10 @@ def main(argv=None):
 
     gw = Gateway(vpn_ip=a.vpn_ip, serial_number=a.serial, sim_iccid=a.iccid, sim_vendor_id=a.sim_vendor_id,
                  client_id=a.client_id, client_name=a.client_name, name=a.name)
+    host = a.host or find_gateway(os.getenv("GATEWAY_LAN_CANDIDATES") or
+                                os.getenv("GATEWAY_IP", "192.168.1.1") + ",192.168.23.150")
     try:
-        pipeline = from_env(a.host, a.profile, vpn_wait_secs=a.vpn_wait)
+        pipeline = from_env(host, a.profile, vpn_wait_secs=a.vpn_wait)
     except ValueError as exc:
         print(f"FEHLER: {exc}", file=sys.stderr)
         return 2

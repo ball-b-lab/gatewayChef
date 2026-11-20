@@ -117,6 +117,114 @@ Die Station bekommt eine Weboberfläche mit einer Spalte je Port: angesteckt →
 `--apply` → Prüfungen → fertig, dazu der Ausdruck des Etiketts. Bedient wird sie per Browser von jedem
 PC aus.
 
+**Entscheidung (20.11.2026):** Gebaut wird mit einem Linux-Rechner, zuerst ohne Switch: ein Gateway nach
+dem anderen, per Kabel direkt am Gateway-Port der Station. Installation und Bedienung:
+`docs/LINUX_STATION.md`.
+
+## Flotte: Status, Fern-Parameter, Node-RED
+
+Läuft auf einem Rechner im VPN, normalerweise der Station als Workstation-Peer. Weboberfläche `/fleet`,
+Kommandozeile `scripts/fleet.py`, Logik in `services/fleet.py`.
+
+**Status:** Alle vergebenen Gateways aus der DB (`GET /api/db/gateways`, ohne Keys) werden parallel über
+ihre VPN-IP abgefragt (`/node-red/device-info`). Antwortet eine andere EUI als in der DB, gilt das Gateway
+als Fehler, nicht als online. Der tiefe Status meldet sich zusätzlich an und liest Firmware, ob es ein
+Profil dazu gibt, die WLAN-Region und die Node-RED-Flow-Version.
+
+**Parameter aus der Ferne (Patches):** `gateway_profiles/patches/<name>.json` hat dasselbe Format wie das
+Profil, enthält aber nur die zu ändernden Felder (Beispiel `wifi-country-de`). Ablauf je Gateway:
+1. Identität prüfen,
+2. Firmware gegen die Liste im Patch prüfen,
+3. Plan,
+4. Schreiben,
+5. warten, bis das Gateway wieder über VPN antwortet,
+6. zurücklesen.
+
+Patches auf `yruo_wireguard`, `yruo_cell`, `yruo_network` und `yruo_upgrade` können das Gateway vom VPN
+trennen. Sie werden abgelehnt, außer mit `allow_risky`, und dann nur, wenn jemand vor Ort ist.
+
+**Node-RED:**
+- **Bundles:** `gateway_profiles/flows/<version>.json` enthält den Flow-Export. Ein Kommentar-Node
+  `gatewaychef-flow <version>` markiert die Version.
+- **Installierte Version:** Erkannt wird sie über einen Hash der Flow-Logik; Layout und Reihenfolge zählen
+  nicht. Passt der Hash zu keinem Bundle, ist der Kommentar-Node da aber vorhanden, gilt die Version als
+  „geändert“, das heißt am Gerät angepasst. Das ist die Versionsanzeige für den Drive-by-Monitor.
+- **Update:**
+  1. Flows sichern (`FLEET_BACKUP_DIR/<EUI>/`).
+  2. Vollständig deployen, über die Admin-API von Node-RED.
+  3. Die Flows erneut lesen und den Hash vergleichen.
+  4. Nachtest: Das Gateway antwortet über VPN mit der richtigen EUI, und `/node-red/lora/health`
+     antwortet.
+  5. Bei einem Fehler wird automatisch auf die Sicherung zurückgerollt, dann folgt ein zweiter Nachtest.
+- **Node-IDs:** Sie bleiben zwischen den Versionen gleich, dann behält Node-RED die gespeicherten
+  Zugangsdaten.
+
+**Test nach einem Update.** Drei Ebenen:
+1. **Automatisch je Gateway:**
+   - nach einem Patch: zurücklesen und Erreichbarkeit,
+   - nach Node-RED: Hash, Identität und Health, bei einem Fehler Rollback.
+2. **Vor dem Ausrollen:** zuerst ein Gateway im Büro (Test-Gateway), dann 2–3 Gateways im Feld, dann alle.
+   Die Oberfläche arbeitet die markierten Zeilen nacheinander ab, der Ablauf ist also steuerbar.
+3. **Fachlich (Drive-by):** Nach dem Update muss der Drive-by-Monitor wieder Daten vom Gateway sehen. Die
+   Prüfung hängt am Drive-by-Monitor und ist noch nicht angebunden (offen).
+
+## Neue Firmware: Schnittstelle prüfen, nur Deltas melden
+
+Meist bleibt die Schnittstelle zwischen Firmware-Versionen gleich. Deshalb wird bei unbekannter Firmware
+nicht mehr pauschal blockiert. Stattdessen wird automatisch geprüft:
+
+1. Gibt es ein Profil für genau diese Firmware (`ug65-<fw>.json`), wird es verwendet.
+2. Sonst wird das neueste Profil genommen und **jeder Abschnitt am Gerät gelesen**: Gibt es die Abschnitte
+   noch? Die Felder? Haben sie denselben Typ? Das geschieht im selben Lauf, ohne eigenen Schritt.
+3. Ergebnis:
+   - **kompatibel**, also nichts fehlt und nur neue Felder sind dazugekommen: Das Profil wird verwendet.
+     Die Vorprüfung steht auf `WARN`, die neuen Felder erscheinen als Info-Deltas.
+   - **inkompatibel**, also ein Abschnitt oder Feld fehlt oder ein Typ hat sich geändert: Es wird nicht
+     geschrieben. Die Deltas stehen in der Ausgabe.
+4. `FIRMWARE_POLICY=strict` stellt das alte Verhalten wieder her: nur Firmware mit eigenem Profil.
+
+Dasselbe gilt für Fern-Patches: Läuft ein Gateway mit einer Firmware, die nicht in der Liste des Patches
+steht, wird der Patch geschrieben, wenn seine Felder am Gerät vorhanden sind. Sonst wird er übersprungen.
+Der tiefe Status in `/fleet` zeigt für Firmware ohne eigenes Profil `compatible` oder `incompatible` samt
+Deltas.
+
+Ein eigenes Profil braucht es nur noch, wenn die Firmware wirklich inkompatibel ist:
+`fleet profile-check --host <ip>` schreibt dann einen Entwurf `ug65-<fw>.json.draft`. Den prüfen, die
+umbenannten Felder ergänzen, die Datei umbenennen und einen Dry-Run ohne Abweichung abwarten.
+
+## Firmware-Update aus der Ferne
+
+`fleet firmware --version 60.0.0.49 --ip <vpn-ip> --apply` (oder `--host <lan-ip>` an der Station, oder der
+Button in `/fleet`). Die Images liegen in `FIRMWARE_DIR` als `*<version>[-rN].bin`, zum Beispiel
+`UG65 60.0.0.49-r4.bin` aus `91_Werkstatt/Milesight_GW_Config`.
+
+Ablauf je Gateway:
+1. Die richtige EUI antwortet. Die aktuelle Firmware wird gelesen und der Hash der Node-RED-Flows gemerkt.
+2. Upload über `POST /cgi-bin/file-import`, so wie es die Weboberfläche des Gateways tut. Der Upload
+   startet das Upgrade.
+3. Warten, bis das Gateway einmal weg und wieder da ist (`FIRMWARE_UPGRADE_WAIT`, Standard 20 Minuten).
+4. Nachtest:
+   - Firmware entspricht der Zielversion,
+   - `upgrade_error` ist 0,
+   - die richtige EUI antwortet über VPN,
+   - die Schnittstelle ist mit dem Profil kompatibel (siehe oben),
+   - die Node-RED-Flows sind unverändert.
+5. `--all` und die Weboberfläche arbeiten nacheinander und **stoppen beim ersten Fehler**. Vorgehen: erst
+   das Test-Gateway, dann einzelne Gateways im Feld, dann der Rest.
+
+Nicht automatisch möglich ist ein Rollback. Ein Downgrade ist ein weiteres Update mit dem alten Image, und
+das entscheidet ein Mensch.
+
+**Vor dem ersten echten Update zu klären:**
+- **Formularwerte:** Die beiden Werte `type=…&file=…` der Upgrade-Seite sind in der gesicherten
+  Weboberfläche nicht enthalten. Einmal am Gerät ermitteln: Weboberfläche → Wartung → Upgrade, die
+  Browser-Entwicklertools öffnen, die Anfrage an `/cgi-bin/file-import` ansehen und die Werte als
+  `FIRMWARE_UPLOAD_TYPE`/`FIRMWARE_UPLOAD_FILE` eintragen. Bis dahin verweigert das Tool den Upload, weil
+  derselbe Endpunkt auch Backups einspielt.
+- **Datenvolumen:** Ein Image hat rund 140 MB. Über das VPN läuft das über die SIM des Gateways. Bei
+  IoT-Tarifen mit kleinem Volumen das Update besser an der Station im LAN machen (`--host`) oder vor Ort.
+- **Session-ID:** Gesucht wird sie in der Login-Antwort und im Cookie `td`. Am Gerät bestätigen.
+
 ## Plattform-Empfehlung
 
 | Teil | Plattform | Warum |
@@ -193,6 +301,15 @@ und der Name kamen aus der DB.
    Station ab, siehe oben.
 10. **`192.168.1.0/24` in den `AllowedIPs` am VPN-Server:** Das Netz hängt heute an jedem Gateway-Peer, wirkt
     aber nur beim letzten. Beim nächsten Server-Reload bereinigen.
+
+11. **Node-RED-Admin-API am UG65 prüfen:** Gebaut ist gegen die Standard-API unter `/node-red`
+    (`/auth/login`, `/auth/token`, `/flows` v2). Pfad und Login (`NODERED_USER`/`NODERED_PASSWORD`) am Gerät
+    bestätigen und dann das erste Bundle vom Referenzgerät exportieren (`fleet nodered-export`).
+12. **`/cgi` über VPN:** Für Patches muss die Weboberfläche des Gateways über die VPN-IP erreichbar sein.
+    Am Gerät prüfen.
+13. **Drive-by-Prüfung nach Updates:** Welche Größe zeigt, dass der Drive-by-Monitor wieder Daten bekommt,
+    und wo lässt sie sich abfragen?
+14. **Firmware-Update:** Formularwerte, Session-ID und Datenvolumen klären (siehe Abschnitt Firmware-Update).
 
 ## Sicherheitsbefunde (nebenbei)
 

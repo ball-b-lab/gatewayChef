@@ -28,7 +28,9 @@ class Pipeline:
         import requests
         import time
         self.host = host
-        self.profile = gc.load_profile(profile_name)
+        self.profile_name = profile_name or "auto"
+        self.profile = None if self.profile_name == "auto" else gc.load_profile(self.profile_name)
+        self.fw_allowed = False
         self.inventory = inventory
         self.registries = registries
         self.client = gateway_client or gc.UG65Client(host)
@@ -41,7 +43,7 @@ class Pipeline:
 
     # ------------------------------------------------------------ helpers
     def _lns_address(self):
-        for section in self.profile["sections"]:
+        for section in (self.profile or {}).get("sections", []):
             for serv in section.get("value", {}).get("servs", []):
                 if serv.get("serv_type") == "semtech":
                     return serv.get("serv_addr")
@@ -83,9 +85,24 @@ class Pipeline:
             r.checks.append(("Gateway-Login", False, str(exc)))
             r.status = FAIL
             return r, info
-        fw_ok = self.client.firmware == self.profile.get("firmware")
-        r.checks.append(("Firmware freigegeben", fw_ok, f"{self.client.firmware} (Profil {self.profile.get('firmware')})"))
-        if not fw_ok:
+        if self.profile is None:
+            self.profile = gc.load_profile(gc.profile_for_firmware(self.client.firmware))
+        compat = gc.firmware_compat(self.client, self.profile)
+        self.fw_allowed = compat["allowed"]
+        fw, pfw = self.client.firmware, self.profile.get("firmware")
+        if compat["status"] == "exact":
+            r.checks.append(("Firmware freigegeben", True, f"{fw} (Profil {pfw})"))
+        elif compat["allowed"]:
+            r.checks.append(("Firmware freigegeben", None,
+                             f"{fw} ohne eigenes Profil, Schnittstelle wie {pfw}: Profil wird verwendet"))
+            for d in compat["deltas"]:
+                r.checks.append(("  Delta", None, d))
+            r.status = WARN
+        else:
+            why = "FIRMWARE_POLICY=strict" if compat["status"] == "compatible" else "Schnittstelle geaendert"
+            r.checks.append(("Firmware freigegeben", False, f"{fw}, Profil {pfw}: {why}"))
+            for d in compat["deltas"]:
+                r.checks.append(("  Delta", False if compat["status"] == "incompatible" else None, d))
             r.status = FAIL
         if any(ok is False for _, ok, _ in r.checks):
             r.status = FAIL
@@ -216,7 +233,7 @@ class Pipeline:
         if not apply:
             r.status = WOULD_CHANGE
             return r
-        gc.execute(self.client, plan, force_firmware=force_firmware)
+        gc.execute(self.client, plan, force_firmware=force_firmware or self.fw_allowed)
         verify = gc.plan(self.client, self.profile, dv)
         if verify["changes"]:
             r.status, r.detail = FAIL, "nach dem Schreiben weichen Werte ab: " + ", ".join(c.label for c in verify["changes"])
@@ -305,7 +322,7 @@ class Pipeline:
 
         pre, info = self.step_preflight(gw, apply)
         if add(pre).failed and not (force_firmware and pre.checks and all(
-                ok for label, ok, _ in pre.checks if label != "Firmware freigegeben")):
+                ok is not False for label, ok, _ in pre.checks if label not in ("Firmware freigegeben", "  Delta"))):
             return self.results
         try:
             if add(self.step_identity(gw, info, apply and not only_check, allocate_new)).failed:

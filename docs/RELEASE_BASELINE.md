@@ -43,3 +43,9 @@ Stand: 2026-03-10
 - Release = Merge auf `main`; optional Tag `vJJJJ.MM.TT` zum Festhalten. Kein Build-Schritt.
 - Die EXE (`build_windows.ps1`, `gatewaychef.spec`) bleibt bis zur Abloesung lauffaehig, wird aber nicht mehr weiterentwickelt.
 - Release-Check zusaetzlich: `python3 -m unittest tests.test_gateway_config tests.test_gateway_setup`
+
+## Linux-Station
+
+Die Station holt `main` bei jedem Dienststart (`systemctl restart gatewaychef`). Ein Release ist also Merge
+auf `main` und danach ein Neustart auf der Station. Für einen festen Stand `GATEWAYCHEF_REF=<tag>` im
+Unit-File setzen.

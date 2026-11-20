@@ -1,0 +1,83 @@
+# Linux-Station: Einrichtung und Flotte
+
+Ein Linux-Rechner (Mini-PC oder Raspberry Pi 5, Debian/Ubuntu) übernimmt zwei Aufgaben:
+
+1. **Einrichtung:** Ein neues Gateway hängt per Ethernet-Kabel direkt an der Station, ohne Switch.
+2. **Flotte:** Über das VPN sieht die Station alle Gateways. Sie zeigt den Status, schreibt Parameter und
+   aktualisiert Node-RED (`/fleet`).
+
+## Hardware
+
+- Linux-Rechner mit **zwei Netzanschlüssen**: einer fürs Büronetz/Internet (LAN oder WLAN), einer fürs
+  Gateway. Bei nur einer Buchse kommt ein USB-Ethernet-Adapter (rund 15 €) als Gateway-Port dazu.
+- PoE-Injektor fürs UG65, falls es nicht über das Netzteil versorgt wird.
+
+## Installation
+
+```bash
+git clone https://github.com/ball-b-lab/gatewayChef.git /tmp/gc
+sudo bash /tmp/gc/scripts/linux/install.sh --gw-port <interface>   # z. B. enx00e04c680001, siehe `ip link`
+```
+
+Das Skript:
+- installiert `git`, `wireguard-tools` und `uv` und legt den Systembenutzer `gatewaychef` an,
+- holt den Code nach `/opt/gatewaychef/app`,
+- legt `/etc/gatewaychef/env` an (Rechte 640, wird nie überschrieben),
+- gibt dem Gateway-Port **192.168.1.200/24 und 192.168.23.200/24**, ohne Default-Route und ohne DNS. So ist
+  das Gateway unter beiden möglichen Werksadressen erreichbar, und der Internetverkehr läuft weiter über
+  den anderen Port,
+- richtet `gatewaychef.service` ein (Weboberfläche auf Port 5000). Bei jedem Start holt der Dienst `main`
+  (`GATEWAYCHEF_REF` im Unit-File), Release heißt also Merge auf `main` und Neustart.
+
+Danach:
+1. `/etc/gatewaychef/env` ausfüllen: Cloud-API (`DB_API_PROVIDER_URL`, `API_SERVICE_TOKEN`),
+   `GATEWAY_PASSWORD`, `GATEWAY_WIFI_KEY`, `FIRMWARE_DIR` (z. B. `/opt/gatewaychef/firmware`), Milesight und Webservice. `VPN_SERVER_PUBLIC_KEY` bleibt leer,
+   den liefert die Cloud.
+2. **VPN für die Flotte:** Die Station ist ein Workstation-Peer im Bereich `172.30.100.0/24`, also nicht im
+   Gateway-Pool. Die Konfiguration nach `/etc/wireguard/ballb.conf` legen, mit
+   `AllowedIPs = 172.30.0.0/16` (nur VPN-Verkehr durch den Tunnel). Dann
+   `systemctl enable --now wg-quick@ballb`.
+3. `systemctl restart gatewaychef`
+
+## Ein Gateway einrichten (ohne Switch)
+
+Gateway an den Gateway-Port stecken und warten, bis es hochgefahren ist (rund 2 Minuten). Dann:
+
+```bash
+sudo -H -u gatewaychef gatewaychef setup                     # Dry-Run
+sudo -H -u gatewaychef gatewaychef setup --new --apply --client-id 10999 --iccid 8949... --sim-vendor-id 2
+```
+
+Das Setup probiert die Adressen aus `GATEWAY_LAN_CANDIDATES` (Standard `192.168.1.1,192.168.23.150`) und
+nimmt die erste, die antwortet. Danach das Gateway abziehen und das nächste anstecken.
+
+**Am Gerät zu prüfen:** welche Werksadresse der Ethernet-Port des UG65 hat und ob er per DHCP eine Adresse
+holt. Bisher lief alles über `192.168.1.1`. Mit einem VLAN-Switch für mehrere Gateways gleichzeitig wird
+die Station später erweitert (siehe `GATEWAY_SETUP_KONZEPT.md`).
+
+## Flotte
+
+Weboberfläche `http://<station>:5000/fleet` oder Kommandozeile:
+
+```bash
+gatewaychef fleet status                       # alle vergebenen Gateways: über VPN erreichbar? richtige EUI?
+gatewaychef fleet status --deep                # zusätzlich Firmware, WLAN-Region, Node-RED-Flow-Version
+gatewaychef fleet patch wifi-country-de --ip 172.30.0.116            # prüfen
+gatewaychef fleet patch wifi-country-de --all --apply                # schreiben
+gatewaychef fleet nodered --all                                      # welche Gateways brauchen ein Update?
+gatewaychef fleet nodered --ip 172.30.0.116 --apply                  # aktualisieren, mit Nachtest
+gatewaychef fleet firmware --version 60.0.0.49 --host 192.168.1.1   # Firmware an der Station (LAN)
+gatewaychef fleet firmware --version 60.0.0.49 --ip 172.30.0.116 --apply  # über VPN, mit Nachtest
+gatewaychef fleet profile-check --host 192.168.1.1                   # neue Firmware: Entwurf eines Profils
+```
+
+Wie die Flotte arbeitet, steht in `GATEWAY_SETUP_KONZEPT.md`, Abschnitt „Flotte“.
+
+## Fehlersuche
+
+- `journalctl -u gatewaychef -f`: Log der Weboberfläche.
+- `ip addr show <gw-port>` muss `192.168.1.200` und `192.168.23.200` zeigen.
+- `wg show`: Handshake zum VPN-Server vorhanden?
+- `GATEWAYCHEF_OFFLINE=1 gatewaychef ...`: startet ohne Code-Update.
+
+Die Installation ist bisher nur auf Syntax geprüft. Ein Lauf auf einem echten Linux-Rechner steht noch aus.

@@ -56,6 +56,12 @@ class ProvisioningService:
         return {"vpn_ip": row[0], "private_key": row[1], "reused": reused,
                 "server_public_key": vpn_server_public_key()}
 
+    def list_gateways(self):
+        with self.connection.cursor() as cursor:
+            rows = GatewayInventoryRepository(cursor).list_assigned()
+        keys = ("vpn_ip", "eui", "gateway_name", "serial_number", "status_overall", "last_sync")
+        return [dict(zip(keys, [str(v) if k == "last_sync" and v else v for k, v in zip(keys, row)])) for row in rows]
+
     def pool_status(self):
         with self.connection.cursor() as cursor:
             free, total, ips = GatewayInventoryRepository(cursor).pool_status()

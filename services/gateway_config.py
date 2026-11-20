@@ -76,7 +76,7 @@ class UG65Client:
     def login(self, username, password):
         values = [{"username": username, "password": encrypt_login_password(password), "base": "web_login"}]
         try:
-            self._call("user", "login", values)
+            self.login_result = self._call("user", "login", values)
         except GatewayConfigError as exc:
             raise GatewayConfigError(f"Login fehlgeschlagen: {exc}") from exc
 
@@ -105,6 +105,47 @@ def load_profile(name_or_path):
         path = os.path.join(PROFILE_DIR, f"{name_or_path}.json")
     with open(path, encoding="utf-8") as fh:
         return json.load(fh)
+
+
+def _version_key(v):
+    return [int(p) if p.isdigit() else p for p in re.split(r"[.\-]", v or "")]
+
+
+def known_profiles(model="ug65"):
+    """{firmware: profile name} for all gateway_profiles/<model>-<fw>.json"""
+    out = {}
+    for f in os.listdir(PROFILE_DIR):
+        if f.startswith(f"{model}-") and f.endswith(".json"):
+            out[f[len(model) + 1:-5]] = f[:-5]
+    return out
+
+
+def profile_for_firmware(firmware, model="ug65"):
+    """Exact profile for this firmware, otherwise the newest one (checked for compatibility later)."""
+    profiles = known_profiles(model)
+    if firmware in profiles:
+        return profiles[firmware]
+    if not profiles:
+        raise GatewayConfigError("Kein Gateway-Profil vorhanden.")
+    return profiles[max(profiles, key=_version_key)]
+
+
+def firmware_compat(client, profile, policy=None):
+    """
+    Same firmware as the profile -> exact. Otherwise read every profile section from
+    the gateway and compare the interface (sections, fields, types):
+      compatible   -> only new fields, nothing missing: allowed unless policy is strict
+      incompatible -> missing sections/fields or changed types: never allowed
+    Returns {"status", "allowed", "deltas"}.
+    """
+    policy = (policy or os.getenv("FIRMWARE_POLICY", "compatible")).lower()
+    if not profile.get("firmware") or client.firmware == profile.get("firmware"):
+        return {"status": "exact", "allowed": True, "deltas": []}
+    from services.profile_check import check
+    result = check(client, profile)
+    deltas = [f"{r['label']}: {r['problem']} ({r['detail']})" for r in result["report"]]
+    status = "compatible" if result["compatible"] else "incompatible"
+    return {"status": status, "allowed": status == "compatible" and policy != "strict", "deltas": deltas}
 
 
 class _Skipped:

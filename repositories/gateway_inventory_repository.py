@@ -47,6 +47,18 @@ class GatewayInventoryRepository:
         )
         return self.cursor.fetchone()
 
+    def list_assigned(self):
+        """All gateways that left the pool (no keys)."""
+        self.cursor.execute(
+            """
+            SELECT vpn_ip, eui, gateway_name, serial_number, status_overall, last_gateway_sync_at
+            FROM gateway_inventory
+            WHERE status_overall <> 'FREE'
+            ORDER BY vpn_ip
+            """
+        )
+        return self.cursor.fetchall()
+
     def pool_status(self):
         self.cursor.execute(
             """
