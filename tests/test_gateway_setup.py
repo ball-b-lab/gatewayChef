@@ -28,10 +28,25 @@ class Resp:
 
 class FakeHttp:
     """Gateway LAN endpoints + VPN endpoint."""
-    def __init__(self, vpn_eui=EUI, wg_ip=VPN, vpn_up=True):
+    def __init__(self, vpn_eui=EUI, wg_ip=VPN, vpn_up=True, driveby=("stat", "rxpk"), udp=None):
         self.vpn_eui, self.wg_ip, self.vpn_up = vpn_eui, wg_ip, vpn_up
+        self.driveby, self.seq = list(driveby), 10
+        self.udp = list(udp) if udp else None   # sequence of /driveby/health answers (flow >= 1.1.0)
 
     def get(self, url, timeout=None):
+        if url.endswith("/driveby/health"):
+            if self.udp is None:
+                return Resp({}, 404)
+            return Resp(self.udp.pop(0) if len(self.udp) > 1 else self.udp[0])
+        if "/node-red/status" in url:
+            if "since=" not in url or not self.driveby:
+                return Resp({"latest_seq": self.seq, "items": []})
+            items = []
+            for kind in self.driveby:
+                self.seq += 1
+                items.append({"seq": self.seq, "payload": 'INFO: [up] JSON up 0: {"%s":[]}' % kind})
+            self.driveby = []
+            return Resp({"latest_seq": self.seq, "items": items})
         if url.endswith("/node-red/device-info"):
             if VPN in url:
                 if not self.vpn_up:
@@ -112,7 +127,7 @@ def _pipeline(inv, regs, state=None, http=None):
     return Pipeline("192.168.1.1", "ug65-60.0.0.49", inv, regs,
                     gateway_client=UG65Client(session=FakeSession(state or _configured_state())),
                     gateway_password="pw", wifi_key="wifipass", vpn_server_public_key="SERVERPUB",
-                    vpn_wait_secs=0, http=http or FakeHttp(), sleep=lambda s: None)
+                    vpn_wait_secs=0, http=http or FakeHttp(), sleep=lambda s: None, driveby_wait_secs=0)
 
 
 def _status(results):
@@ -229,6 +244,48 @@ class PipelineTest(unittest.TestCase):
         results = p.run(Gateway(vpn_ip=VPN), apply=True)
         self.assertEqual([r.step for r in results], ["Vorpruefung"])
         self.assertIn("Feld fehlt (country_code)", format_results(results))
+
+
+class DrivebyTest(unittest.TestCase):
+    def _run(self, driveby, need_rxpk=False):
+        t = iter(range(0, 1000, 5))
+        return checks.check_driveby("gw", wait_secs=30, need_rxpk=need_rxpk, http=FakeHttp(driveby=driveby),
+                                    sleep=lambda s: None, clock=lambda: next(t))
+
+    def test_stat_and_uplink(self):
+        self.assertEqual(self._run(("stat", "rxpk"))[0], True)
+
+    def test_parsing_ok_but_no_lora_device(self):
+        ok, info = self._run(("stat",))
+        self.assertIsNone(ok)
+        self.assertIn("Testsender", info)
+        self.assertFalse(self._run(("stat",), need_rxpk=True)[0])
+
+    def test_nothing_new_means_log_format_changed(self):
+        ok, info = self._run(())
+        self.assertFalse(ok)
+        self.assertIn("JSON up 0:", info)
+
+    def _udp(self, answers, need_rxpk=False):
+        t = iter(range(0, 1000, 5))
+        return checks.check_driveby("gw", wait_secs=30, need_rxpk=need_rxpk, http=FakeHttp(udp=answers),
+                                    sleep=lambda s: None, clock=lambda: next(t))
+
+    def test_udp_source(self):
+        h = lambda stat, rx: {"source": "udp:1702", "seconds_since_stat": stat, "counts": {"rxpk": rx}}
+        self.assertEqual(self._udp([h(10, 4), h(12, 5)])[0], True)
+        ok, info = self._udp([h(10, 4)])
+        self.assertIsNone(ok)
+        self.assertIn("Testsender", info)
+        ok, info = self._udp([h(None, 0)])
+        self.assertFalse(ok)
+        self.assertIn("driveby-udp-forward", info)
+
+    def test_pipeline_fails_when_driveby_dead(self):
+        inv = MemInventory({VPN: _row(eui=EUI, serial_number="SN1", sim_iccid="8949")})
+        results = _pipeline(inv, [], http=FakeHttp(driveby=())).run(Gateway())
+        net = next(r for r in results if r.step == "Netz & VPN")
+        self.assertEqual(net.status, FAIL)
 
 
 class ChecksTest(unittest.TestCase):

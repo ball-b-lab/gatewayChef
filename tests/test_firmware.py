@@ -38,6 +38,10 @@ class Flaky(Http):
         import requests
         if url.endswith("/device-info") and not next(self.pattern, True):
             raise requests.ConnectionError("rebooting")
+        if "/node-red/status" in url:
+            seq = 2 if "since=" in url else 1
+            items = [{"payload": 'JSON up 0: {"stat":{}}'}, {"payload": 'JSON up 0: {"rxpk":[]}'}] if seq == 2 else []
+            return Resp({"latest_seq": seq, "items": items})
         if url.endswith("/islogin"):
             return Resp({"status": 0, "result": [{"upgrade_error": 0}]})
         return super().get(url, timeout)
@@ -92,8 +96,8 @@ class FirmwareTest(unittest.TestCase):
             self.assertEqual(res["result"], "updated", res)
             self.assertEqual(session.uploads[0], {"sessionid": "SID", "size": "3", "filename": "type=T&file=F"})
             labels = {c["label"]: c["ok"] for c in res["checks"]}
-            self.assertEqual((labels["Firmware"], labels["Schnittstelle"], labels["Node-RED-Flows erhalten"]),
-                             (True, True, True))
+            self.assertEqual((labels["Firmware"], labels["Schnittstelle"], labels["Node-RED-Flows erhalten"],
+                              labels["Drive-by-Datenweg"]), (True, True, True, True))
 
     def test_upgrade_failure_when_firmware_did_not_change(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, ENV):

@@ -208,7 +208,9 @@ Ablauf je Gateway:
    - `upgrade_error` ist 0,
    - die richtige EUI antwortet über VPN,
    - die Schnittstelle ist mit dem Profil kompatibel (siehe oben),
-   - die Node-RED-Flows sind unverändert.
+   - die Node-RED-Flows sind unverändert,
+   - der Drive-by-Datenweg liefert neue Einträge (`checks.check_driveby`, siehe
+     `docs/NODERED_DRIVEBY_REVIEW.md`).
 5. `--all` und die Weboberfläche arbeiten nacheinander und **stoppen beim ersten Fehler**. Vorgehen: erst
    das Test-Gateway, dann einzelne Gateways im Feld, dann der Rest.
 
@@ -310,6 +312,8 @@ und der Name kamen aus der DB.
 13. **Drive-by-Prüfung nach Updates:** Welche Größe zeigt, dass der Drive-by-Monitor wieder Daten bekommt,
     und wo lässt sie sich abfragen?
 14. **Firmware-Update:** Formularwerte, Session-ID und Datenvolumen klären (siehe Abschnitt Firmware-Update).
+15. **Drive-by-Flow:** Review mit Befunden und Empfehlungen in `docs/NODERED_DRIVEBY_REVIEW.md`. Vor allem zu
+    prüfen: Kommen auf 60.0.0.49 überhaupt `stat`/`rxpk` an (Filter `JSON up 0:`)?
 
 ## Sicherheitsbefunde (nebenbei)
 

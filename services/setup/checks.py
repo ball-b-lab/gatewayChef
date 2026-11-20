@@ -98,3 +98,94 @@ def check_lora_health(host, timeout=5, http=requests):
     if data.get("lns_connected"):
         return True, f"{data.get('status')}, letzte Bestaetigung vor {data.get('seconds_since_ack')} s"
     return False, f"{data.get('status')} (seconds_since_stat={data.get('seconds_since_stat')})"
+
+
+def _status_items(host, since=None, timeout=5, http=requests):
+    url = f"http://{host}/node-red/status" + (f"?since={since}" if since is not None else "")
+    data = http.get(url, timeout=timeout).json()
+    return data.get("latest_seq") or 0, data.get("items") or []
+
+
+def _kind(item):
+    text = str(item.get("payload") or "")
+    if '"rxpk"' in text:
+        return "rxpk"
+    if '"stat"' in text:
+        return "stat"
+    return None
+
+
+def _driveby_health(host, http, timeout=5):
+    """Flow >= 1.1.0 (UDP source) exposes /node-red/driveby/health; None for older flows."""
+    try:
+        resp = http.get(f"http://{host}/node-red/driveby/health", timeout=timeout)
+        data = resp.json()
+    except (requests.RequestException, ValueError):
+        return None
+    return data if isinstance(data, dict) and data.get("source") else None
+
+
+def _check_driveby_udp(host, health, wait_secs, need_rxpk, interval, http, sleep, clock):
+    start_rx = (health.get("counts") or {}).get("rxpk", 0)
+    deadline = clock() + wait_secs
+    while True:
+        stat_age = health.get("seconds_since_stat")
+        rx_now = (health.get("counts") or {}).get("rxpk", 0)
+        stat_ok = stat_age is not None and stat_age < 65
+        if stat_ok and rx_now > start_rx:
+            return True, f"UDP-Empfang ok (stat vor {stat_age}s), {rx_now - start_rx} neue Funkpaket(e)"
+        if clock() >= deadline:
+            break
+        sleep(interval)
+        health = _driveby_health(host, http) or health
+    if not stat_ok:
+        return False, (f"keine stat-Meldung per UDP (zuletzt: {stat_age}s): 3. Ziel 127.0.0.1:1702 im Packet "
+                       "Forwarder fehlt? (Patch driveby-udp-forward)")
+    msg = f"UDP-Empfang ok (stat vor {stat_age}s), aber kein neues Funkpaket: LoRa-Testsender senden lassen"
+    return (False if need_rxpk else None), msg
+
+
+def check_driveby(host, wait_secs=90, need_rxpk=False, interval=5, http=requests, sleep=None, clock=None):
+    """
+    Drive-by data path on the gateway: packet-forwarder log -> Node-RED tail
+    -> filter -> /node-red/status buffer.
+
+    Two stages, waits for NEW entries only (old buffer content proves nothing):
+      stat  arrives every stat_interval (30 s) without any LoRa device -> log parsing works
+      rxpk  needs a LoRa device sending nearby -> uplinks reach the buffer
+    Returns (ok, detail); ok None = parsing works but no uplink seen (warn).
+    """
+    import time as _t
+    sleep = sleep or _t.sleep
+    clock = clock or _t.monotonic
+    health = _driveby_health(host, http)
+    if health is not None:
+        return _check_driveby_udp(host, health, wait_secs, need_rxpk, interval, http, sleep, clock)
+    try:
+        start_seq, _ = _status_items(host, http=http)
+    except (requests.RequestException, ValueError) as exc:
+        return False, f"/node-red/status nicht lesbar ({type(exc).__name__}): Drive-by-Flow fehlt?"
+    seen = {"stat": 0, "rxpk": 0}
+    deadline = clock() + wait_secs
+    since = start_seq
+    while True:
+        try:
+            since, items = _status_items(host, since=since, http=http)
+        except (requests.RequestException, ValueError):
+            items = []
+        for item in items:
+            kind = _kind(item)
+            if kind:
+                seen[kind] += 1
+        if seen["rxpk"] and seen["stat"]:
+            return True, f"Log-Auswertung ok, {seen['rxpk']} Funkpaket(e) empfangen"
+        if clock() >= deadline:
+            break
+        sleep(interval)
+    if seen["rxpk"]:
+        return True, f"{seen['rxpk']} Funkpaket(e) empfangen (kein stat im Zeitfenster)"
+    if seen["stat"]:
+        msg = "Log-Auswertung ok (stat), aber kein Funkpaket: LoRa-Testsender in der Naehe senden lassen"
+        return (False if need_rxpk else None), msg
+    return False, (f"keine neuen Eintraege in {wait_secs}s: Log-Format oder Pfad geaendert? "
+                   "(Flow erwartet 'JSON up 0:' in /etc/urlog/lora-pkt-fwd.log)")

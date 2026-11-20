@@ -101,3 +101,4 @@ Optional write smoke (uses test data):
 RUN_WRITE_SMOKE=true TEST_VPN_IP='10.0.0.123' BASE_URL='http://localhost:5000' ./scripts/smoke_test.sh
 ```
 - Linux-Station (Einrichtung + Flotte): `docs/LINUX_STATION.md`
+- Review Node-RED-/Drive-by-Flow: `docs/NODERED_DRIVEBY_REVIEW.md`

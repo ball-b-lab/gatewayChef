@@ -24,7 +24,7 @@ from utils.helpers import derive_wifi_ssid
 class Pipeline:
     def __init__(self, host, profile_name, inventory, registries, gateway_client=None, gateway_user="admin",
                  gateway_password="", wifi_key="", vpn_server_public_key="", vpn_proxy_url="", vpn_proxy_token="",
-                 vpn_wait_secs=90, http=None, sleep=None):
+                 vpn_wait_secs=90, http=None, sleep=None, driveby_wait_secs=None):
         import requests
         import time
         self.host = host
@@ -39,6 +39,7 @@ class Pipeline:
         self.vpn_proxy_url, self.vpn_proxy_token, self.vpn_wait_secs = vpn_proxy_url, vpn_proxy_token, vpn_wait_secs
         self.http = http or requests
         self.sleep = sleep or time.sleep
+        self.driveby_wait_secs = int(os.getenv("DRIVEBY_WAIT", "75")) if driveby_wait_secs is None else driveby_wait_secs
         self.results = []
 
     # ------------------------------------------------------------ helpers
@@ -264,9 +265,12 @@ class Pipeline:
             gw.vpn_ip, gw.eui, self.vpn_proxy_url, self.vpn_proxy_token,
             wait_secs=self.vpn_wait_secs if wg_ok else 0, http=self.http, sleep=self.sleep)
         r.checks.append(("VPN-Zugriff Ende-zu-Ende", vpn_ok, vpn_info))
-        if not (wg_ok and vpn_ok and lns_ok):
+        db_ok, db_info = checks.check_driveby(self.host, wait_secs=self.driveby_wait_secs, http=self.http,
+                                              sleep=self.sleep)
+        r.checks.append(("Drive-by-Datenweg (Log -> Node-RED)", db_ok, db_info))
+        if not (wg_ok and vpn_ok and lns_ok) or db_ok is False:
             r.status = FAIL
-        elif not (cell_ok and health_ok):
+        elif not (cell_ok and health_ok and db_ok):
             r.status = WARN
         return r
 

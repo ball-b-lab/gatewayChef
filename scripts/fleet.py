@@ -9,6 +9,8 @@ Fleet tools (run inside the VPN, e.g. on the Linux station):
                                               Node-RED-Flows aktualisieren, Nachtest, Rollback bei Fehler
   firmware --version V (--ip IP ... | --all | --host LAN-IP) [--apply]
                                               Firmware-Update anstossen, warten, Nachtest; --all stoppt beim ersten Fehler
+  driveby (--ip IP | --host LAN-IP) [--need-rxpk] [--wait S]
+                                              Drive-by-Datenweg testen (stat; mit Testsender auch Funkpakete)
   nodered-export --host IP --version V        Flows eines Referenzgeraets als Bundle speichern
   profile-check --host IP [--profile NAME]    neue Firmware: passt die Schnittstelle noch zum Profil?
 
@@ -68,6 +70,12 @@ def main(argv=None):
     g.add_argument("--all", action="store_true")
     g.add_argument("--host", help="Gateway im LAN (Station), ohne DB-Abgleich")
     fwp.add_argument("--apply", action="store_true")
+    d = sub.add_parser("driveby")
+    g = d.add_mutually_exclusive_group(required=True)
+    g.add_argument("--ip")
+    g.add_argument("--host")
+    d.add_argument("--need-rxpk", action="store_true", help="Funkpaket Pflicht (Testsender in der Naehe)")
+    d.add_argument("--wait", type=int, default=120)
     e = sub.add_parser("nodered-export")
     e.add_argument("--host", required=True)
     e.add_argument("--version", required=True)
@@ -91,6 +99,12 @@ def main(argv=None):
                     json.dump(result["draft"], fh, indent=2, ensure_ascii=False)
                 print(f"Entwurf: {path}")
             return 0 if result["compatible"] else 1
+
+        if args.cmd == "driveby":
+            from services.setup import checks
+            ok, info = checks.check_driveby(args.ip or args.host, wait_secs=args.wait, need_rxpk=args.need_rxpk)
+            print(f"{'OK' if ok else 'WARN' if ok is None else 'FEHLER'}: {info}")
+            return 0 if ok else (1 if ok is None else 2)
 
         if args.cmd == "nodered-export":
             client = nr.NodeRedClient(args.host, os.getenv("NODERED_USER", os.getenv("GATEWAY_USER", "admin")),

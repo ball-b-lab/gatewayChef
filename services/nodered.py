@@ -49,21 +49,56 @@ def flow_hash(flows):
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
 
 
+_LEGACY_VERSION = re.compile(r'const\s+flowVersion\s*=\s*"([^"]+)"')
+
+
 def declared_version(flows):
+    """Comment node 'gatewaychef-flow <v>'; older flows only set flowVersion in a function."""
     for node in flows or []:
         if node.get("type") == "comment":
             match = _VERSION_NODE.match(str(node.get("name") or ""))
             if match:
                 return match.group(1)
+    for node in flows or []:
+        if node.get("type") == "function":
+            match = _LEGACY_VERSION.search(str(node.get("func") or ""))
+            if match:
+                return match.group(1)
     return None
 
 
-def load_bundles(flow_dir=FLOW_DIR):
-    """{version: {"flows": [...], "hash": ...}} from gateway_profiles/flows/*.json"""
+_PLACEHOLDER = re.compile(r"\{\{\s*(\w+)\s*\}\}")
+
+
+def render_secrets(text, secrets):
+    """Bundles keep secrets as {{name}}; they are filled only for the deploy, never stored in git."""
+    missing = sorted({k for k in _PLACEHOLDER.findall(text) if not (secrets or {}).get(k)})
+    if missing:
+        raise NodeRedError(f"Flow-Bundle braucht Werte: {', '.join(missing)}")
+    return _PLACEHOLDER.sub(lambda m: json.dumps(str(secrets[m.group(1)]))[1:-1], text)
+
+
+def default_secrets():
+    from services.gateway_config import encrypt_login_password
+    pw = os.getenv("GATEWAY_PASSWORD", "")
+    return {"gateway_login_password_enc": encrypt_login_password(pw)} if pw else {}
+
+
+def load_bundles(flow_dir=FLOW_DIR, secrets=None):
+    """{version: {"flows": [...], "hash": ...}} from gateway_profiles/flows/*.json.
+    Placeholders are rendered with `secrets` (default: from the environment) so the
+    hash matches what is installed on the gateway."""
+    secrets = default_secrets() if secrets is None else secrets
     bundles = {}
     for path in sorted(glob.glob(os.path.join(flow_dir, "*.json"))):
         with open(path, encoding="utf-8") as fh:
-            flows = json.load(fh)
+            text = fh.read()
+        if _PLACEHOLDER.search(text):
+            try:
+                text = render_secrets(text, secrets)
+            except NodeRedError:
+                continue  # cannot be deployed or recognised without the secret
+        flows = json.loads(text)
         if isinstance(flows, dict):
             flows = flows.get("flows") or []
         version = os.path.splitext(os.path.basename(path))[0]

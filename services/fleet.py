@@ -258,6 +258,9 @@ def firmware_upgrade(fleet, gw, version, apply=False, images=None, wait_secs=Non
         compat = gc.firmware_compat(client, gc.load_profile(gc.profile_for_firmware(client.firmware)))
         checks_out.append(("Schnittstelle", compat["allowed"], compat["status"] + (": " + "; ".join(
             d for d in compat["deltas"] if "neue Felder" not in d) if compat["status"] != "exact" else "")))
+        db_ok, db_info = checks.check_driveby(host, wait_secs=int(os.getenv("DRIVEBY_WAIT", "75")),
+                                              http=fleet.http, sleep=fleet.sleep)
+        checks_out.append(("Drive-by-Datenweg", db_ok, db_info))
         flows_after = _flow_hash(fleet, host)
         checks_out.append(("Node-RED-Flows erhalten", None if flows_before is None else flows_after == flows_before,
                            f"{flows_before} -> {flows_after}"))
