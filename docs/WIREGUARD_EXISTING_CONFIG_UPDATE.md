@@ -202,3 +202,9 @@ Wenn du das regelmaessig machst, ist die saubere Betriebsform:
 - bei Aenderungen baust du daraus die endgueltige `wg0.conf`
 
 Dieses Repo erzeugt bereits den dafuer passenden Peer-Block-Teil mit `wg0_extension.conf`.
+
+
+## Neu: Auffüllen per Skript
+
+Siehe `docs/WIREGUARD_POOL_EXPANSION.md`, Abschnitt „Pool automatisch auffüllen“. `scripts/pool_refill.py`
+erzeugt die `[Peer]`-Blöcke für diese `wg0.conf` und importiert die Plätze erst danach in die DB.

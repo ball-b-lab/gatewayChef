@@ -15,6 +15,49 @@ class GatewayInventoryRepository:
         )
         return self.cursor.fetchone()
 
+    def find_by_eui_for_update(self, eui):
+        self.cursor.execute(
+            """
+            SELECT vpn_ip, private_key, status_overall
+            FROM gateway_inventory
+            WHERE upper(eui) = upper(%s)
+            FOR UPDATE
+            """,
+            (eui,),
+        )
+        return self.cursor.fetchone()
+
+    def reserve_next_free(self, eui):
+        """Take the next FREE row and bind it to eui in the same statement.
+        SKIP LOCKED: concurrent callers never get the same row."""
+        self.cursor.execute(
+            """
+            UPDATE gateway_inventory
+            SET eui = %s, status_overall = 'IN_PROGRESS', assigned_at = NOW(), updated_at = NOW()
+            WHERE id = (
+                SELECT id FROM gateway_inventory
+                WHERE status_overall = 'FREE' AND (eui IS NULL OR eui = '')
+                ORDER BY vpn_ip
+                LIMIT 1
+                FOR UPDATE SKIP LOCKED
+            )
+            RETURNING vpn_ip, private_key
+            """,
+            (eui,),
+        )
+        return self.cursor.fetchone()
+
+    def pool_status(self):
+        self.cursor.execute(
+            """
+            SELECT count(*) FILTER (WHERE status_overall = 'FREE'),
+                   count(*),
+                   array_agg(vpn_ip)
+            FROM gateway_inventory
+            """
+        )
+        return self.cursor.fetchone()
+
     def fetch_vpn_key_by_ip(self, vpn_ip):
         self.cursor.execute(
             """

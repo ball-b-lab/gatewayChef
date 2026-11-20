@@ -52,9 +52,20 @@ Notes:
 ### Database
 - `GET /api/db/fetch-ip`
   - `data`: `{ vpn_ip, private_key }`
+  - nur Vorschau, **reserviert nicht**. Zum Vergeben `reserve-ip` nutzen.
+- `POST /api/db/reserve-ip`
+  - body: `{ eui }`
+  - bindet atomar den nächsten `FREE`-Eintrag an die EUI (Status `IN_PROGRESS`, `FOR UPDATE SKIP LOCKED`).
+    Ist die EUI schon gebunden, kommt derselbe Eintrag zurück (`reused: true`). Zwei gleichzeitige
+    Aufrufe bekommen nie dieselbe IP.
+  - `data`: `{ vpn_ip, private_key, reused, server_public_key }`
+  - `404`, wenn der Pool leer ist
+- `GET /api/db/pool-status`
+  - `data`: `{ free, total, vpn_ips }` (für `scripts/pool_refill.py`)
 - `POST /api/db/vpn-key`
   - body: `{ vpn_ip }`
-  - `data`: `{ private_key, serial_number }`
+  - `data`: `{ private_key, serial_number, server_public_key }`
+  - `server_public_key` kommt aus `VPN_SERVER_PUBLIC_KEY` der Cloud-Instanz (leer, wenn nicht gesetzt)
 - `POST /api/db/import-gateway-inventory`
   - multipart/form-data mit Feld `file` = generierte `peer_inventory.csv`
   - importiert nur `gateway`-Profile nach `gateway_inventory`

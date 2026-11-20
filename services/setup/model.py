@@ -13,6 +13,7 @@ class Gateway:
     """Everything known about the gateway being set up. Filled step by step."""
     vpn_ip: str = None
     private_key: str = None
+    server_public_key: str = None
     eui: str = None
     mac: str = None
     serial_number: str = None

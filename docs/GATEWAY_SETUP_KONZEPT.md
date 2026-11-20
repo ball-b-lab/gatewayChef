@@ -74,6 +74,58 @@ Drei Stufen, damit ein Fehler eindeutig zuzuordnen ist:
      Jede HTTP-Antwort des Gateways zählt als Erfolg. „No route to host“ zählt als Fehlschlag. Gewartet
      wird bis zu `--vpn-wait` Sekunden (Standard 90), weil der Tunnel nach dem Schreiben erst aufbauen muss.
 
+## VPN-Daten: Pool, Reservierung, Server-Key
+
+**Wo die Daten stehen:** in `gateway_inventory`. Jede Zeile ist ein vorbereiteter Platz mit VPN-IP und
+WireGuard-Private-Key. Beim Einrichten wird die EUI an den Platz gebunden. Eine Datei mit vorbereiteten
+VPN-Daten ist bewusst nicht vorgesehen: Sie würde Doppelvergaben nicht verhindern und Keys als Klartext
+verteilen.
+
+- **Atomare Reservierung:** `POST /api/db/reserve-ip {eui}` bindet den nächsten freien Platz in einer
+  einzigen Anweisung an die EUI (`FOR UPDATE SKIP LOCKED`). Mehrere Arbeitsplätze können gleichzeitig
+  einrichten. Derselbe Aufruf für dieselbe EUI liefert denselben Platz. Der Dry-Run zeigt nur eine
+  Vorschau (`fetch-ip`) und reserviert nichts. Vorher hat `fetch-ip` die Sperre sofort wieder
+  freigegeben, sodass zwei Plätze dieselbe IP bekommen konnten.
+- **Server-Key zentral:** `VPN_SERVER_PUBLIC_KEY` wird nur in der Cloud gesetzt. Die API liefert ihn mit
+  jedem Key aus. Steht er zusätzlich in der lokalen `.env` und weicht ab, bricht die Identitätsprüfung ab.
+- **Pool auffüllen:** `scripts/pool_refill.py` meldet, wenn weniger als `POOL_MIN_FREE` Plätze frei sind.
+  Es erzeugt neue Schlüssel und die `[Peer]`-Blöcke für den Server. Erst wenn die Peers am Server aktiv
+  sind, importiert es die Plätze als `FREE`. Details: `docs/WIREGUARD_POOL_EXPANSION.md`.
+
+## Mehrere Gateways gleichzeitig: Einrichtungsstation
+
+Gewünscht: Fünf Gateways stecken per Ethernet an einem Switch, ein Rechner richtet alle ein. WLAN
+entfällt.
+
+**Das Problem:** Alle UG65 haben ab Werk dieselbe LAN-IP. Im selben Netz antworten sie durcheinander
+(ARP-Konflikt). Ein einfacher Switch reicht also nur, wenn die Geräte nacheinander angesteckt werden.
+
+**Lösung je nach Werkseinstellung des Ethernet-Ports. Das ist am Gerät noch zu prüfen:**
+
+1. **Der Port bezieht seine Adresse per DHCP:** Dann ist es einfach. Die Station verteilt Adressen per
+   DHCP (dnsmasq), jedes Gateway bekommt eine eigene IP, und die Pipeline läuft parallel mit
+   `--host <ip>` je Gerät. Zugeordnet wird über die MAC-Adresse beziehungsweise die EUI, die die Pipeline
+   ohnehin ausliest.
+2. **Der Port hat eine feste Werks-IP:** Dann braucht es einen **VLAN-fähigen Switch** (Port-VLAN, z. B.
+   Netgear GS308E, rund 35 €). Jeder Port ist ein eigenes VLAN und kommt als getaggtes Netz an der
+   Station an. Die Station legt je Port ein eigenes Linux-Network-Namespace an. Darin sieht jedes
+   Gateway seine Werks-IP ungestört. Pro Namespace läuft ein Setup-Prozess, der Internetzugang für
+   Cloud-API und Proxy läuft über NAT aus dem Namespace. Ohne Switch geht dasselbe mit einem
+   USB-Ethernet-Adapter je Gateway.
+
+Die Station bekommt eine Weboberfläche mit einer Spalte je Port: angesteckt → Dry-Run → Freigabe →
+`--apply` → Prüfungen → fertig, dazu der Ausdruck des Etiketts. Bedient wird sie per Browser von jedem
+PC aus.
+
+## Plattform-Empfehlung
+
+| Teil | Plattform | Warum |
+|---|---|---|
+| Einrichtungsstation | **Linux-Mini-PC** (Debian, Intel N100, ab ca. 150 €). Ein Raspberry Pi 5 geht auch. | Network-Namespaces, VLANs und dnsmasq gibt es nur unter Linux. Läuft als systemd-Dienst ohne Anmeldung, Updates per `git pull`. Der Mini-PC hat eine SSD und x86, ist also robuster als die SD-Karte des Pi. |
+| Cloud-Teil (DB-API, Proxy, später die Register) | Coolify, `main` | wie heute; die Secrets bleiben in der Cloud |
+| Einzelplatz und Notfall | Windows-Launcher (`gatewaychef.cmd`) | ein Gateway, ohne Zusatzhardware |
+| PyInstaller-EXE | auslaufen lassen | Build-Aufwand, die Secrets sind eingebacken |
+
 ## Wartbarkeit: Launcher statt EXE
 
 **Probleme der PyInstaller-EXE:** Jede Änderung braucht einen Build auf Windows, und die Verteilung läuft
@@ -124,8 +176,9 @@ und der Name kamen aus der DB.
    umgestellt wird. Außerdem nötig: der `deviceType`-Slug für das UG65, `WS2_URL` und die Keys.
 2. **WS1-Zugang für die Automatik:** ein Service-Login (`WEBSERVICE_USER`/`WEBSERVICE_PASSWORD`) statt eines
    persönlichen Logins aus der UI.
-3. **`VPN_SERVER_PUBLIC_KEY` und `GATEWAY_WIFI_KEY`** in die `.env`. Ohne sie lehnt `--apply` die
-   Konfiguration ab. Offen ist auch, ob der WLAN-Key für alle Gateways gleich sein soll.
+3. **`VPN_SERVER_PUBLIC_KEY`** in die Cloud-`.env` (Coolify) eintragen und **`GATEWAY_WIFI_KEY`** in die
+   lokale `.env`. Ohne diese Werte lehnt `--apply` die Konfiguration ab. Offen ist auch, ob der WLAN-Key
+   für alle Gateways gleich sein soll.
 4. **SIM:** Eine neue ICCID braucht die `--sim-vendor-id`. Über `/cgi` habe ich keine Abfrage für ICCID oder
    Seriennummer gefunden. Sie kommen aus der DB, aus Milesight (SN) oder als Argument. Ein Barcode-Scanner
    ins Argument würde das Abtippen ersparen.
@@ -135,6 +188,11 @@ und der Name kamen aus der DB.
 7. **Node-RED-Health-Befund** (siehe oben) prüfen, bevor der Health-Status zum harten Kriterium wird.
 8. **Cloud-Proxy für den VPN-Test:** `/api/network/gateway-health` sollte die EUI des Gateways
    zurückgeben, damit der Proxy-Weg auch die Identität prüft. Direkt im VPN geschieht das bereits.
+
+9. **Ethernet-Werkseinstellung des UG65** (DHCP oder feste IP) am Gerät prüfen. Davon hängt der Aufbau der
+   Station ab, siehe oben.
+10. **`192.168.1.0/24` in den `AllowedIPs` am VPN-Server:** Das Netz hängt heute an jedem Gateway-Peer, wirkt
+    aber nur beim letzten. Beim nächsten Server-Reload bereinigen.
 
 ## Sicherheitsbefunde (nebenbei)
 

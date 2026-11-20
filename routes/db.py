@@ -113,6 +113,41 @@ def fetch_ip():
             conn.close()
 
 
+@bp.route('/api/db/reserve-ip', methods=['POST'])
+def reserve_ip():
+    """
+    Atomically bind the next FREE VPN IP to an EUI (idempotent per EUI).
+    """
+    conn = None
+    try:
+        eui = (request.json or {}).get('eui')
+        conn = get_db_connection()
+        return ok(ProvisioningService(conn).reserve_ip(eui))
+    except ProvisioningError as e:
+        return error(e.message, e.status_code)
+    except psycopg2.Error as e:
+        return error(f"Datenbank Fehler: {e}", 500)
+    finally:
+        if conn:
+            conn.close()
+
+
+@bp.route('/api/db/pool-status', methods=['GET'])
+def pool_status():
+    """
+    Free/total rows in gateway_inventory plus all used VPN IPs (for refilling).
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        return ok(ProvisioningService(conn).pool_status())
+    except psycopg2.Error as e:
+        return error(f"Datenbank Fehler: {e}", 500)
+    finally:
+        if conn:
+            conn.close()
+
+
 @bp.route('/api/db/vpn-key', methods=['POST'])
 def fetch_vpn_key():
     """

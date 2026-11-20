@@ -21,7 +21,16 @@ class Inventory(ABC):
 
     @abstractmethod
     def next_free(self):
-        """dict with vpn_ip, private_key (not yet reserved)"""
+        """dict with vpn_ip, private_key (only a preview, not reserved; for dry runs)"""
+
+    @abstractmethod
+    def reserve(self, eui):
+        """atomically bind the next FREE row to eui (or return the row already bound);
+        dict with vpn_ip, private_key, server_public_key"""
+
+    def pool_status(self):
+        """dict with free, total, vpn_ips"""
+        raise NotImplementedError
 
     @abstractmethod
     def save(self, gw):

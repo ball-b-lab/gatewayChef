@@ -4,7 +4,7 @@ from services.setup import checks
 from services.setup.adapters.base import Inventory, Registry
 from services.setup.adapters.webservice import Ws1Webservice, Ws2Webservice
 from services.setup.model import CHANGED, FAIL, OK, SKIPPED, WARN, WOULD_CHANGE, Gateway
-from services.setup.pipeline import Pipeline, exit_code
+from services.setup.pipeline import Pipeline, exit_code, format_results
 from tests.test_gateway_config import VARS, FakeSession, _configured_state
 from services.gateway_config import UG65Client
 
@@ -63,6 +63,15 @@ class MemInventory(Inventory):
     def next_free(self):
         return next({"vpn_ip": k, "private_key": r["private_key"]} for k, r in self.rows.items()
                     if r["status_overall"] == "FREE")
+
+    def reserve(self, eui):
+        bound = self.find_by_eui(eui)
+        if bound:
+            return {"vpn_ip": bound["vpn_ip"], "private_key": bound["private_key"]}
+        vpn_ip = next(k for k, r in self.rows.items() if r["status_overall"] == "FREE" and not r.get("eui"))
+        self.rows[vpn_ip].update(eui=eui, status_overall="IN_PROGRESS")
+        self.reserved = getattr(self, "reserved", []) + [vpn_ip]
+        return {"vpn_ip": vpn_ip, "private_key": self.rows[vpn_ip]["private_key"]}
 
     def save(self, gw):
         self.saved.append(gw.vpn_ip)
@@ -133,10 +142,30 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(st["Register: webservice"], CHANGED)
         self.assertEqual(st["Abschluss"], CHANGED, results)
         self.assertEqual(inv.deployed, [VPN])
+        self.assertEqual(inv.reserved, [VPN])
 
         again = _pipeline(inv, [ms, ws], state).run(Gateway(), apply=True)
         self.assertTrue(all(r.status == OK for r in again), [(r.step, r.status, r.detail) for r in again])
         self.assertEqual(ws.created, 1)
+
+    def test_dry_run_does_not_reserve(self):
+        inv = MemInventory({VPN: _row()})
+        _pipeline(inv, []).run(Gateway(serial_number="SN1", sim_iccid="8949", sim_vendor_id="1"), allocate_new=True)
+        self.assertFalse(hasattr(inv, "reserved"))
+        self.assertIsNone(inv.rows[VPN]["eui"])
+
+    def test_server_key_from_cloud_and_mismatch(self):
+        inv = MemInventory({VPN: _row(eui=EUI, server_public_key="SERVERPUB")})
+        p = _pipeline(inv, [])
+        p.vpn_server_public_key = ""
+        results = p.run(Gateway(serial_number="SN1", sim_iccid="8949"))
+        ident = next(r for r in results if r.step == "Identitaet")
+        self.assertIn(("VPN-Server-Key", True, "aus Cloud"), ident.checks)
+        self.assertNotIn("nicht geprueft", format_results(results))
+
+        inv.rows[VPN]["server_public_key"] = "OTHER"
+        results = _pipeline(inv, []).run(Gateway())
+        self.assertEqual(_status(results)["Identitaet"], FAIL)
 
     def test_eui_already_on_other_vpn_ip_fails(self):
         inv = MemInventory({VPN: _row(), "172.30.0.5": _row(vpn_ip="172.30.0.5", eui=EUI)})

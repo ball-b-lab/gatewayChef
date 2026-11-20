@@ -49,7 +49,7 @@ class Pipeline:
 
     def _device_vars(self, gw):
         v = gc.device_vars_from_inventory(gw.vpn_ip, gw.private_key, gw.eui, self.wifi_key, gw.wifi_ssid)
-        v["vpn_server_public_key"] = self.vpn_server_public_key
+        v["vpn_server_public_key"] = self.vpn_server_public_key or gw.server_public_key
         return v
 
     # ------------------------------------------------------------ steps
@@ -107,9 +107,13 @@ class Pipeline:
             gw.vpn_ip = by_eui["vpn_ip"]
             r.checks.append(("VPN-IP aus DB (per EUI)", True, gw.vpn_ip))
         if not gw.vpn_ip and allocate_new:
-            free = self.inventory.next_free()
+            if apply:
+                free = self.inventory.reserve(gw.eui)
+                r.checks.append(("VPN-IP reserviert (atomar)", True, free["vpn_ip"]))
+            else:
+                free = self.inventory.next_free()
+                r.checks.append(("Freie VPN-IP aus Pool (Vorschau, nicht reserviert)", True, free["vpn_ip"]))
             gw.vpn_ip = free["vpn_ip"]
-            r.checks.append(("Freie VPN-IP aus Pool", True, gw.vpn_ip))
         if not gw.vpn_ip:
             r.checks.append(("VPN-IP bekannt", False, "weder --vpn-ip noch DB-Eintrag zur EUI (--new fuer freie IP)"))
             r.status = FAIL
@@ -131,6 +135,13 @@ class Pipeline:
             return r
         gw.private_key = record.get("private_key")
         r.checks.append(("WireGuard-Key in DB", bool(gw.private_key), "vorhanden" if gw.private_key else "fehlt"))
+        gw.server_public_key = record.get("server_public_key")
+        if self.vpn_server_public_key and gw.server_public_key and self.vpn_server_public_key != gw.server_public_key:
+            r.checks.append(("VPN-Server-Key", False, ".env und Cloud liefern verschiedene Server-Keys"))
+            r.status = FAIL
+            return r
+        key_src = "Cloud" if gw.server_public_key else (".env" if self.vpn_server_public_key else None)
+        r.checks.append(("VPN-Server-Key", bool(key_src) or None, f"aus {key_src}" if key_src else "fehlt (Cloud: VPN_SERVER_PUBLIC_KEY setzen)"))
         gw.serial_number = gw.serial_number or record.get("serial_number")
         gw.name = gw.name or record.get("gateway_name")
         gw.sim_iccid = gw.sim_iccid or record.get("sim_iccid")
