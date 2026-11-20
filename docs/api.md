@@ -160,6 +160,9 @@ Ohne `apply: true` wird immer nur geprüft.
 - `GET /fleet`: Weboberfläche
 - `GET /api/fleet/status?deep=1&ip=a,b`: Erreichbarkeit über VPN und EUI-Abgleich; `deep` liest zusätzlich
   Firmware, WLAN-Region und Flow-Version
+  Jede Zeile eines erreichbaren Gateways enthält `driveby` (aus `/node-red/driveby/health`, ab Flow 1.1.0, sonst `null`):
+  `flow_version`, `receiving` (stat < 65 s), `seconds_since_stat`, `seconds_since_rxpk`, `rxpk`,
+  `app_seconds_since_poll`, `app_last_poll`, `app_client`, `app_polls` (wann die dbmonitor-App zuletzt `/status` abgeholt hat).
 - `GET /api/fleet/catalog`: Patches, Flow-Bundles, freigegebene Firmwares
 - `POST /api/fleet/patch` `{ vpn_ip, name, apply, allow_risky }`
   - `data.result`: `ok | would_change | changed | skipped | offline | failed`

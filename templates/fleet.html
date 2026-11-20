@@ -26,6 +26,7 @@
   <div class="toolbar d-flex flex-wrap align-items-center">
     <button class="btn btn-sm btn-outline-primary" onclick="load(false)">Erreichbarkeit prüfen</button>
     <button class="btn btn-sm btn-outline-primary" onclick="load(true)" title="Login je Gateway: Firmware, WLAN-Region, Flow-Version">Tief prüfen</button>
+    <label class="form-check-label small me-2"><input type="checkbox" class="form-check-input me-1" id="auto" onchange="toggleAuto(this.checked)">alle 30 s</label>
     <input id="filter" class="form-control form-control-sm" style="width:14rem" placeholder="Filter (Name, IP, EUI)" oninput="render()">
     <span class="vr mx-2"></span>
     <select id="patch" class="form-select form-select-sm" style="width:auto"></select>
@@ -48,9 +49,12 @@
       <thead class="table-light"><tr>
         <th><input type="checkbox" id="all" onchange="toggleAll(this.checked)"></th>
         <th></th><th>VPN-IP</th><th>Name</th><th>EUI</th><th>Status</th><th>ms</th>
-        <th>Firmware</th><th>WLAN</th><th>Flow</th><th>Ergebnis</th>
+        <th>Firmware</th><th>WLAN</th><th>Flow</th>
+        <th title="Packet Forwarder -> Node-RED (UDP): letzte Statusmeldung / letztes Funkpaket">Empfang</th>
+        <th title="Wann hat die db_monitor-App zuletzt /node-red/status abgerufen?">dbmonitor zuletzt</th>
+        <th>Ergebnis</th>
       </tr></thead>
-      <tbody id="rows"><tr><td colspan="11" class="text-muted p-3">Lade …</td></tr></tbody>
+      <tbody id="rows"><tr><td colspan="13" class="text-muted p-3">Lade …</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -68,9 +72,39 @@ async function api(path, body) {
 
 function el(tag, text, cls) { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; }
 
+function ago(s) {
+  if (s == null) return 'nie';
+  if (s < 90) return `vor ${s} s`;
+  if (s < 5400) return `vor ${Math.round(s / 60)} min`;
+  if (s < 172800) return `vor ${Math.round(s / 3600)} h`;
+  return `vor ${Math.round(s / 86400)} d`;
+}
+
 function flowText(r) {
   if (r.flow) return (r.flow.version || 'unbekannt') + (r.flow.modified ? ' (geändert)' : '') + (r.flow.up_to_date ? ' ✓' : '');
+  if (r.driveby && r.driveby.flow_version) return r.driveby.flow_version;
+  if (r.online && !r.driveby) return 'alt (< 1.1)';
   return r.flow_error ? '–' : '';
+}
+
+function receiveCell(r) {
+  const td = el('td');
+  if (!r.driveby) { td.textContent = r.online ? 'kein UDP-Flow' : ''; td.className = 'text-muted'; return td; }
+  const d = r.driveby;
+  td.textContent = (d.receiving ? '● ' : '○ ') + `stat ${ago(d.seconds_since_stat)} · Funk ${ago(d.seconds_since_rxpk)} (${d.rxpk})`;
+  td.className = d.receiving ? 'text-success' : 'text-danger';
+  td.title = d.receiving ? 'Packet Forwarder liefert per UDP' : 'Keine Statusmeldung per UDP: 3. Forwarder-Ziel fehlt?';
+  return td;
+}
+
+function appCell(r) {
+  const td = el('td');
+  if (!r.driveby) return td;
+  const d = r.driveby;
+  td.textContent = d.app_seconds_since_poll == null ? 'nie (seit Neustart)' : ago(d.app_seconds_since_poll);
+  td.title = d.app_last_poll ? `${d.app_last_poll} · ${d.app_client || '?'} · ${d.app_polls} Abrufe seit Neustart` : '';
+  if (d.app_seconds_since_poll != null && d.app_seconds_since_poll < 300) td.className = 'text-success fw-semibold';
+  return td;
 }
 
 function render() {
@@ -88,7 +122,7 @@ function render() {
     tr.append(el('td', r.vpn_ip), el('td', r.gateway_name || ''), el('td', r.eui || '', 'font-monospace small'),
               el('td', r.status_overall || ''), el('td', r.latency_ms ?? ''),
               el('td', (r.firmware || '') + (r.firmware && !r.profile_ok ? ' ⚠ kein Profil' : '')),
-              el('td', r.wifi_country || ''), el('td', flowText(r)));
+              el('td', r.wifi_country || ''), el('td', flowText(r)), receiveCell(r), appCell(r));
     const res = results[r.vpn_ip];
     const c = el('td', res ? res.text : (r.online === false ? r.identity : (r.cgi_error || r.flow_error || '')), 'result');
     if (res) c.classList.add(res.cls);
@@ -96,7 +130,10 @@ function render() {
     body.append(tr);
   }
   const online = rows.filter(r => r.online).length;
-  document.getElementById('summary').textContent = rows.length ? `${online}/${rows.length} online` : '';
+  const recv = rows.filter(r => r.driveby && r.driveby.receiving).length;
+  const live = rows.filter(r => r.driveby && r.driveby.app_seconds_since_poll != null && r.driveby.app_seconds_since_poll < 300).length;
+  document.getElementById('summary').textContent = rows.length
+    ? `${online}/${rows.length} online · ${recv} empfangen per UDP · ${live} gerade von dbmonitor gelesen` : '';
 }
 
 function toggleAll(on) {
@@ -106,9 +143,15 @@ function toggleAll(on) {
   render();
 }
 
-async function load(deep) {
+let autoTimer = null;
+function toggleAuto(on) {
+  clearInterval(autoTimer);
+  autoTimer = on ? setInterval(() => load(false, true), 30000) : null;
+}
+
+async function load(deep, keepResults) {
   document.getElementById('summary').textContent = deep ? 'prüfe tief …' : 'prüfe …';
-  try { rows = await api('/api/fleet/status' + (deep ? '?deep=1' : '')); results = {}; }
+  try { rows = await api('/api/fleet/status' + (deep ? '?deep=1' : '')); if (!keepResults) results = {}; }
   catch (e) { document.getElementById('summary').textContent = 'Fehler: ' + e.message; return; }
   render();
 }

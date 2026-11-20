@@ -81,3 +81,12 @@ Wie die Flotte arbeitet, steht in `GATEWAY_SETUP_KONZEPT.md`, Abschnitt „Flott
 - `GATEWAYCHEF_OFFLINE=1 gatewaychef ...`: startet ohne Code-Update.
 
 Die Installation ist bisher nur auf Syntax geprüft. Ein Lauf auf einem echten Linux-Rechner steht noch aus.
+
+## Monitoring auf `/fleet`
+
+Ab Flow 1.1.0 zeigt die Flottenseite pro Gateway zusätzlich:
+- **Flow:** aktive Flow-Version (`alt (< 1.1)`, wenn das Gateway noch keinen `/driveby/health` hat).
+- **Empfang:** Alter der letzten Packet-Forwarder-Statistik und des letzten Funkpakets, grün bei stat < 65 s.
+- **dbmonitor zuletzt:** wann die Drive-by-App zuletzt `/status` abgeholt hat (Tooltip: Zeit, Client-IP, Anzahl Abrufe). Fett grün bei < 5 min.
+
+Die Häkchen-Option „alle 30 s“ lädt den Schnellstatus automatisch neu. Kommandozeile: `gatewaychef fleet status` und `gatewaychef fleet driveby`.

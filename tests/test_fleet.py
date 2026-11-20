@@ -102,7 +102,27 @@ def _fleet(state=None, http=None, nodered=None):
                     nodered_factory=lambda host: nodered or FakeNodeRed(FLOW_V1)), session
 
 
+class HealthHttp(Http):
+    def get(self, url, timeout=None):
+        if url.endswith("/driveby/health"):
+            return Resp({"source": "udp:1702", "flow_version": "1.1.0", "seconds_since_stat": 12,
+                         "seconds_since_rxpk": 40, "counts": {"rxpk": 7},
+                         "app": {"seconds_since_poll": 3, "last_poll": "2026-11-20T08:00:00Z",
+                                 "client": "192.168.1.50", "polls": 99}})
+        return super().get(url, timeout)
+
+
 class FleetTest(unittest.TestCase):
+    def test_status_shows_driveby_and_app_poll(self):
+        f, _ = _fleet(http=HealthHttp())
+        d = f.status()[0]["driveby"]
+        self.assertEqual((d["flow_version"], d["receiving"], d["rxpk"], d["app_seconds_since_poll"], d["app_client"]),
+                         ("1.1.0", True, 7, 3, "192.168.1.50"))
+
+    def test_status_old_flow_has_no_driveby(self):
+        f, _ = _fleet()
+        self.assertIsNone(f.status()[0]["driveby"])
+
     def test_status_shows_wrong_eui(self):
         f, _ = _fleet(http=Http(eui="24E124FFFE000001"))
         row = f.status()[0]

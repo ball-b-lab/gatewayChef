@@ -36,13 +36,27 @@ def _targets(fleet, args):
     return args.ip or []
 
 
+def _ago(s):
+    if s is None:
+        return "nie"
+    return f"{s}s" if s < 90 else f"{round(s / 60)}min" if s < 5400 else f"{round(s / 3600)}h"
+
+
+def _driveby_txt(d):
+    if not d:
+        return "Drive-by: kein UDP-Flow"
+    return (f"Empfang {'ok' if d['receiving'] else 'AUS'} (Funk {_ago(d['seconds_since_rxpk'])})"
+            f"  dbmonitor {_ago(d['app_seconds_since_poll'])}")
+
+
 def _print_status(rows):
     for r in rows:
         flow = r.get("flow") or {}
         flow_txt = (flow.get("version") or "unbekannt") + (" (geaendert)" if flow.get("modified") else "") if flow else r.get("flow_error", "")
         print(f"{r['vpn_ip']:<15} {'online ' if r['online'] else 'OFFLINE'} {str(r.get('latency_ms') or ''):>5}ms "
               f"{(r.get('gateway_name') or '')[:28]:<28} FW {r.get('firmware', '-'):<10} "
-              f"WLAN {r.get('wifi_country', '-'):<3} Flow {flow_txt}  {'' if r['online'] else r['identity']}")
+              f"WLAN {r.get('wifi_country', '-'):<3} Flow {flow_txt or (r.get('driveby') or {}).get('flow_version') or '-'}"
+              f"  {_driveby_txt(r.get('driveby'))}  {'' if r['online'] else r['identity']}")
 
 
 def main(argv=None):

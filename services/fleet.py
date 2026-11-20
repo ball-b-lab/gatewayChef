@@ -31,6 +31,26 @@ class FleetError(Exception):
     pass
 
 
+def drive_by_summary(health):
+    """Compact view of /node-red/driveby/health (flow >= 1.1.0); None for older flows."""
+    if not health:
+        return None
+    app = health.get("app") or {}
+    counts = health.get("counts") or {}
+    stat = health.get("seconds_since_stat")
+    return {
+        "flow_version": health.get("flow_version"),
+        "receiving": stat is not None and stat < 65,
+        "seconds_since_stat": stat,
+        "seconds_since_rxpk": health.get("seconds_since_rxpk"),
+        "rxpk": counts.get("rxpk", 0),
+        "app_seconds_since_poll": app.get("seconds_since_poll"),
+        "app_last_poll": app.get("last_poll"),
+        "app_client": app.get("client"),
+        "app_polls": app.get("polls", 0),
+    }
+
+
 def list_patches():
     out = {}
     for name in sorted(os.listdir(PATCH_DIR)) if os.path.isdir(PATCH_DIR) else []:
@@ -113,6 +133,8 @@ class Fleet:
         row = dict(gw)
         ok, detail, ms = self.identity(gw)
         row.update(online=ok, latency_ms=ms, identity=detail)
+        if ok:
+            row["driveby"] = drive_by_summary(checks._driveby_health(gw["vpn_ip"], self.http))
         if not ok or not deep:
             return row
         try:

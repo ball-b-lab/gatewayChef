@@ -46,3 +46,9 @@ ok(lh.statusCode === 200 && lh.payload.lns_connected, "/lora/health ONLINE mit s
 // graph template now renders the active button
 const g = run("supply graph", { payload: { hours: "1" } });
 ok(!g.payload.includes("${hours") && g.payload.includes("btn active"), "Graph: aktiver Button wird markiert");
+
+// app poll tracking: /status call is recorded and reported in /driveby/health
+run("Return Status Since", { req: { query: {}, ip: "172.30.100.7", headers: { "user-agent": "dbmonitor/2.1" } } });
+const h2 = run("Drive-by Health", {});
+ok(h2.payload.app.client === "172.30.100.7" && h2.payload.app.polls === 2 && h2.payload.app.seconds_since_poll === 0
+   && h2.payload.app.agent === "dbmonitor/2.1", "App-Abruf erfasst: " + JSON.stringify(h2.payload.app));
