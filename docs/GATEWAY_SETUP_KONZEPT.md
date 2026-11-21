@@ -121,6 +121,11 @@ PC aus.
 dem anderen, per Kabel direkt am Gateway-Port der Station. Installation und Bedienung:
 `docs/LINUX_STATION.md`.
 
+**Stand (21.11.2026):** Die Werks-IP ist fest, ohne DHCP. Gebaut ist deshalb Variante 2: ein Namespace je
+Port (USB-Adapter oder VLAN-Switch) und die Seite `/station` mit Port-Karten und Vorgangsliste (laufend,
+fertig, Fehler, Protokoll). Am fertig eingerichteten Referenzgerät hängt `eth0` als WAN per DHCP im Büronetz
+(`192.168.0.x`). Das Profil schreibt `eth0` nicht, neue Gateways behalten also die Werkseinstellung.
+
 ## Flotte: Status, Fern-Parameter, Node-RED
 
 Läuft auf einem Rechner im VPN, normalerweise der Station als Workstation-Peer. Weboberfläche `/fleet`,

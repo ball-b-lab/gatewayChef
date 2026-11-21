@@ -1,0 +1,14 @@
+[Unit]
+Description=GatewayChef Einrichtungs-Ports (ein Netz-Namespace je Gateway)
+After=network-online.target
+Wants=network-online.target
+Before=gatewaychef.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/gatewaychef/app/scripts/linux/ports.sh up
+ExecStop=/opt/gatewaychef/app/scripts/linux/ports.sh down
+
+[Install]
+WantedBy=multi-user.target

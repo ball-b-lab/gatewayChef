@@ -9,6 +9,7 @@ from flask import Blueprint, render_template, request
 from services import firmware as fw
 from services import fleet as fl
 from services import gateway_config as gc
+from services import jobs
 from services import nodered as nr
 from utils.response import error, ok
 
@@ -55,8 +56,9 @@ def fleet_patch():
     except (OSError, ValueError):
         return error("Patch nicht gefunden.", 404)
     try:
-        return ok(_fleet().patch(data.get("vpn_ip"), patch, apply=bool(data.get("apply")),
-                                 allow_risky=bool(data.get("allow_risky"))))
+        ip, apply = data.get("vpn_ip"), bool(data.get("apply"))
+        run = lambda: _fleet().patch(ip, patch, apply=apply, allow_risky=bool(data.get("allow_risky")))  # noqa: E731
+        return ok(jobs.tracked("patch", ip, f"Patch {patch.get('name')}", run) if apply else run())
     except _ERRORS as exc:
         return error(str(exc), 400)
 
@@ -65,7 +67,9 @@ def fleet_patch():
 def fleet_nodered():
     data = request.json or {}
     try:
-        return ok(_fleet().nodered_update(data.get("vpn_ip"), data.get("version"), apply=bool(data.get("apply"))))
+        ip, apply = data.get("vpn_ip"), bool(data.get("apply"))
+        run = lambda: _fleet().nodered_update(ip, data.get("version"), apply=apply)  # noqa: E731
+        return ok(jobs.tracked("nodered", ip, f"Node-RED {data.get('version') or 'neueste'}", run) if apply else run())
     except _ERRORS as exc:
         return error(str(exc), 400)
 
@@ -74,7 +78,8 @@ def fleet_nodered():
 def fleet_firmware():
     data = request.json or {}
     try:
-        return ok(_fleet().firmware_upgrade(data.get("vpn_ip"), str(data.get("version") or ""),
-                                            apply=bool(data.get("apply"))))
+        ip, version, apply = data.get("vpn_ip"), str(data.get("version") or ""), bool(data.get("apply"))
+        run = lambda: _fleet().firmware_upgrade(ip, version, apply=apply)  # noqa: E731
+        return ok(jobs.tracked("firmware", ip, f"Firmware {version}", run) if apply else run())
     except _ERRORS as exc:
         return error(str(exc), 400)

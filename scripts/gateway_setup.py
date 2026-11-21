@@ -14,6 +14,7 @@ MILESIGHT_ENABLED, CHIRPSTACK_ENABLED. Geheimwerte nur aus .env.
 Exit: 0 alles ok, 1 Dry-Run mit Aenderungen, 2 Fehler.
 """
 import argparse
+import json
 import os
 import sys
 
@@ -40,6 +41,10 @@ def find_gateway(candidates, http=None):
     return hosts[0]
 
 
+def _live(result):
+    print(format_results([result]), flush=True)
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--host", help="Gateway-IP im LAN. Standard: erste antwortende aus GATEWAY_LAN_CANDIDATES "
@@ -58,6 +63,8 @@ def main(argv=None):
     p.add_argument("--reboot", action="store_true")
     p.add_argument("--force-firmware", action="store_true")
     p.add_argument("--vpn-wait", type=int, default=90, help="Sekunden auf VPN warten")
+    p.add_argument("--live", action="store_true",
+                   help="jeden Schritt sofort ausgeben und am Ende eine @@RESULT-Zeile (fuer die Station)")
     a = p.parse_args(argv)
 
     gw = Gateway(vpn_ip=a.vpn_ip, serial_number=a.serial, sim_iccid=a.iccid, sim_vendor_id=a.sim_vendor_id,
@@ -65,14 +72,21 @@ def main(argv=None):
     host = a.host or find_gateway(os.getenv("GATEWAY_LAN_CANDIDATES") or
                                 os.getenv("GATEWAY_IP", "192.168.1.1") + ",192.168.23.150")
     try:
-        pipeline = from_env(host, a.profile, vpn_wait_secs=a.vpn_wait)
+        pipeline = from_env(host, a.profile, vpn_wait_secs=a.vpn_wait, on_step=_live if a.live else None)
     except ValueError as exc:
         print(f"FEHLER: {exc}", file=sys.stderr)
         return 2
     results = pipeline.run(gw, apply=a.apply, allocate_new=a.new, force_firmware=a.force_firmware,
                            reboot=a.reboot, only_check=a.check)
-    print(format_results(results, gw))
     code = exit_code(results)
+    if a.live:
+        print(f"\nGateway: EUI {gw.eui} · VPN {gw.vpn_ip} · SN {gw.serial_number} · {gw.name}")
+        print("@@RESULT " + json.dumps({
+            "code": code, "eui": gw.eui, "vpn_ip": gw.vpn_ip, "serial": gw.serial_number, "name": gw.name,
+            "steps": [{"step": r.step, "status": r.status, "detail": r.detail} for r in results]},
+            ensure_ascii=False), flush=True)
+    else:
+        print(format_results(results, gw))
     if not a.apply and code == 1:
         print("\nDry-Run: nichts geschrieben. Mit --apply ausfuehren.")
     return code
