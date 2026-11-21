@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Runs one GatewayChef command inside the namespace of a station port, as user
+# gatewaychef. Called by the web UI via sudo (see install.sh, sudoers):
+#   sudo -n /usr/local/sbin/gatewaychef-port <N> setup --host 192.168.23.150 ...
+#   sudo -n /usr/local/sbin/gatewaychef-port <N> probe
+# Only the commands below are allowed; the code is not updated here (OFFLINE=1),
+# the web UI service does that once at its own start.
+set -euo pipefail
+n="${1:-}"; cmd="${2:-}"
+[[ "$n" =~ ^[0-9]{1,2}$ ]] || { echo "Port ungueltig" >&2; exit 2; }
+case "$cmd" in setup|probe) ;; *) echo "Befehl nicht erlaubt: $cmd" >&2; exit 2 ;; esac
+ip netns list | grep -qw "gcp$n" || { echo "Port $n nicht eingerichtet (ports.sh up)" >&2; exit 2; }
+shift 2
+exec ip netns exec "gcp$n" runuser -u gatewaychef -- env HOME=/opt/gatewaychef GATEWAYCHEF_HOME=/opt/gatewaychef \
+  GATEWAYCHEF_OFFLINE=1 GATEWAYCHEF_PORT="$n" /usr/local/bin/gatewaychef "$cmd" "$@"

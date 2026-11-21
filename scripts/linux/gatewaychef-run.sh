@@ -5,6 +5,7 @@
 #   gatewaychef-run.sh setup ...       scripts/gateway_setup.py
 #   gatewaychef-run.sh fleet ...       scripts/fleet.py
 #   gatewaychef-run.sh pool ...        scripts/pool_refill.py
+#   gatewaychef-run.sh probe           steckt ein Gateway? (JSON, fuer die Station)
 set -euo pipefail
 APP_DIR="${GATEWAYCHEF_HOME:-/opt/gatewaychef}/app"
 REF="${GATEWAYCHEF_REF:-main}"
@@ -28,5 +29,6 @@ case "${1:-ui}" in
   setup) shift; run scripts/gateway_setup.py "$@" ;;
   fleet) shift; run scripts/fleet.py "$@" ;;
   pool) shift; run scripts/pool_refill.py "$@" ;;
-  *) echo "unbekannt: $1 (ui|setup|fleet|pool)" >&2; exit 2 ;;
+  probe) shift; run scripts/gateway_probe.py "$@" ;;
+  *) echo "unbekannt: $1 (ui|setup|fleet|pool|probe)" >&2; exit 2 ;;
 esac

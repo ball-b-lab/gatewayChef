@@ -24,7 +24,7 @@ from utils.helpers import derive_wifi_ssid
 class Pipeline:
     def __init__(self, host, profile_name, inventory, registries, gateway_client=None, gateway_user="admin",
                  gateway_password="", wifi_key="", vpn_server_public_key="", vpn_proxy_url="", vpn_proxy_token="",
-                 vpn_wait_secs=90, http=None, sleep=None, driveby_wait_secs=None):
+                 vpn_wait_secs=90, http=None, sleep=None, driveby_wait_secs=None, on_step=None):
         import requests
         import time
         self.host = host
@@ -41,6 +41,7 @@ class Pipeline:
         self.sleep = sleep or time.sleep
         self.driveby_wait_secs = int(os.getenv("DRIVEBY_WAIT", "75")) if driveby_wait_secs is None else driveby_wait_secs
         self.results = []
+        self.on_step = on_step  # called with each StepResult as soon as it is done (live progress)
 
     # ------------------------------------------------------------ helpers
     def _lns_address(self):
@@ -322,6 +323,8 @@ class Pipeline:
     def run(self, gw, apply=False, allocate_new=False, force_firmware=False, reboot=False, only_check=False):
         def add(result):
             self.results.append(result)
+            if self.on_step:
+                self.on_step(result)
             return result
 
         pre, info = self.step_preflight(gw, apply)

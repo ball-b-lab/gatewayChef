@@ -157,6 +157,10 @@ Notes:
 
 ### Flotte (nur Station/lokal, nicht im `cloud_api`-Modus)
 Ohne `apply: true` wird immer nur geprüft.
+- `GET /station`: Einrichtungsstation mit mehreren Ports und Vorgangsliste
+- `GET /api/station/overview`: `{ports: [{port, iface, vlan, gateway: {host, eui}, job}], jobs: [...]}`
+- `POST /api/station/run` `{ port, mode: dry|apply|check, options: {new, client_id, client_name, iccid, sim_vendor_id, serial, name, vpn_ip} }`
+- `GET /api/station/job/<id>`: Stand, Ergebnis und Protokoll eines Vorgangs (Einrichtung oder Flotten-Update mit `apply`)
 - `GET /fleet`: Weboberfläche
 - `GET /api/fleet/status?deep=1&ip=a,b`: Erreichbarkeit über VPN und EUI-Abgleich; `deep` liest zusätzlich
   Firmware, WLAN-Region und Flow-Version

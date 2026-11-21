@@ -60,14 +60,39 @@ NET
   fi
 fi
 
+echo ".. Einrichtungs-Ports (ein Netz-Namespace je Gateway)"
+apt-get install -y -qq iproute2 nftables >/dev/null
+[[ -f /etc/gatewaychef/ports ]] || cat > /etc/gatewaychef/ports <<'PORTS'
+# Eine Zeile je Port, ein Gateway je Port. Alle UG65 haben dieselbe feste Werks-IP, jeder Port
+# bekommt deshalb ein eigenes Netz-Namespace (scripts/linux/ports.sh).
+#   <N> <interface>            USB-Ethernet-Adapter, Gateway direkt dran
+#   <N> <trunk-interface> <V>  VLAN-Switch: Switch-Port = VLAN V
+# 1 enx00e04c680001
+# 2 enx00e04c680002
+# 3 enp2s0 13
+PORTS
+chmod 644 /etc/gatewaychef/ports
+chmod +x "$HOME_DIR/app/scripts/linux/ports.sh"
+install -m 755 -o root -g root "$HOME_DIR/app/scripts/linux/gatewaychef-port" /usr/local/sbin/gatewaychef-port
+echo 'gatewaychef ALL=(root) NOPASSWD: /usr/local/sbin/gatewaychef-port *' > /etc/sudoers.d/gatewaychef
+chmod 440 /etc/sudoers.d/gatewaychef
+visudo -cf /etc/sudoers.d/gatewaychef >/dev/null
+install -d -m 750 -o gatewaychef -g gatewaychef /var/log/gatewaychef
+grep -q '^STATION_LOG_DIR=' /etc/gatewaychef/env || echo 'STATION_LOG_DIR=/var/log/gatewaychef' >> /etc/gatewaychef/env
+install -m 644 "$HOME_DIR/app/scripts/linux/gatewaychef-ports.service" /etc/systemd/system/gatewaychef-ports.service
+
 install -m 644 "$HOME_DIR/app/scripts/linux/gatewaychef.service" /etc/systemd/system/gatewaychef.service
 chmod +x "$HOME_DIR/app/scripts/linux/gatewaychef-run.sh"
 ln -sf "$HOME_DIR/app/scripts/linux/gatewaychef-run.sh" /usr/local/bin/gatewaychef
 systemctl daemon-reload
+systemctl enable gatewaychef-ports >/dev/null
+systemctl restart gatewaychef-ports || echo "!! Ports: /etc/gatewaychef/ports pruefen, dann systemctl restart gatewaychef-ports"
 systemctl enable --now gatewaychef >/dev/null
 
 echo
 echo "Fertig. Weboberflaeche: http://$(hostname -I | awk '{print $1}'):5000  (Flotte: /fleet)"
 echo "VPN fuer die Flotte: /etc/wireguard/ballb.conf ablegen (Workstation-Peer 172.30.100.x), dann:"
 echo "  systemctl enable --now wg-quick@ballb"
+echo "Mehrere Gateways: Ports in /etc/gatewaychef/ports eintragen, systemctl restart gatewaychef-ports,"
+echo "  dann http://<station>:5000/station"
 echo "Kommandozeile: sudo -H -u gatewaychef gatewaychef setup | fleet status | pool"

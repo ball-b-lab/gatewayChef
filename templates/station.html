@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Einrichtungsstation</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="icon" type="image/png" href="/static/icon/IconGatewayChef.png">
+<style>
+  body { background: #f6f7f9; }
+  .port { width: 21rem; }
+  .port .card-header { display: flex; gap: .5rem; align-items: baseline; }
+  .st { font-size: .75rem; padding: .15rem .45rem; border-radius: .3rem; color: #fff; }
+  .st-running { background: #0d6efd; } .st-ok { background: #1a9a4b; } .st-diff { background: #b58105; }
+  .st-failed { background: #c83232; } .st-none { background: #999; }
+  .log { background: #111; color: #ddd; font: .72rem/1.35 ui-monospace, Menlo, monospace; max-height: 22rem;
+         overflow: auto; white-space: pre-wrap; padding: .5rem; border-radius: .3rem; }
+  .log .f { color: #ff8a8a; } .log .w { color: #ffd479; } .log .o { color: #8fe3a5; }
+  td, th { vertical-align: middle; font-size: .85rem; }
+  .small-input { font-size: .8rem; }
+</style>
+</head>
+<body>
+<div class="container-fluid py-3">
+  <div class="d-flex align-items-baseline gap-3 mb-3">
+    <h1 class="h4 mb-0">Einrichtungsstation</h1>
+    <span id="summary" class="text-muted"></span>
+    <a href="/fleet" class="ms-auto small">Flotte (alle Gateways)</a>
+    <a href="/" class="small">Einzel-Einrichtung</a>
+  </div>
+
+  <div id="noports" class="alert alert-secondary d-none">
+    Keine Ports eingerichtet. Auf der Station <code>/etc/gatewaychef/ports</code> anlegen und
+    <code>systemctl restart gatewaychef-ports</code> (siehe <code>docs/LINUX_STATION.md</code>).
+  </div>
+  <div id="ports" class="d-flex flex-wrap gap-3 mb-4"></div>
+
+  <div class="d-flex align-items-baseline gap-3">
+    <h2 class="h5">Vorgänge</h2>
+    <span class="text-muted small">Einrichtungen und Flotten-Updates; läuft/fertig/Fehler. Klick auf eine Zeile zeigt das Protokoll.</span>
+  </div>
+  <table class="table table-sm table-hover bg-white">
+    <thead><tr><th>Status</th><th>Art</th><th>Gateway</th><th>Vorgang</th><th>Stand</th><th>Dauer</th><th>Start</th></tr></thead>
+    <tbody id="jobs"></tbody>
+  </table>
+  <div id="joblog" class="d-none">
+    <div class="d-flex align-items-baseline gap-2"><h3 class="h6" id="joblogtitle"></h3>
+      <button class="btn btn-sm btn-link" onclick="closeLog()">schließen</button></div>
+    <div class="log" id="joblogbody"></div>
+  </div>
+</div>
+
+<script>
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const STATE = {running: "läuft", ok: "fertig", diff: "Dry-Run: Änderungen", failed: "Fehler"};
+const KIND = {setup: "Einrichtung", nodered: "Node-RED", firmware: "Firmware", patch: "Patch"};
+const badge = s => `<span class="st st-${s || "none"}">${esc(STATE[s] || "—")}</span>`;
+const dur = s => s == null ? "" : (s < 90 ? `${s} s` : `${Math.floor(s / 60)} min ${s % 60} s`);
+const clock = t => t ? new Date(t * 1000).toLocaleTimeString("de-DE") : "";
+let openJob = null;
+const formState = {};   // keep typed values across refreshes
+
+function colorLog(lines) {
+  return lines.map(l => {
+    const c = /^\[FEHL|  !|Fehler|Abbruch/.test(l) ? "f" : /^\[(WARN|DIFF)/.test(l) ? "w" : /^\[(OK|NEU)/.test(l) ? "o" : "";
+    return c ? `<span class="${c}">${esc(l)}</span>` : esc(l);
+  }).join("\n");
+}
+
+function field(p, key, ph, w) {
+  const v = (formState[p] || {})[key] || "";
+  return `<input class="form-control form-control-sm small-input" style="width:${w}" placeholder="${ph}"
+    value="${esc(v)}" oninput="(formState[${p}] ||= {})['${key}'] = this.value">`;
+}
+
+function portCard(row) {
+  const p = row.port, gw = row.gateway || {}, job = row.job;
+  const running = job && job.state === "running";
+  const where = row.vlan ? `${esc(row.iface)} · VLAN ${row.vlan}` : esc(row.iface);
+  const gwText = gw.host ? `<b>${esc(gw.eui || "EUI ?")}</b> <span class="text-muted">@ ${esc(gw.host)}</span>`
+                         : `<span class="text-muted">${gw.error ? "Fehler: " + esc(gw.error) : "kein Gateway"}</span>`;
+  const isNew = (formState[p] || {}).new;
+  const jobPart = job ? `
+      <div class="mt-2 small">${badge(job.state)} ${esc(job.label)} · ${dur(job.seconds)}
+        ${job.gateway && job.gateway.vpn_ip ? `· VPN ${esc(job.gateway.vpn_ip)}` : ""}</div>
+      <div class="small text-muted text-truncate" title="${esc(job.step || "")}">${esc(job.step || "startet …")}</div>
+      ${job.state !== "running" && job.detail ? `<div class="small">${esc(job.detail)}</div>` : ""}
+      <button class="btn btn-sm btn-link p-0" onclick="showLog(${job.id})">Protokoll</button>` : "";
+  return `<div class="card port ${running ? "border-primary" : ""}">
+    <div class="card-header"><b>Port ${p}</b><span class="small text-muted">${where}</span></div>
+    <div class="card-body py-2">
+      <div class="small mb-2">${gwText}</div>
+      <div class="d-flex flex-wrap gap-1 mb-1">
+        ${field(p, "client_id", "Kunden-Nr.", "6.5rem")}
+        ${field(p, "sim_vendor_id", "SIM-Anb.", "5rem")}
+        ${field(p, "iccid", "ICCID", "13rem")}
+        ${field(p, "name", "Name (optional)", "13rem")}
+      </div>
+      <label class="small"><input type="checkbox" class="form-check-input me-1" ${isNew ? "checked" : ""}
+        onchange="(formState[${p}] ||= {}).new = this.checked">neues Gateway (VPN-IP aus Pool)</label>
+      <div class="mt-2 d-flex gap-1">
+        <button class="btn btn-sm btn-outline-secondary" ${running || !gw.host ? "disabled" : ""} onclick="start(${p}, 'dry')">Dry-Run</button>
+        <button class="btn btn-sm btn-primary" ${running || !gw.host ? "disabled" : ""} onclick="start(${p}, 'apply')">Einrichten</button>
+        <button class="btn btn-sm btn-outline-secondary" ${running || !gw.host ? "disabled" : ""} onclick="start(${p}, 'check')" title="nur Prüfungen, z. B. vor dem Versand">Prüfen</button>
+      </div>
+      ${jobPart}
+    </div></div>`;
+}
+
+async function refresh() {
+  let data;
+  try {
+    const r = await fetch("/api/station/overview");
+    data = (await r.json()).data;
+  } catch (e) { document.getElementById("summary").textContent = "Station nicht erreichbar"; return; }
+  if (document.activeElement && document.activeElement.closest(".port")) {
+    // do not rebuild while someone types in a port card
+  } else {
+    document.getElementById("ports").innerHTML = data.ports.map(portCard).join("");
+  }
+  document.getElementById("noports").classList.toggle("d-none", data.ports.length > 0);
+  const js = data.jobs;
+  const n = s => js.filter(j => j.state === s).length;
+  document.getElementById("summary").textContent =
+    `${data.ports.filter(p => p.gateway && p.gateway.host).length}/${data.ports.length} Ports belegt · ` +
+    `${n("running")} laufen · ${n("ok")} fertig · ${n("failed")} Fehler`;
+  document.getElementById("jobs").innerHTML = js.map(j => `
+    <tr onclick="showLog(${j.id})" style="cursor:pointer" class="${j.state === "failed" ? "table-danger" : j.state === "running" ? "table-primary" : ""}">
+      <td>${badge(j.state)}</td><td>${esc(KIND[j.kind] || j.kind)}${j.port ? ` · Port ${j.port}` : ""}</td>
+      <td>${esc((j.gateway && (j.gateway.name || j.gateway.eui)) || j.target)}${j.gateway && j.gateway.vpn_ip ? `<br><span class="text-muted">${esc(j.gateway.vpn_ip)}</span>` : ""}</td>
+      <td>${esc(j.label)}</td>
+      <td class="text-truncate" style="max-width:28rem" title="${esc(j.detail || j.step || "")}">${esc(j.state === "running" ? (j.step || "startet …") : (j.detail || j.step || ""))}</td>
+      <td>${dur(j.seconds)}</td><td>${clock(j.started)}</td></tr>`).join("") ||
+    `<tr><td colspan="7" class="text-muted">noch keine Vorgänge seit dem Start der Station</td></tr>`;
+  if (openJob) loadLog(openJob, true);
+}
+
+async function start(port, mode) {
+  const o = formState[port] || {};
+  if (mode === "apply" && !confirm(`Port ${port} wirklich einrichten (schreibt aufs Gateway und in die DB)?`)) return;
+  const r = await fetch("/api/station/run", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({port, mode, options: o})});
+  const body = await r.json();
+  if (!r.ok) { alert((body.error && body.error.message) || "Fehler"); return; }
+  showLog(body.data.id);
+  refresh();
+}
+
+async function loadLog(id, quiet) {
+  const r = await fetch(`/api/station/job/${id}`);
+  if (!r.ok) { if (!quiet) alert("Vorgang nicht gefunden"); return; }
+  const j = (await r.json()).data;
+  document.getElementById("joblogtitle").textContent =
+    `${KIND[j.kind] || j.kind}: ${j.label} — ${STATE[j.state] || j.state}${j.detail ? " (" + j.detail + ")" : ""}`;
+  const box = document.getElementById("joblogbody");
+  const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 20;
+  box.innerHTML = colorLog(j.log || []);
+  if (atEnd) box.scrollTop = box.scrollHeight;
+}
+function showLog(id) { openJob = id; document.getElementById("joblog").classList.remove("d-none"); loadLog(id); }
+function closeLog() { openJob = null; document.getElementById("joblog").classList.add("d-none"); }
+
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>

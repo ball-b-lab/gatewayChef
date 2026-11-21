@@ -55,6 +55,35 @@ nimmt die erste, die antwortet. Danach das Gateway abziehen und das nächste ans
 holt. Bisher lief alles über `192.168.1.1`. Mit einem VLAN-Switch für mehrere Gateways gleichzeitig wird
 die Station später erweitert (siehe `GATEWAY_SETUP_KONZEPT.md`).
 
+## Mehrere Gateways gleichzeitig (`/station`)
+
+Alle UG65 kommen mit derselben festen Werks-IP und ohne DHCP. Im selben Netz würden sie sich gegenseitig
+stören. Deshalb bekommt jeder Einrichtungs-Port ein eigenes Linux-Network-Namespace (`gcp<N>`). Darin sieht
+die Station genau ein Gateway unter seiner Werks-IP. Cloud-API, Milesight und VPN laufen per veth und NAT
+über den Host (`scripts/linux/ports.sh`, Dienst `gatewaychef-ports`).
+
+**Aufbau, zwei Varianten:**
+- **USB-Ethernet-Adapter je Gateway** (rund 15 € pro Stück, am besten an einem aktiven USB-Hub).
+  `/etc/gatewaychef/ports`: `1 enx00e04c680001`, `2 enx00e04c680002`, …
+- **VLAN-Switch** (Port-VLAN, z. B. Netgear GS308E): Jeder Switch-Port ist ein eigenes untagged VLAN, der
+  Uplink zur Station ist getaggt. `/etc/gatewaychef/ports`: `1 enp2s0 11`, `2 enp2s0 12`, …
+
+Danach `systemctl restart gatewaychef-ports` und `sudo /opt/gatewaychef/app/scripts/linux/ports.sh list`:
+Das zeigt je Port, ob ein Gateway antwortet.
+
+**Bedienung:** `http://<station>:5000/station`
+- Eine Karte je Port: erkanntes Gateway (EUI), Felder für Kunden-Nr., SIM-Anbieter, ICCID und Name, dazu
+  „neues Gateway“. Die Knöpfe heißen Dry-Run, Einrichten und Prüfen. Die Läufe der Ports laufen parallel,
+  die VPN-IP wird in der DB atomar reserviert.
+- **Vorgänge:** alle laufenden und fertigen Einrichtungen sowie Flotten-Updates (Node-RED, Firmware, Patch)
+  mit Stand (letzter Schritt), Dauer und Ergebnis. Ein Klick zeigt das Protokoll, damit man von Hand
+  nacharbeiten kann. Die Protokolle der Einrichtungen liegen zusätzlich in `/var/log/gatewaychef/`.
+- Die Liste lebt im Speicher des Dienstes: Ein Neustart leert sie, die Protokolldateien bleiben.
+
+Technik: Die Weboberfläche startet `sudo -n /usr/local/sbin/gatewaychef-port <N> setup --live …`. Der Helfer
+erlaubt nur `setup` und `probe` und läuft im Namespace als Benutzer `gatewaychef` (sudoers-Regel aus
+`install.sh`).
+
 ## Flotte
 
 Weboberfläche `http://<station>:5000/fleet` oder Kommandozeile:
