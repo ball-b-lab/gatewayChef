@@ -168,5 +168,28 @@ class GatewayConfigTest(unittest.TestCase):
         self.assertEqual(v["gateway_id"], "24E124FFFE000001")
 
 
+
+
+class ApplyTimeoutTest(unittest.TestCase):
+    def test_apply_read_timeout_is_tolerated(self):
+        import requests as rq
+
+        class Slow:
+            def post(self, url, data, timeout):
+                self.timeout = timeout
+                raise rq.ReadTimeout("slow")
+
+        s = Slow()
+        self.assertEqual(UG65Client(session=s, timeout=8).apply(), [])
+        self.assertEqual(s.timeout, 60)
+
+        class Down:
+            def post(self, url, data, timeout):
+                raise rq.ConnectionError("down")
+
+        with self.assertRaises(GatewayConfigError):
+            UG65Client(session=Down()).apply()
+
+
 if __name__ == "__main__":
     unittest.main()

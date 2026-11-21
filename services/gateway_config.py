@@ -53,11 +53,11 @@ class UG65Client:
         self.model = None
         self._id = 1
 
-    def _call(self, core, function, values):
+    def _call(self, core, function, values, timeout=None):
         body = {"id": self._id, "execute": 1, "core": core, "function": function, "values": values}
         self._id += 1
         try:
-            resp = self.session.post(self.url, data=json.dumps(body), timeout=self.timeout)
+            resp = self.session.post(self.url, data=json.dumps(body), timeout=timeout or self.timeout)
         except requests.RequestException as exc:
             raise GatewayConfigError(f"Gateway nicht erreichbar: {exc}") from exc
         try:
@@ -90,8 +90,15 @@ class UG65Client:
     def set(self, core, base, index, value):
         return self._call(core, "set", [{"base": base, "index": index, "value": value}])
 
-    def apply(self):
-        return self._call("yruo_apply", "apply", [])
+    def apply(self, timeout=60):
+        """Apply restarts services (WLAN, packet forwarder); the answer can come late or
+        never. A read timeout here is not an error: callers read the values back anyway."""
+        try:
+            return self._call("yruo_apply", "apply", [], timeout=max(timeout, self.timeout))
+        except GatewayConfigError as exc:
+            if isinstance(exc.__cause__, requests.ReadTimeout):
+                return []
+            raise
 
     def reboot(self):
         return self._call("yruo_upgrade", "reboot", [])
