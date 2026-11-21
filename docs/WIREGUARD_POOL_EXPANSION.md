@@ -89,3 +89,27 @@ Sonderfall Altgeraet:
 - `workstation`-Bereiche werden absichtlich nicht in `gateway_inventory.sql` aufgenommen.
 - `wifi_ssid` wird passend zur bestehenden App-Logik als `bbdbmon_<octet3>.<octet4>` erzeugt.
 - Die Ausgaben enthalten Private Keys und muessen entsprechend geschuetzt behandelt werden.
+
+
+## Pool automatisch auffüllen (`scripts/pool_refill.py`)
+
+Ab sofort der empfohlene Weg. Er läuft über dieselbe Cloud-API wie das Setup, braucht also weder DB-Zugang
+noch die `wg`-CLI (die Keys erzeugt `cryptography`).
+
+```bash
+python scripts/pool_refill.py                 # Stand: frei/gesamt, Exit 1 wenn unter POOL_MIN_FREE
+python scripts/pool_refill.py --generate      # nur wenn zu wenig frei: POOL_BATCH neue Plätze erzeugen
+# wg0_peers.conf auf dem VPN-Server an wg0.conf anhängen, dann: wg syncconf wg0 <(wg-quick strip wg0)
+python scripts/pool_refill.py --import out/pool-<zeit>
+```
+
+Die Reihenfolge ist Absicht: Erst wenn der Server die Peers kennt, landen die Plätze als `FREE` in der DB.
+So bekommt kein Gateway einen Key, mit dem es sich nicht verbinden kann.
+
+`.env`: `POOL_RANGES` (Standard `172.30.1.1-172.30.9.254`), `POOL_MIN_FREE` (20), `POOL_BATCH` (50).
+Die erzeugten Dateien haben die Rechte 600 und enthalten Private Keys. Nach dem Import löschen.
+
+**Unterschied zum alten Generator:** `pool_refill.py` trägt pro Peer nur die `/32` ein. Der alte Generator
+hängt jedem Gateway-Peer zusätzlich `192.168.1.0/24` an. In WireGuard muss `AllowedIPs` je Peer eindeutig
+sein, deshalb gilt dieses Netz am Server nur für den zuletzt geladenen Peer. Bei allen anderen Peers ist es
+wirkungslos und täuscht eine Erreichbarkeit vor, die es nicht gibt.

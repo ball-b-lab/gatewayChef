@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gateway-Flotte</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="icon" type="image/png" href="/static/icon/IconGatewayChef.png">
+<style>
+  body { background: #f6f7f9; }
+  td, th { white-space: nowrap; vertical-align: middle; }
+  td.result { white-space: normal; min-width: 260px; font-size: .85rem; }
+  .dot { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; }
+  .on { background: #1a9a4b; } .off { background: #c83232; } .unk { background: #aaa; }
+  .toolbar > * { margin: 0 .5rem .5rem 0; }
+</style>
+</head>
+<body>
+<div class="container-fluid py-3">
+  <div class="d-flex align-items-baseline gap-3 mb-2">
+    <h1 class="h4 mb-0">Gateway-Flotte</h1>
+    <span id="summary" class="text-muted"></span>
+    <a href="/" class="ms-auto small">Einrichtung</a>
+  </div>
+
+  <div class="toolbar d-flex flex-wrap align-items-center">
+    <button class="btn btn-sm btn-outline-primary" onclick="load(false)">Erreichbarkeit prüfen</button>
+    <button class="btn btn-sm btn-outline-primary" onclick="load(true)" title="Login je Gateway: Firmware, WLAN-Region, Flow-Version">Tief prüfen</button>
+    <label class="form-check-label small me-2"><input type="checkbox" class="form-check-input me-1" id="auto" onchange="toggleAuto(this.checked)">alle 30 s</label>
+    <input id="filter" class="form-control form-control-sm" style="width:14rem" placeholder="Filter (Name, IP, EUI)" oninput="render()">
+    <span class="vr mx-2"></span>
+    <select id="patch" class="form-select form-select-sm" style="width:auto"></select>
+    <button class="btn btn-sm btn-outline-secondary" onclick="run('patch', false)">Patch prüfen</button>
+    <button class="btn btn-sm btn-warning" onclick="run('patch', true)">Patch schreiben</button>
+    <span class="vr mx-2"></span>
+    <select id="flow" class="form-select form-select-sm" style="width:auto"></select>
+    <button class="btn btn-sm btn-outline-secondary" onclick="run('nodered', false)">Node-RED prüfen</button>
+    <button class="btn btn-sm btn-warning" onclick="run('nodered', true)">Node-RED aktualisieren</button>
+    <span class="vr mx-2"></span>
+    <select id="firmware" class="form-select form-select-sm" style="width:auto"></select>
+    <button class="btn btn-sm btn-outline-secondary" onclick="run('firmware', false)">Firmware prüfen</button>
+    <button class="btn btn-sm btn-danger" onclick="run('firmware', true)" title="Gateways nacheinander, Stopp beim ersten Fehler">Firmware aktualisieren</button>
+  </div>
+  <div class="small text-muted mb-2">Aktionen gelten für die markierten Zeilen. „Schreiben“ und „Aktualisieren“ laufen nacheinander,
+    lesen danach zurück und prüfen, ob das Gateway über VPN wieder antwortet. Node-RED wird bei einem Fehler zurückgerollt.</div>
+
+  <div class="table-responsive bg-white border rounded">
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-light"><tr>
+        <th><input type="checkbox" id="all" onchange="toggleAll(this.checked)"></th>
+        <th></th><th>VPN-IP</th><th>Name</th><th>EUI</th><th>Status</th><th>ms</th>
+        <th>Firmware</th><th>WLAN</th><th>Flow</th>
+        <th title="Packet Forwarder -> Node-RED (UDP): letzte Statusmeldung / letztes Funkpaket">Empfang</th>
+        <th title="Wann hat die db_monitor-App zuletzt /node-red/status abgerufen?">dbmonitor zuletzt</th>
+        <th>Ergebnis</th>
+      </tr></thead>
+      <tbody id="rows"><tr><td colspan="13" class="text-muted p-3">Lade …</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+let rows = [], results = {}, selected = new Set();
+
+async function api(path, body) {
+  const opt = body ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)} : {};
+  const res = await fetch(path, opt);
+  const json = await res.json().catch(() => ({ok: false, error: {message: 'HTTP ' + res.status}}));
+  if (!json.ok) throw new Error((json.error && json.error.message) || json.message || ('HTTP ' + res.status));
+  return json.data;
+}
+
+function el(tag, text, cls) { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; }
+
+function ago(s) {
+  if (s == null) return 'nie';
+  if (s < 90) return `vor ${s} s`;
+  if (s < 5400) return `vor ${Math.round(s / 60)} min`;
+  if (s < 172800) return `vor ${Math.round(s / 3600)} h`;
+  return `vor ${Math.round(s / 86400)} d`;
+}
+
+function flowText(r) {
+  if (r.flow) return (r.flow.version || 'unbekannt') + (r.flow.modified ? ' (geändert)' : '') + (r.flow.up_to_date ? ' ✓' : '');
+  if (r.driveby && r.driveby.flow_version) return r.driveby.flow_version;
+  if (r.online && !r.driveby) return 'alt (< 1.1)';
+  return r.flow_error ? '–' : '';
+}
+
+function receiveCell(r) {
+  const td = el('td');
+  if (!r.driveby) { td.textContent = r.online ? 'kein UDP-Flow' : ''; td.className = 'text-muted'; return td; }
+  const d = r.driveby;
+  td.textContent = (d.receiving ? '● ' : '○ ') + `stat ${ago(d.seconds_since_stat)} · Funk ${ago(d.seconds_since_rxpk)} (${d.rxpk})`;
+  td.className = d.receiving ? 'text-success' : 'text-danger';
+  td.title = d.receiving ? 'Packet Forwarder liefert per UDP' : 'Keine Statusmeldung per UDP: 3. Forwarder-Ziel fehlt?';
+  return td;
+}
+
+function appCell(r) {
+  const td = el('td');
+  if (!r.driveby) return td;
+  const d = r.driveby;
+  td.textContent = d.app_seconds_since_poll == null ? 'nie (seit Neustart)' : ago(d.app_seconds_since_poll);
+  td.title = d.app_last_poll ? `${d.app_last_poll} · ${d.app_client || '?'} · ${d.app_polls} Abrufe seit Neustart` : '';
+  if (d.app_seconds_since_poll != null && d.app_seconds_since_poll < 300) td.className = 'text-success fw-semibold';
+  return td;
+}
+
+function render() {
+  const q = document.getElementById('filter').value.toLowerCase();
+  const body = document.getElementById('rows');
+  body.replaceChildren();
+  const shown = rows.filter(r => !q || [r.vpn_ip, r.gateway_name, r.eui].join(' ').toLowerCase().includes(q));
+  for (const r of shown) {
+    const tr = el('tr');
+    const cb = el('input'); cb.type = 'checkbox'; cb.checked = selected.has(r.vpn_ip);
+    cb.onchange = () => cb.checked ? selected.add(r.vpn_ip) : selected.delete(r.vpn_ip);
+    const c0 = el('td'); c0.append(cb); tr.append(c0);
+    const dot = el('span', null, 'dot ' + (r.online === true ? 'on' : r.online === false ? 'off' : 'unk'));
+    const c1 = el('td'); c1.append(dot); c1.title = r.identity || ''; tr.append(c1);
+    tr.append(el('td', r.vpn_ip), el('td', r.gateway_name || ''), el('td', r.eui || '', 'font-monospace small'),
+              el('td', r.status_overall || ''), el('td', r.latency_ms ?? ''),
+              el('td', (r.firmware || '') + (r.firmware && !r.profile_ok ? ' ⚠ kein Profil' : '')),
+              el('td', r.wifi_country || ''), el('td', flowText(r)), receiveCell(r), appCell(r));
+    const res = results[r.vpn_ip];
+    const c = el('td', res ? res.text : (r.online === false ? r.identity : (r.cgi_error || r.flow_error || '')), 'result');
+    if (res) c.classList.add(res.cls);
+    tr.append(c);
+    body.append(tr);
+  }
+  const online = rows.filter(r => r.online).length;
+  const recv = rows.filter(r => r.driveby && r.driveby.receiving).length;
+  const live = rows.filter(r => r.driveby && r.driveby.app_seconds_since_poll != null && r.driveby.app_seconds_since_poll < 300).length;
+  document.getElementById('summary').textContent = rows.length
+    ? `${online}/${rows.length} online · ${recv} empfangen per UDP · ${live} gerade von dbmonitor gelesen` : '';
+}
+
+function toggleAll(on) {
+  const q = document.getElementById('filter').value.toLowerCase();
+  rows.filter(r => !q || [r.vpn_ip, r.gateway_name, r.eui].join(' ').toLowerCase().includes(q))
+      .forEach(r => on ? selected.add(r.vpn_ip) : selected.delete(r.vpn_ip));
+  render();
+}
+
+let autoTimer = null;
+function toggleAuto(on) {
+  clearInterval(autoTimer);
+  autoTimer = on ? setInterval(() => load(false, true), 30000) : null;
+}
+
+async function load(deep, keepResults) {
+  document.getElementById('summary').textContent = deep ? 'prüfe tief …' : 'prüfe …';
+  try { rows = await api('/api/fleet/status' + (deep ? '?deep=1' : '')); if (!keepResults) results = {}; }
+  catch (e) { document.getElementById('summary').textContent = 'Fehler: ' + e.message; return; }
+  render();
+}
+
+async function run(kind, apply) {
+  const ips = [...selected];
+  if (!ips.length) { alert('Erst Gateways markieren.'); return; }
+  const name = document.getElementById({patch: 'patch', nodered: 'flow', firmware: 'firmware'}[kind]).value;
+  const what = {patch: 'Patch ', nodered: 'Node-RED ', firmware: 'Firmware '}[kind] + name;
+  if (apply && kind === 'firmware' && ips.length > 1 &&
+      !confirm('Firmware auf mehrere Gateways: zuerst ein einzelnes Test-Gateway aktualisieren. Trotzdem fortfahren?')) return;
+  if (apply && !confirm(`${what} auf ${ips.length} Gateway(s) schreiben?`)) return;
+  for (const ip of ips) {
+    results[ip] = {text: 'läuft …', cls: 'text-muted'}; render();
+    try {
+      const body = kind === 'patch' ? {vpn_ip: ip, name, apply} : {vpn_ip: ip, version: name, apply};
+      if (kind === 'firmware' && apply) results[ip] = {text: 'Upload und Neustart laufen, das dauert bis zu 20 Minuten …', cls: 'text-muted'}, render();
+      const r = await api('/api/fleet/' + kind, body);
+      const changes = (r.changes || []).map(c => c.label + ': ' + Object.entries(c.fields).map(([k, v]) => `${k} ${v[0]}→${v[1]}`).join(', ')).join('; ');
+      const rb = r.rolled_back ? ` (zurückgerollt: ${r.rollback_ok ? 'ok' : 'FEHLER'})` : '';
+      const cls = {ok: 'text-success', changed: 'text-success', updated: 'text-success', unchanged: 'text-success',
+                   would_change: 'text-primary', skipped: 'text-muted'}[r.result] || 'text-danger';
+      const checks = (r.checks || []).map(c => `${c.ok === false ? '✗' : c.ok ? '✓' : '·'} ${c.label}: ${c.info}`).join(' | ');
+      results[ip] = {text: `${r.result}: ${r.detail || ''} ${changes}${rb} ${checks}`, cls};
+      render();
+      if (kind === 'firmware' && apply && cls === 'text-danger') { alert('Firmware-Update fehlgeschlagen bei ' + ip + '. Weitere Gateways werden nicht aktualisiert.'); return; }
+    } catch (e) {
+      results[ip] = {text: 'Fehler: ' + e.message, cls: 'text-danger'}; render();
+      if (kind === 'firmware' && apply) return;
+    }
+  }
+}
+
+(async () => {
+  try {
+    const cat = await api('/api/fleet/catalog');
+    const ps = document.getElementById('patch');
+    for (const p of cat.patches) { const o = el('option', p.name + (p.risky.length ? ' ⚠' : '')); o.value = p.name; o.title = p.description; ps.append(o); }
+    const fs = document.getElementById('flow');
+    for (const v of cat.flows.slice().reverse()) { const o = el('option', 'Flow ' + v); o.value = v; fs.append(o); }
+    if (!cat.flows.length) fs.append(el('option', 'keine Flow-Bundles'));
+    const fw = document.getElementById('firmware');
+    for (const i of cat.firmware_images.slice().reverse()) { const o = el('option', `FW ${i.label} (${i.mb} MB)`); o.value = i.version; fw.append(o); }
+    if (!cat.firmware_images.length) fw.append(el('option', 'FIRMWARE_DIR leer'));
+  } catch (e) { /* catalog optional */ }
+  load(false);
+})();
+</script>
+</body>
+</html>

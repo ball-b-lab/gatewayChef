@@ -34,3 +34,18 @@ Stand: 2026-03-10
 - PyInstaller spec: `gatewaychef.spec`
 - Expected output: `dist/GatewayChef/GatewayChef.exe`
 - Windows operator note: see `README_WINDOWS.md`
+
+## Windows Launcher (Nachfolger der EXE)
+
+- `scripts/windows/gatewaychef.cmd` + `gatewaychef.ps1`: installiert `uv`, holt `main` (oder einen Tag via `-Ref`)
+  nach `%LOCALAPPDATA%\GatewayChef\app`, startet UI oder `setup`-CLI.
+- `.env` liegt in `%LOCALAPPDATA%\GatewayChef\.env` (ausserhalb des Codes, `GATEWAYCHEF_ENV_FILE`).
+- Release = Merge auf `main`; optional Tag `vJJJJ.MM.TT` zum Festhalten. Kein Build-Schritt.
+- Die EXE (`build_windows.ps1`, `gatewaychef.spec`) bleibt bis zur Abloesung lauffaehig, wird aber nicht mehr weiterentwickelt.
+- Release-Check zusaetzlich: `python3 -m unittest tests.test_gateway_config tests.test_gateway_setup`
+
+## Linux-Station
+
+Die Station holt `main` bei jedem Dienststart (`systemctl restart gatewaychef`). Ein Release ist also Merge
+auf `main` und danach ein Neustart auf der Station. Für einen festen Stand `GATEWAYCHEF_REF=<tag>` im
+Unit-File setzen.

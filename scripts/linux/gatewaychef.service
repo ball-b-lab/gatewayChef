@@ -1,0 +1,17 @@
+[Unit]
+Description=GatewayChef Station (Einrichtung + Flotte)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=gatewaychef
+Group=gatewaychef
+Environment=GATEWAYCHEF_HOME=/opt/gatewaychef
+Environment=GATEWAYCHEF_REF=main
+Environment=HOME=/opt/gatewaychef
+ExecStart=/opt/gatewaychef/app/scripts/linux/gatewaychef-run.sh ui
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

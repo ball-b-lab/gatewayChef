@@ -6,6 +6,10 @@ def _app_base_dir():
     return os.path.abspath(os.path.dirname(__file__))
 
 def _candidate_dotenv_paths():
+    # Launcher installs keep the .env OUTSIDE the code checkout so updates never touch secrets.
+    explicit = os.getenv("GATEWAYCHEF_ENV_FILE")
+    if explicit:
+        return [explicit]
     if getattr(sys, 'frozen', False):
         exe_dir = os.path.dirname(sys.executable)
         meipass = getattr(sys, '_MEIPASS', '')

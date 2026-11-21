@@ -1,9 +1,15 @@
+import os
 import csv
 import io
 
 from repositories.gateway_inventory_repository import GatewayInventoryRepository
 from db.sim import SimAssignmentError, assign_sim
 from utils.helpers import derive_wifi_ssid
+
+
+def vpn_server_public_key():
+    """Public key of the WireGuard server; configured once in the cloud, delivered with every key."""
+    return os.getenv("VPN_SERVER_PUBLIC_KEY", "").strip()
 
 
 class ProvisioningError(Exception):
@@ -27,6 +33,40 @@ class ProvisioningService:
 
         return {"vpn_ip": row[0], "private_key": row[1]}
 
+    def reserve_ip(self, eui):
+        """Atomic: returns the row already bound to eui, otherwise binds the next FREE row."""
+        from services.setup.model import is_valid_eui, normalize_eui
+        eui = normalize_eui(eui)
+        if not is_valid_eui(eui):
+            raise ProvisioningError("Gueltige EUI fehlt.", 400)
+        try:
+            with self.connection.cursor() as cursor:
+                repo = GatewayInventoryRepository(cursor)
+                row = repo.find_by_eui_for_update(eui)
+                reused = bool(row)
+                if not row:
+                    row = repo.reserve_next_free(eui)
+            if not row:
+                self.connection.rollback()
+                raise ProvisioningError("Keine freien IPs (Status 'FREE') gefunden.", 404)
+            self.connection.commit()
+        except Exception:
+            self.connection.rollback()
+            raise
+        return {"vpn_ip": row[0], "private_key": row[1], "reused": reused,
+                "server_public_key": vpn_server_public_key()}
+
+    def list_gateways(self):
+        with self.connection.cursor() as cursor:
+            rows = GatewayInventoryRepository(cursor).list_assigned()
+        keys = ("vpn_ip", "eui", "gateway_name", "serial_number", "status_overall", "last_sync")
+        return [dict(zip(keys, [str(v) if k == "last_sync" and v else v for k, v in zip(keys, row)])) for row in rows]
+
+    def pool_status(self):
+        with self.connection.cursor() as cursor:
+            free, total, ips = GatewayInventoryRepository(cursor).pool_status()
+        return {"free": free or 0, "total": total or 0, "vpn_ips": sorted(ips or [])}
+
     def fetch_vpn_key(self, vpn_ip):
         if not vpn_ip:
             raise ProvisioningError("VPN IP fehlt.", 400)
@@ -37,7 +77,7 @@ class ProvisioningService:
             repo = GatewayInventoryRepository(cursor)
             row = repo.fetch_vpn_key_by_ip(vpn_ip)
             
-        print(f"[provisioning_service] Query result: {row}", flush=True)
+        print(f"[provisioning_service] found={bool(row)}", flush=True)
 
         if not row:
             raise ProvisioningError("VPN IP nicht gefunden.", 404)
@@ -50,7 +90,8 @@ class ProvisioningService:
         print(f"[provisioning_service] private_key empty: {not private_key}", flush=True)
         print(f"[provisioning_service] serial_number: {serial_number}", flush=True)
         
-        return {"private_key": private_key, "serial_number": serial_number}
+        return {"private_key": private_key, "serial_number": serial_number,
+                "server_public_key": vpn_server_public_key()}
 
     def update_customer_data(
         self,

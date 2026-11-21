@@ -1,0 +1,148 @@
+{
+  "name": "ug65-60.0.0.49",
+  "model": "UG65",
+  "firmware": "60.0.0.49",
+  "source": "Ausgelesen 2026-11-18 von korrekt konfiguriertem Gateway (EUI 24E124FFFEF783E6)",
+  "sections": [
+    {
+      "label": "Packet Forwarder",
+      "core": "yruo_loragw",
+      "base": "general_conf",
+      "index": 0,
+      "value": {
+        "gateway_id": "{{gateway_id}}",
+        "servs": [
+          {
+            "id": 0,
+            "serv_enabled": true,
+            "serv_addr": "localhost",
+            "serv_type": "ursalink",
+            "serv_port_up": 1700,
+            "serv_port_down": 1700,
+            "serv_mqtt_port": 1883,
+            "sync_freq_plan": false
+          },
+          {
+            "id": 1,
+            "serv_enabled": true,
+            "serv_addr": "ball-b-cs.cortex-media.de",
+            "serv_type": "semtech",
+            "serv_port_up": 1700,
+            "serv_port_down": 1700,
+            "sync_freq_plan": false
+          },
+          {
+            "id": 2,
+            "serv_enabled": true,
+            "serv_addr": "127.0.0.1",
+            "serv_type": "semtech",
+            "serv_port_up": 1702,
+            "serv_port_down": 1702,
+            "sync_freq_plan": false
+          }
+        ]
+      }
+    },
+    {
+      "label": "Packet Forwarder Advanced",
+      "core": "yruo_loragw",
+      "base": "advanced",
+      "index": 0,
+      "value": {
+        "keepalive_interval": 10,
+        "stat_interval": 30,
+        "push_timeout_ms": 100
+      }
+    },
+    {
+      "label": "Mobilfunk",
+      "core": "yruo_cell",
+      "base": "yruo_cell",
+      "index": 0,
+      "value": {
+        "enable1": 1,
+        "apn1": "wsim",
+        "auth1": 0,
+        "roam1": 1,
+        "user1": "",
+        "password1": ""
+      }
+    },
+    {
+      "label": "WireGuard wg0",
+      "core": "yruo_wireguard",
+      "base": "yruo_wireguard",
+      "index": 1,
+      "value": {
+        "enable": 1,
+        "custom_private_key": 1,
+        "private_key": "{{vpn_private_key}}",
+        "address": "{{vpn_address}}",
+        "port": 51820,
+        "dns": "1.1.1.1,1.0.0.1,8.8.8.8",
+        "peers": [
+          {
+            "name": "WireguardJK",
+            "public_key": "{{vpn_server_public_key}}",
+            "allowed_ips": [
+              "172.30.0.0/20"
+            ],
+            "route_enable": 1,
+            "psk": "",
+            "endpoint": "88.99.172.109",
+            "port": 51820,
+            "keepalive": 25
+          }
+        ]
+      }
+    },
+    {
+      "label": "WLAN",
+      "core": "yruo_wifi",
+      "base": "yruo_wifi",
+      "index": 0,
+      "value": {
+        "enabled": 1,
+        "mode": 0,
+        "ssid": "{{wifi_ssid}}",
+        "encryption": 5,
+        "key": "{{wifi_key}}",
+        "country_code": "DE",
+        "ip": "192.168.1.1",
+        "mask": "255.255.255.0"
+      }
+    },
+    {
+      "label": "Zeit/NTP",
+      "core": "yruo_system",
+      "base": "time",
+      "index": 0,
+      "value": {
+        "timezone": "UTC+1 Europe/Berlin",
+        "ntp_enable": 1,
+        "ntp_address": "pool.ntp.org",
+        "ntp_address_secondary": "0.de.pool.ntp.org"
+      }
+    },
+    {
+      "label": "System-Dienste",
+      "core": "yruo_system",
+      "base": "general",
+      "index": 0,
+      "value": {
+        "ssh_enable": 0,
+        "telnet_enable": 0
+      }
+    },
+    {
+      "label": "Node-RED",
+      "core": "yruo_loragw",
+      "base": "node_red",
+      "index": 0,
+      "value": {
+        "enable": true,
+        "ssl_enable": true
+      }
+    }
+  ]
+}

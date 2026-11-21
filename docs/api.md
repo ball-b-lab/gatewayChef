@@ -52,9 +52,22 @@ Notes:
 ### Database
 - `GET /api/db/fetch-ip`
   - `data`: `{ vpn_ip, private_key }`
+  - nur Vorschau, **reserviert nicht**. Zum Vergeben `reserve-ip` nutzen.
+- `POST /api/db/reserve-ip`
+  - body: `{ eui }`
+  - bindet atomar den nächsten `FREE`-Eintrag an die EUI (Status `IN_PROGRESS`, `FOR UPDATE SKIP LOCKED`).
+    Ist die EUI schon gebunden, kommt derselbe Eintrag zurück (`reused: true`). Zwei gleichzeitige
+    Aufrufe bekommen nie dieselbe IP.
+  - `data`: `{ vpn_ip, private_key, reused, server_public_key }`
+  - `404`, wenn der Pool leer ist
+- `GET /api/db/gateways`
+  - alle Einträge außer `FREE`: `[{ vpn_ip, eui, gateway_name, serial_number, status_overall, last_sync }]`, ohne Keys
+- `GET /api/db/pool-status`
+  - `data`: `{ free, total, vpn_ips }` (für `scripts/pool_refill.py`)
 - `POST /api/db/vpn-key`
   - body: `{ vpn_ip }`
-  - `data`: `{ private_key, serial_number }`
+  - `data`: `{ private_key, serial_number, server_public_key }`
+  - `server_public_key` kommt aus `VPN_SERVER_PUBLIC_KEY` der Cloud-Instanz (leer, wenn nicht gesetzt)
 - `POST /api/db/import-gateway-inventory`
   - multipart/form-data mit Feld `file` = generierte `peer_inventory.csv`
   - importiert nur `gateway`-Profile nach `gateway_inventory`
@@ -141,3 +154,22 @@ Notes:
 - `POST /api/milesight/create`
   - body: `{ eui?, serial_number?, gateway_name }`
   - `data`: `{ status: "success", data, request_id }`
+
+### Flotte (nur Station/lokal, nicht im `cloud_api`-Modus)
+Ohne `apply: true` wird immer nur geprüft.
+- `GET /fleet`: Weboberfläche
+- `GET /api/fleet/status?deep=1&ip=a,b`: Erreichbarkeit über VPN und EUI-Abgleich; `deep` liest zusätzlich
+  Firmware, WLAN-Region und Flow-Version
+  Jede Zeile eines erreichbaren Gateways enthält `driveby` (aus `/node-red/driveby/health`, ab Flow 1.1.0, sonst `null`):
+  `flow_version`, `receiving` (stat < 65 s), `seconds_since_stat`, `seconds_since_rxpk`, `rxpk`,
+  `app_seconds_since_poll`, `app_last_poll`, `app_client`, `app_polls` (wann die dbmonitor-App zuletzt `/status` abgeholt hat).
+- `GET /api/fleet/catalog`: Patches, Flow-Bundles, freigegebene Firmwares
+- `POST /api/fleet/patch` `{ vpn_ip, name, apply, allow_risky }`
+  - `data.result`: `ok | would_change | changed | skipped | offline | failed`
+- `POST /api/fleet/nodered` `{ vpn_ip, version, apply }`
+  - `data.result`: `ok | would_change | updated | unchanged | failed | offline`; bei `failed` zusätzlich
+    `rolled_back` und `rollback_ok`
+- `POST /api/fleet/firmware` `{ vpn_ip, version, apply }`
+  - `data.result`: `ok | would_change | updated | failed | offline`, dazu `checks: [{label, ok, info}]`
+    (Upload, Neustart, Firmware, upgrade_error, Schnittstelle, Node-RED-Flows erhalten)
+- `GET /api/fleet/catalog` enthält zusätzlich `firmware_images` und `firmware_upload_configured`

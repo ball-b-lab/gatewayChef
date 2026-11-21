@@ -1,0 +1,8 @@
+{
+  "name": "wifi-country-de",
+  "description": "WLAN-Region auf DE (Referenzgeraete standen ab Werk auf CN)",
+  "firmware": ["60.0.0.49"],
+  "sections": [
+    {"core": "yruo_wifi", "base": "yruo_wifi", "index": 0, "label": "WLAN", "value": {"country_code": "DE"}}
+  ]
+}
