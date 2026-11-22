@@ -237,3 +237,19 @@ Quellen: [Milesight Release Notes](https://www.milesight.com/iot/resources/downl
 [Milesight Firmware-Download](https://www.milesight.com/support/resources/firmware),
 [ChirpStack: Milesight-Gateway, Multi-Destination](https://chirpstack.io/docs/gateway-configuration/milesight.html),
 [UG65 cloudflared (Firmware-Revisionen)](https://github.com/fmk24000/milesight-ug65-cloudflared).
+
+## LNS-Reihenfolge: Node-RED zuerst (22.11.2026)
+
+Bisher war Ziel 1 der interne LNS (`ursalink`, localhost). Er war nur an, damit der Forwarder immer ein
+antwortendes Ziel hat und sein Log weiterschreibt, auch wenn der Cloud-LNS weg ist. Seit Flow 1.1.1
+bestätigt Node-RED `PUSH_DATA` und `PULL_DATA` selbst, und zwar vom Port 1702. Vorher ging die Antwort
+von einem Zufallsport weg und der Forwarder verwarf sie: `connected 0`, `ackr 0.0`.
+
+Neue Reihenfolge (Patch `lns-nodered-first`, in den Profilen 60.0.0.49 und 60.0.0.50):
+1. `127.0.0.1:1702` semtech (Node-RED, Drive-by-Datenweg)
+2. `ball-b-cs.cortex-media.de:1700` semtech (Cloud-LNS)
+3. interner LNS `ursalink`: aus
+
+Getestet an JK_Test (60.0.0.50): Ziel 1 und 2 `connected 1`, `ackr 100`, Empfang läuft weiter,
+`/lora/health` ONLINE (Cortex-ACK 6 s alt).
+Reihenfolge beim Ausrollen: erst Flow 1.1.1, dann der Patch.

@@ -1,0 +1,23 @@
+{
+  "name": "lns-nodered-first",
+  "description": "Packet Forwarder: Node-RED (semtech 127.0.0.1:1702) als 1. Ziel, Cortex-LNS als 2., interner LNS (ursalink) aus. Node-RED bestaetigt PUSH/PULL_DATA selbst (ab Flow 1.1.1), damit hat der Forwarder immer ein antwortendes Ziel. Erst Flow 1.1.1, dann dieser Patch.",
+  "firmware": ["60.0.0.49", "60.0.0.50"],
+  "sections": [
+    {
+      "core": "yruo_loragw",
+      "base": "general_conf",
+      "index": 0,
+      "label": "Packet Forwarder",
+      "value": {
+        "servs": [
+          {"id": 0, "serv_enabled": true, "serv_addr": "127.0.0.1", "serv_type": "semtech",
+           "serv_port_up": 1702, "serv_port_down": 1702, "sync_freq_plan": false},
+          {"id": 1, "serv_enabled": true, "serv_addr": "ball-b-cs.cortex-media.de", "serv_type": "semtech",
+           "serv_port_up": 1700, "serv_port_down": 1700, "sync_freq_plan": false},
+          {"id": 2, "serv_enabled": false, "serv_addr": "localhost", "serv_type": "ursalink",
+           "serv_port_up": 1700, "serv_port_down": 1700, "serv_mqtt_port": 1883, "sync_freq_plan": false}
+        ]
+      }
+    }
+  ]
+}
