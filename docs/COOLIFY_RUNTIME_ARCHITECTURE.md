@@ -156,3 +156,28 @@ Hinweis zu Build-Metadaten:
   - `build_tag` und `build_time` bleiben `unknown`
 - Vorteil mit gesetzten Werten: besserer Deploy-Nachweis.
 - Nachteil: zusaetzlicher Pflegeaufwand pro Deploy.
+
+## 12) Cloud im Gateway-VPN (WireGuard, 172.30.0.20)
+
+Die Cloud-App ist selbst ein WireGuard-Peer, damit sie die Gateways (`172.30.0.0/16`) direkt erreicht.
+
+- Container-Start: `scripts/vpn-up.sh` (ENTRYPOINT) legt `wg0` an und startet danach die App.
+  Ohne `WG_PRIVATE_KEY` oder bei einem Fehler startet die App trotzdem, nur ohne Tunnel (Log-Zeile `VPN: ...`).
+- Coolify-Env: `WG_PRIVATE_KEY` (Secret, nur in Coolify), `WG_ADDRESS=172.30.0.20/32`,
+  `VPN_SERVER_PUBLIC_KEY` (wie fuer die Gateways). Optional `WG_ENDPOINT` (Standard `88.99.172.109:51820`),
+  `WG_ALLOWED_IPS` (Standard `172.30.0.0/16`).
+- Coolify Custom Docker Options: `--cap-add=NET_ADMIN`. Der Host braucht das WireGuard-Kernelmodul.
+- VPN-Server: Peer fuer die Cloud in `/etc/wireguard/wg0.conf`:
+
+```ini
+[Peer]
+# gatewaychef-cloud
+PublicKey = qfdkvnjRWQJD6PeeGuscXBRGT0D8JR65VJNxQZm7Hjs=
+AllowedIPs = 172.30.0.20/32
+```
+
+  danach `wg syncconf wg0 <(wg-quick strip wg0)`.
+- Pruefen: Coolify-Log zeigt `VPN: wg0 172.30.0.20/32 -> ...`; `POST /api/network/ping-service` mit
+  `{"host": "172.30.0.116"}` antwortet erreichbar.
+- Die Flotten-Seite (`/fleet`) bleibt in `APP_MODE=cloud_api` aus. Sie in der Cloud einzuschalten braucht
+  zuerst einen Login davor und das Gateway-Passwort in der Cloud.

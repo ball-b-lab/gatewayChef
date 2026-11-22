@@ -112,6 +112,7 @@ Optional:
 -   **Dockerfile:** `Dockerfile`
 -   **Port:** `5000`
 -   **Start Command:** leave default from Dockerfile
+-   **Custom Docker Options:** `--cap-add=NET_ADMIN` (WireGuard ins Gateway-VPN, siehe `docs/COOLIFY_RUNTIME_ARCHITECTURE.md` Abschnitt 12)
 -   **Required env vars:** `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
 -   **Mode:** `APP_MODE=cloud_api`
 -   **Recommended service auth:** `API_SERVICE_TOKEN` (protects `/api/db*`, `/api/sim*`, `/api/provision`, `/api/confirm`)
