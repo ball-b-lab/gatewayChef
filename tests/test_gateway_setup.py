@@ -1,4 +1,5 @@
 import os
+import os
 import unittest
 from unittest import mock
 
@@ -9,6 +10,8 @@ from services.setup.model import CHANGED, FAIL, OK, SKIPPED, WARN, WOULD_CHANGE,
 from services.setup.pipeline import Pipeline, exit_code, format_results
 from tests.test_gateway_config import VARS, FakeSession, _configured_state
 from services.gateway_config import UG65Client
+
+os.environ["FIRMWARE_AUTO_UPGRADE"] = "0"  # firmware step has its own tests (test_firmware_step)
 
 EUI = VARS["gateway_id"]
 VPN = "172.30.0.116"

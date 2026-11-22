@@ -12,6 +12,7 @@ Fleet tools (run inside the VPN, e.g. on the Linux station):
   driveby (--ip IP | --host LAN-IP) [--need-rxpk] [--wait S]
                                               Drive-by-Datenweg testen (stat; mit Testsender auch Funkpakete)
   nodered-export --host IP --version V        Flows eines Referenzgeraets als Bundle speichern
+  qualify --host IP [--approve]                neue Firmware ab Werk: Schnittstelle+Netz pruefen, Profil freigeben
   profile-check --host IP [--profile NAME]    neue Firmware: passt die Schnittstelle noch zum Profil?
 
 Ohne --apply wird nur geprueft. Exit: 0 ok, 1 Aenderungen offen, 2 Fehler.
@@ -19,6 +20,7 @@ Ohne --apply wird nur geprueft. Exit: 0 ok, 1 Aenderungen offen, 2 Fehler.
 import argparse
 import json
 import os
+import time
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -96,6 +98,9 @@ def main(argv=None):
     c = sub.add_parser("profile-check")
     c.add_argument("--host", required=True)
     c.add_argument("--profile", default=os.getenv("GATEWAY_PROFILE", "auto"))
+    q = sub.add_parser("qualify")
+    q.add_argument("--host", required=True)
+    q.add_argument("--approve", action="store_true", help="bei Erfolg Profil ug65-<fw>.json anlegen")
     args = ap.parse_args(argv)
 
     try:
@@ -113,6 +118,27 @@ def main(argv=None):
                     json.dump(result["draft"], fh, indent=2, ensure_ascii=False)
                 print(f"Entwurf: {path}")
             return 0 if result["compatible"] else 1
+
+        if args.cmd == "qualify":
+            from services.setup import checks
+            client = gc.UG65Client(args.host)
+            client.login(os.getenv("GATEWAY_USER", "admin"), os.getenv("GATEWAY_PASSWORD", ""))
+            client.get("yruo_wifi", "yruo_wifi")
+            if client.firmware in gc.known_profiles():
+                print(f"Firmware {client.firmware} hat schon ein Profil.")
+                return 0
+            base = gc.profile_for_firmware(client.firmware)
+            try:
+                dev = checks.device_info(args.host)
+            except Exception as exc:  # noqa: BLE001
+                dev = {}
+                print(f"Hinweis: /device-info nicht lesbar ({exc})")
+            result = pc.qualify(client, gc.load_profile(base), dev)
+            print(pc.format_qualify(result, base))
+            if args.approve and result["qualifiable"]:
+                eui = ((dev.get("device") or {}).get("eui")) or args.host
+                print("Profil angelegt:", pc.approve(result, gc.PROFILE_DIR, f"{time.strftime('%Y-%m-%d')} an {eui}"))
+            return 0 if result["qualifiable"] else 1
 
         if args.cmd == "driveby":
             from services.setup import checks

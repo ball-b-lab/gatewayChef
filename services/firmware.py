@@ -51,7 +51,7 @@ def find_images(directory=None):
 
 
 def upload_form():
-    t, f = os.getenv("FIRMWARE_UPLOAD_TYPE", ""), os.getenv("FIRMWARE_UPLOAD_FILE", "")
+    t, f = os.getenv("FIRMWARE_UPLOAD_TYPE", "upgrade"), os.getenv("FIRMWARE_UPLOAD_FILE", "firmware.bin")
     if not t or not f:
         raise FirmwareError("FIRMWARE_UPLOAD_TYPE/FIRMWARE_UPLOAD_FILE nicht gesetzt (einmal am Geraet ermitteln, "
                             "siehe docs/GATEWAY_SETUP_KONZEPT.md, Abschnitt Firmware-Update)")

@@ -327,6 +327,11 @@ class Pipeline:
                 self.on_step(result)
             return result
 
+        if not only_check:
+            from services.setup.firmware_step import step_firmware
+            fw_result = step_firmware(self, apply)
+            if fw_result and add(fw_result).failed:
+                return self.results
         pre, info = self.step_preflight(gw, apply)
         if add(pre).failed and not (force_firmware and pre.checks and all(
                 ok is not False for label, ok, _ in pre.checks if label not in ("Firmware freigegeben", "  Delta"))):

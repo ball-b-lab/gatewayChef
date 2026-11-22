@@ -269,8 +269,23 @@ def firmware_upgrade(fleet, gw, version, apply=False, images=None, wait_secs=Non
     flows_before = _flow_hash(fleet, host)
     up = fw.upload(client, host, image)
     wait = wait_secs or int(os.getenv("FIRMWARE_UPGRADE_WAIT", "1200"))
-    back, back_detail = fw.wait_reboot(lambda: fleet.identity(gw)[0], wait, sleep=fleet.sleep)
+    # The upload host can vanish with the reboot (WLAN of the gateway): also accept the
+    # gateway coming back on one of its fallback hosts (its VPN IP) and check from there.
+    candidates = [gw] + [dict(gw, vpn_ip=h) for h in gw.get("fallback_hosts") or [] if h and h != host]
+    seen = {}
+
+    def _is_up():
+        for cand in candidates:
+            if fleet.identity(cand)[0]:
+                seen["gw"] = cand
+                return True
+        return False
+
+    back, back_detail = fw.wait_reboot(_is_up, wait, sleep=fleet.sleep)
     checks_out = [("Upload", True, up), ("Neustart", back, back_detail)]
+    if back and seen["gw"]["vpn_ip"] != host:
+        host = seen["gw"]["vpn_ip"]
+        checks_out.append(("Nachpruefung ueber", None, f"{host} (Upload-Host nach Neustart weg)"))
     if back:
         client = fleet._login(host)
         client.get("yruo_wifi", "yruo_wifi")
