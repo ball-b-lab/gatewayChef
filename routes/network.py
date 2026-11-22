@@ -33,11 +33,12 @@ def _run_local_ping(host):
         if 'windows' in system_name:
             # Windows: -n count, -w timeout (ms)
             cmd = ["ping", "-n", "1", "-w", "1000", host]
+        elif system_name == 'darwin':
+            # macOS: -W timeout in ms
+            cmd = ["ping", "-c", "1", "-W", "2000", host]
         else:
-            # Linux/Mac: -c count, -W timeout (ms or seconds depending on impl)
-            # Linux ping -W is usually seconds, MacOS -W is ms. 
-            # Safe bet for 1 second is usually ok.
-            cmd = ["ping", "-c", "1", "-W", "1000", host]
+            # Linux (cloud container): -W timeout in seconds; VPN over SIM can take > 1 s
+            cmd = ["ping", "-c", "1", "-W", "2", host]
 
         result = subprocess.run(
             cmd,
