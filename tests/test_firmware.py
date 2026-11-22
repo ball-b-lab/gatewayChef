@@ -99,6 +99,31 @@ class FirmwareTest(unittest.TestCase):
             self.assertEqual((labels["Firmware"], labels["Schnittstelle"], labels["Node-RED-Flows erhalten"],
                               labels["Drive-by-Datenweg"]), (True, True, True, True))
 
+    def test_upgrade_over_wlan_rechecks_on_vpn(self):
+        class WlanGone(Flaky):
+            """Upload host (WLAN) never comes back after the reboot, the VPN IP does."""
+            def get(self, url, timeout=None):
+                import requests
+                if "//192.168.1.1/" in url and url.endswith("/device-info") and self.after:
+                    raise requests.ConnectionError("wlan gone")
+                return super().get(url, timeout)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, ENV):
+            imgs = _images(tmp)
+            session = UploadSession(_configured_state(), "60.0.0.49", "60.0.0.50")
+            session.cookies = {"td": "SID"}
+            http = WlanGone()
+            http.after = False
+            orig = session.post
+            def post(url, data=None, timeout=None, files=None):
+                http.after = True
+                return orig(url, data, timeout, files)
+            session.post = post
+            gw = dict(GW, vpn_ip="192.168.1.1", fallback_hosts=[GW["vpn_ip"]])
+            res = fl.firmware_upgrade(_fleet(session, http), gw, "60.0.0.50", apply=True, images=imgs, wait_secs=60)
+            self.assertEqual(res["result"], "updated", res)
+            self.assertEqual(res["vpn_ip"], GW["vpn_ip"])
+            self.assertIn("Nachpruefung ueber", [c["label"] for c in res["checks"]])
+
     def test_upgrade_failure_when_firmware_did_not_change(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, ENV):
             imgs = _images(tmp)

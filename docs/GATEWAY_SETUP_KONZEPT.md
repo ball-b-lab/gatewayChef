@@ -222,12 +222,35 @@ Ablauf je Gateway:
 Nicht automatisch möglich ist ein Rollback. Ein Downgrade ist ein weiteres Update mit dem alten Image, und
 das entscheidet ein Mensch.
 
-**Vor dem ersten echten Update zu klären:**
-- **Formularwerte:** Die beiden Werte `type=…&file=…` der Upgrade-Seite sind in der gesicherten
-  Weboberfläche nicht enthalten. Einmal am Gerät ermitteln: Weboberfläche → Wartung → Upgrade, die
-  Browser-Entwicklertools öffnen, die Anfrage an `/cgi-bin/file-import` ansehen und die Werte als
-  `FIRMWARE_UPLOAD_TYPE`/`FIRMWARE_UPLOAD_FILE` eintragen. Bis dahin verweigert das Tool den Upload, weil
-  derselbe Endpunkt auch Backups einspielt.
+**Formularwerte (am Gerät ermittelt 22.11.2026, FW 60.0.0.49):** `type=upgrade&file=firmware.bin`, die
+Einstellungen bleiben erhalten. Mit Werksreset wäre es `upgrade_with_reset`. Beides steht als Standard im
+Code (`FIRMWARE_UPLOAD_TYPE`/`FIRMWARE_UPLOAD_FILE` überschreiben).
+
+**Nachprüfung über VPN:** Läuft der Upload über das WLAN des Gateways, verliert der Rechner das WLAN mit dem
+Neustart. Deshalb gilt das Gateway auch als zurück, wenn es auf seiner VPN-IP antwortet (`fallback_hosts`,
+aus `/device-info`). Alle Nachtests laufen dann dort.
+
+**Erst-Update 22.11.2026:** JK_Test 60.0.0.49 → 60.0.0.50 über WLAN; Flows, Einstellungen und
+LoRa-Empfang danach unverändert.
+
+## Firmware immer zuerst auf die neueste (seit 21.11.2026)
+
+Das Setup beginnt mit dem Schritt **Firmware**: Ist das Gateway älter als das neueste Image in
+`FIRMWARE_DIR`, wird es zuerst hochgezogen (Dry-Run meldet `49 -> 50`), erst danach konfiguriert.
+`FIRMWARE_AUTO_UPGRADE=0` schaltet das ab.
+
+## Gateway kommt ab Werk mit neuerer, ungeprüfter Firmware
+
+`gatewaychef fleet qualify --host <ip>` prüft sofort:
+- die Schnittstelle gegen das neueste Profil (Abschnitte, Felder, Typen; neue Felder sind nur Info),
+- die Netz-Interfaces `eth0`, `cellular0`, `wlan0` (müssen da sein; `wg0`, Route und VPN-IP sind ab Werk
+  noch leer und nur Info),
+
+und gibt eine Zusammenfassung. Passt alles, legt `--approve` das Profil `ug65-<fw>.json` an
+(Entwurf = Profil der Vorgänger-Version, nur mit den Feldern, die das Gerät kennt). Danach im Repo
+committen. So entstand `ug65-60.0.0.50.json`.
+
+**Weitere Punkte:**
 - **Datenvolumen:** Ein Image hat rund 140 MB. Über das VPN läuft das über die SIM des Gateways. Bei
   IoT-Tarifen mit kleinem Volumen das Update besser an der Station im LAN machen (`--host`) oder vor Ort.
 - **Session-ID:** Gesucht wird sie in der Login-Antwort und im Cookie `td`. Am Gerät bestätigen.

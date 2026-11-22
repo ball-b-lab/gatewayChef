@@ -98,6 +98,7 @@ gatewaychef fleet nodered --ip 172.30.0.116 --apply                  # aktualisi
 gatewaychef fleet firmware --version 60.0.0.49 --host 192.168.1.1   # Firmware an der Station (LAN)
 gatewaychef fleet firmware --version 60.0.0.49 --ip 172.30.0.116 --apply  # über VPN, mit Nachtest
 gatewaychef fleet profile-check --host 192.168.1.1                   # neue Firmware: Entwurf eines Profils
+gatewaychef fleet qualify --host 192.168.1.1 --approve              # neue Firmware ab Werk: pruefen + Profil freigeben
 ```
 
 Wie die Flotte arbeitet, steht in `GATEWAY_SETUP_KONZEPT.md`, Abschnitt „Flotte“.
