@@ -9,11 +9,12 @@ align(fleet, ip)    -> bring one online gateway to the standard, only if it is
 
 Order and safety:
   1. Stability gate: STABLE_SAMPLES answers in a row over VPN, latency under
-     STABLE_MAX_MS, Node-RED /lora/health ONLINE. Otherwise nothing is touched.
+     STABLE_MAX_MS, cloud LNS connected as the packet forwarder reports it
+     (servs[].connected). Otherwise nothing is touched.
   2. Node-RED flow first (the LNS order needs flow >= 1.1.1 to ACK on 1702).
   3. Plain parameters (WLAN country, NTP, ...): written together, read back.
   4. LNS / packet forwarder targets last and alone: the old servs are kept,
-     after writing the gateway must answer, /lora/health must be ONLINE and
+     after writing the gateway must answer, the forwarder must report the cloud LNS connected and
      the forwarder must deliver fresh UDP packets. If not: the old servs are
      written back (rollback) and the result is "failed".
 Firmware is only shown here; upgrades stay a separate, explicit action.
@@ -29,11 +30,27 @@ from services import nodered as nr
 from services.setup import checks
 
 LNS_SECTION = ("yruo_loragw", "general_conf")
+# Node-RED as 1st LNS target only where tested: on 60.0.0.48 the forwarder log then lacks the
+# Cortex ACK lines and /lora/health shows OFFLINE although Cortex is connected (0.115, 22.11.2026).
+LNS_FIRST_FW = [v.strip() for v in os.getenv("LNS_NODERED_FIRST_FW", "60.0.0.50").split(",") if v.strip()]
+LEGACY_SERVS = [
+    {"id": 0, "serv_enabled": True, "serv_addr": "localhost", "serv_type": "ursalink", "serv_port_up": 1700,
+     "serv_port_down": 1700, "serv_mqtt_port": 1883, "sync_freq_plan": False},
+    {"id": 1, "serv_enabled": True, "serv_addr": "ball-b-cs.cortex-media.de", "serv_type": "semtech",
+     "serv_port_up": 1700, "serv_port_down": 1700, "sync_freq_plan": False},
+    {"id": 2, "serv_enabled": True, "serv_addr": "127.0.0.1", "serv_type": "semtech", "serv_port_up": 1702,
+     "serv_port_down": 1702, "sync_freq_plan": False},
+]
 
 
-def _standard(profile):
-    return {"firmware": profile.get("firmware"),
-            "sections": [s for s in profile["sections"] if s["core"] not in fl.RISKY_CORES]}
+def _standard(profile, firmware=None):
+    import copy
+    sections = [copy.deepcopy(s) for s in profile["sections"] if s["core"] not in fl.RISKY_CORES]
+    if firmware and firmware.split("-")[0] not in LNS_FIRST_FW:
+        for sec in sections:
+            if (sec["core"], sec["base"]) == LNS_SECTION and "servs" in sec["value"]:
+                sec["value"]["servs"] = copy.deepcopy(LEGACY_SERVS)
+    return {"firmware": profile.get("firmware"), "sections": sections}
 
 
 def _vars(gw):
@@ -47,6 +64,23 @@ def _is_lns(change):
 def _changes_out(changes):
     return [{"label": c.label, "lns": _is_lns(c),
              "fields": {k: [gc._mask(k, a), gc._mask(k, b)] for k, (a, b) in c.fields.items()}} for c in changes]
+
+
+def cloud_lns(fleet, host):
+    """(connected, detail) of the cloud LNS as the packet forwarder itself reports it
+    (servs[].connected). Source of truth: Node-RED /lora/health parses log lines and is
+    unreliable on older flows / firmware (UNKNOWN, LNS_DISCONNECTED although data flows)."""
+    try:
+        val = fleet._login(host).get(*LNS_SECTION)
+        val = val[0]["value"] if isinstance(val, list) else val
+    except (gc.GatewayConfigError, requests.RequestException, KeyError, IndexError, TypeError) as exc:
+        return False, f"Forwarder-Status nicht lesbar ({type(exc).__name__})"
+    servs = [s for s in val.get("servs", []) if s.get("serv_enabled") and s.get("serv_type") == "semtech"
+             and s.get("serv_addr") not in ("127.0.0.1", "localhost")]
+    if not servs:
+        return False, "kein Cloud-LNS eingetragen"
+    s = servs[0]
+    return bool(s.get("connected")), f"{s['serv_addr']} {'verbunden' if s.get('connected') else 'nicht verbunden'}"
 
 
 def _lora_health(fleet, host):
@@ -71,7 +105,7 @@ def compare(fleet, gw):
         out.update(result="blocked", detail=f"Firmware {client.firmware} nicht freigegeben ({compat['status']})",
                    changes=[], client=client)
         return out
-    plan = gc.plan(client, _standard(profile), _vars(gw), skip_missing=True)
+    plan = gc.plan(client, _standard(profile, client.firmware), _vars(gw), skip_missing=True)
     bundles = nr.load_bundles()
     latest = nr.latest_version(bundles)
     try:
@@ -112,20 +146,21 @@ def stability(fleet, gw, samples=None, interval=None, max_ms=None):
         lat.append(ms or 0)
         if i < samples - 1:
             fleet.sleep(interval)
-    health = _lora_health(fleet, gw["vpn_ip"]) or {}
-    if health.get("status") != "ONLINE":
-        return False, f"LNS nicht ONLINE ({health.get('status') or 'keine Antwort'})"
-    return True, f"{samples}x erreichbar, max {max(lat)} ms, LNS ONLINE"
+    lns_ok, lns_info = cloud_lns(fleet, gw["vpn_ip"])
+    if not lns_ok:
+        return False, f"LNS: {lns_info}"
+    return True, f"{samples}x erreichbar, max {max(lat)} ms, {lns_info}"
 
 
 # ------------------------------------------------------------ align
 def _write(client, changes):
-    for ch in changes:
-        client.set(ch.core, ch.base, ch.index, ch.set_value())
+    """Write and apply. A timeout is not an error here: the packet forwarder restarts
+    while answering, the read-back / verification afterwards decides."""
     try:
+        for ch in changes:
+            client.set(ch.core, ch.base, ch.index, ch.set_value())
         client.apply()
     except gc.GatewayConfigError as exc:
-        # forwarder restart can make the gateway answer late; the read-back decides
         if not isinstance(exc.__cause__, requests.ReadTimeout):
             raise
 
@@ -143,17 +178,17 @@ def _verify_lns(fleet, gw):
         return False, f"nicht erreichbar: {detail}"
     deadline = time.monotonic() + int(os.getenv("LNS_VERIFY_WAIT", "90"))
     while True:
-        health = _lora_health(fleet, gw["vpn_ip"]) or {}
-        if health.get("status") == "ONLINE":
+        lns_ok, lns_info = cloud_lns(fleet, gw["vpn_ip"])
+        if lns_ok:
             break
         if time.monotonic() >= deadline:
-            return False, f"LNS nicht ONLINE ({health.get('status') or 'keine Antwort'})"
+            return False, f"LNS: {lns_info}"
         fleet.sleep(5)
     db_ok, db_info = checks.check_driveby(gw["vpn_ip"], wait_secs=int(os.getenv("DRIVEBY_WAIT", "75")),
                                           http=fleet.http, sleep=fleet.sleep)
     if db_ok is False:
         return False, f"Datenweg: {db_info}"
-    return True, f"LNS ONLINE, {db_info}"
+    return True, f"{lns_info}, {db_info}"
 
 
 def align(fleet, vpn_ip, apply=False, force=False):
@@ -192,8 +227,11 @@ def align(fleet, vpn_ip, apply=False, force=False):
     if lns:
         ch = lns[0]
         before = {k: a for k, (a, _) in ch.fields.items()}
-        _write(fleet._login(vpn_ip), lns)
-        ok, info = _verify_lns(fleet, gw)
+        try:
+            _write(fleet._login(vpn_ip), lns)
+            ok, info = _verify_lns(fleet, gw)
+        except gc.GatewayConfigError as exc:   # whatever happens after touching the LNS: verify or roll back
+            ok, info = False, str(exc)
         steps.append(("LNS-Ziele", ok, info))
         if not ok:
             rb = gc.Change(ch.core, ch.base, ch.index, ch.label,

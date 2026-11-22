@@ -83,7 +83,18 @@ class FirmwareTest(unittest.TestCase):
             self.assertIn("60.0.0.49 -> 60.0.0.50-r1", res["detail"])
             with mock.patch.dict(os.environ, {"FIRMWARE_UPLOAD_TYPE": "", "FIRMWARE_UPLOAD_FILE": ""}):
                 with self.assertRaises(fw.FirmwareError):
-                    fl.firmware_upgrade(f, GW, "60.0.0.50", apply=True, images=imgs, wait_secs=5)
+                    fl.firmware_upgrade(f, GW, "60.0.0.50", apply=True, images=imgs, wait_secs=5, force=True)
+            self.assertEqual(session.uploads, [])
+
+    def test_unstable_gateway_gets_no_upload(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, ENV):
+            imgs = _images(tmp)
+            session = UploadSession(_configured_state(), "60.0.0.49", "60.0.0.50")
+            f = _fleet(session, Flaky())
+            with mock.patch("services.fleet_align.stability", return_value=(False, "Latenz 5000 ms > 3000 ms")):
+                res = fl.firmware_upgrade(f, GW, "60.0.0.50", apply=True, images=imgs, wait_secs=5)
+            self.assertEqual(res["result"], "skipped")
+            self.assertIn("Latenz", res["detail"])
             self.assertEqual(session.uploads, [])
 
     def test_upgrade_with_post_checks(self):
@@ -92,7 +103,7 @@ class FirmwareTest(unittest.TestCase):
             session = UploadSession(_configured_state(), "60.0.0.49", "60.0.0.50")
             session.cookies = {"td": "SID"}
             f = _fleet(session, Flaky())
-            res = fl.firmware_upgrade(f, GW, "60.0.0.50", apply=True, images=imgs, wait_secs=60)
+            res = fl.firmware_upgrade(f, GW, "60.0.0.50", apply=True, images=imgs, wait_secs=60, force=True)
             self.assertEqual(res["result"], "updated", res)
             self.assertEqual(session.uploads[0], {"sessionid": "SID", "size": "3", "filename": "type=T&file=F"})
             labels = {c["label"]: c["ok"] for c in res["checks"]}
@@ -119,7 +130,7 @@ class FirmwareTest(unittest.TestCase):
                 return orig(url, data, timeout, files)
             session.post = post
             gw = dict(GW, vpn_ip="192.168.1.1", fallback_hosts=[GW["vpn_ip"]])
-            res = fl.firmware_upgrade(_fleet(session, http), gw, "60.0.0.50", apply=True, images=imgs, wait_secs=60)
+            res = fl.firmware_upgrade(_fleet(session, http), gw, "60.0.0.50", apply=True, images=imgs, wait_secs=60, force=True)
             self.assertEqual(res["result"], "updated", res)
             self.assertEqual(res["vpn_ip"], GW["vpn_ip"])
             self.assertIn("Nachpruefung ueber", [c["label"] for c in res["checks"]])
@@ -129,7 +140,7 @@ class FirmwareTest(unittest.TestCase):
             imgs = _images(tmp)
             session = UploadSession(_configured_state(), "60.0.0.49", "60.0.0.49")
             session.cookies = {"td": "SID"}
-            res = fl.firmware_upgrade(_fleet(session, Flaky()), GW, "60.0.0.50", apply=True, images=imgs, wait_secs=60)
+            res = fl.firmware_upgrade(_fleet(session, Flaky()), GW, "60.0.0.50", apply=True, images=imgs, wait_secs=60, force=True)
             self.assertEqual(res["result"], "failed")
 
     def test_rejected_upload_raises(self):
@@ -139,7 +150,7 @@ class FirmwareTest(unittest.TestCase):
                                     answer=Resp({"templet_code": "E1"}, 400))
             session.cookies = {"td": "SID"}
             with self.assertRaises(fw.FirmwareError):
-                fl.firmware_upgrade(_fleet(session, Flaky()), GW, "60.0.0.50", apply=True, images=imgs, wait_secs=5)
+                fl.firmware_upgrade(_fleet(session, Flaky()), GW, "60.0.0.50", apply=True, images=imgs, wait_secs=5, force=True)
 
 
 if __name__ == "__main__":
