@@ -41,8 +41,12 @@
     <select id="firmware" class="form-select form-select-sm" style="width:auto"></select>
     <button class="btn btn-sm btn-outline-secondary" onclick="run('firmware', false)">Firmware prüfen</button>
     <button class="btn btn-sm btn-danger" onclick="run('firmware', true)" title="Gateways nacheinander, Stopp beim ersten Fehler">Firmware aktualisieren</button>
+    <span class="vr mx-2"></span>
+    <button class="btn btn-sm btn-outline-secondary" onclick="run('compare', false)" title="Vergleich mit unserem Standard: Profil der Firmware + neuester Flow">Standard prüfen</button>
+    <button class="btn btn-sm btn-warning" onclick="run('align', true)" title="Nur wenn das Gateway stabil im Netz ist. Reihenfolge: Flow, Parameter, LNS zuletzt mit Rollback. Stopp beim ersten Fehler">An Standard angleichen</button>
   </div>
-  <div class="small text-muted mb-2">Aktionen gelten für die markierten Zeilen. „Schreiben“ und „Aktualisieren“ laufen nacheinander,
+  <div class="small text-muted mb-2">„An Standard angleichen“ ändert nur Gateways, die gerade stabil antworten (mehrmals erreichbar, LNS ONLINE).
+    Die LNS-Ziele werden zuletzt und einzeln umgestellt und bei fehlendem Empfang zurückgerollt. Aktionen gelten für die markierten Zeilen. „Schreiben“ und „Aktualisieren“ laufen nacheinander,
     lesen danach zurück und prüfen, ob das Gateway über VPN wieder antwortet. Node-RED wird bei einem Fehler zurückgerollt.</div>
 
   <div class="table-responsive bg-white border rounded">
@@ -160,24 +164,28 @@ async function load(deep, keepResults) {
 async function run(kind, apply) {
   const ips = [...selected];
   if (!ips.length) { alert('Erst Gateways markieren.'); return; }
-  const name = document.getElementById({patch: 'patch', nodered: 'flow', firmware: 'firmware'}[kind]).value;
-  const what = {patch: 'Patch ', nodered: 'Node-RED ', firmware: 'Firmware '}[kind] + name;
+  const sel = {patch: 'patch', nodered: 'flow', firmware: 'firmware'}[kind];
+  const name = sel ? document.getElementById(sel).value : '';
+  const what = {patch: 'Patch ', nodered: 'Node-RED ', firmware: 'Firmware ', compare: 'Standard-Vergleich', align: 'Angleichen an Standard'}[kind] + name;
   if (apply && kind === 'firmware' && ips.length > 1 &&
       !confirm('Firmware auf mehrere Gateways: zuerst ein einzelnes Test-Gateway aktualisieren. Trotzdem fortfahren?')) return;
   if (apply && !confirm(`${what} auf ${ips.length} Gateway(s) schreiben?`)) return;
   for (const ip of ips) {
     results[ip] = {text: 'läuft …', cls: 'text-muted'}; render();
     try {
-      const body = kind === 'patch' ? {vpn_ip: ip, name, apply} : {vpn_ip: ip, version: name, apply};
+      const body = kind === 'patch' ? {vpn_ip: ip, name, apply} : (kind === 'align' ? {vpn_ip: ip, apply} : {vpn_ip: ip, version: name, apply});
       if (kind === 'firmware' && apply) results[ip] = {text: 'Upload und Neustart laufen, das dauert bis zu 20 Minuten …', cls: 'text-muted'}, render();
-      const r = await api('/api/fleet/' + kind, body);
-      const changes = (r.changes || []).map(c => c.label + ': ' + Object.entries(c.fields).map(([k, v]) => `${k} ${v[0]}→${v[1]}`).join(', ')).join('; ');
+      if (kind === 'align') results[ip] = {text: 'prüfe Stabilität, dann Flow → Parameter → LNS …', cls: 'text-muted'}, render();
+      const r = kind === 'compare' ? (await api('/api/fleet/compare?ip=' + encodeURIComponent(ip)))[0]
+                                   : await api('/api/fleet/' + kind, body);
+      const changes = (r.changes || []).map(c => c.label + (c.lns ? ' [LNS]' : '') + ': ' + Object.entries(c.fields).map(([k, v]) => `${k} ${v[0]}→${v[1]}`).join(', ')).join('; ');
       const rb = r.rolled_back ? ` (zurückgerollt: ${r.rollback_ok ? 'ok' : 'FEHLER'})` : '';
       const cls = {ok: 'text-success', changed: 'text-success', updated: 'text-success', unchanged: 'text-success',
                    would_change: 'text-primary', skipped: 'text-muted'}[r.result] || 'text-danger';
       const checks = (r.checks || []).map(c => `${c.ok === false ? '✗' : c.ok ? '✓' : '·'} ${c.label}: ${c.info}`).join(' | ');
       results[ip] = {text: `${r.result}: ${r.detail || ''} ${changes}${rb} ${checks}`, cls};
       render();
+      if (kind === 'align' && r.result === 'failed') { alert('Angleichen fehlgeschlagen bei ' + ip + '. Weitere Gateways werden nicht geändert.'); return; }
       if (kind === 'firmware' && apply && cls === 'text-danger') { alert('Firmware-Update fehlgeschlagen bei ' + ip + '. Weitere Gateways werden nicht aktualisiert.'); return; }
     } catch (e) {
       results[ip] = {text: 'Fehler: ' + e.message, cls: 'text-danger'}; render();

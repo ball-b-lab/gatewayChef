@@ -47,7 +47,9 @@ class Pipeline:
     def _lns_address(self):
         for section in (self.profile or {}).get("sections", []):
             for serv in section.get("value", {}).get("servs", []):
-                if serv.get("serv_type") == "semtech":
+                # cloud LNS = first enabled semtech target that is not local (Node-RED sits on 127.0.0.1)
+                if (serv.get("serv_type") == "semtech" and serv.get("serv_enabled", True)
+                        and serv.get("serv_addr") not in ("127.0.0.1", "localhost")):
                     return serv.get("serv_addr")
         return None
 

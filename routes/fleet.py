@@ -83,3 +83,35 @@ def fleet_firmware():
         return ok(jobs.tracked("firmware", ip, f"Firmware {version}", run) if apply else run())
     except _ERRORS as exc:
         return error(str(exc), 400)
+
+
+@bp.route("/api/fleet/compare", methods=["GET"])
+def fleet_compare():
+    """Soll-Ist against our standard for the given VPN IPs (comma separated)."""
+    from concurrent.futures import ThreadPoolExecutor
+    from services import fleet_align as fa
+    ips = [ip for ip in (request.args.get("ip") or "").split(",") if ip]
+    if not ips:
+        return error("ip fehlt", 400)
+    f = _fleet()
+
+    def one(ip):
+        try:
+            return fa.public(fa.compare(f, f._gateway(ip)))
+        except _ERRORS as exc:
+            return {"vpn_ip": ip, "result": "error", "detail": str(exc)}
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        return ok(list(pool.map(one, ips)))
+
+
+@bp.route("/api/fleet/align", methods=["POST"])
+def fleet_align():
+    """Bring one gateway to the standard (dry run unless apply). Stability gate before any write."""
+    from services import fleet_align as fa
+    data = request.json or {}
+    try:
+        ip, apply = data.get("vpn_ip"), bool(data.get("apply"))
+        run = lambda: fa.align(_fleet(), ip, apply=apply, force=bool(data.get("force")))  # noqa: E731
+        return ok(jobs.tracked("align", ip, "An Standard angleichen", run) if apply else run())
+    except _ERRORS as exc:
+        return error(str(exc), 400)

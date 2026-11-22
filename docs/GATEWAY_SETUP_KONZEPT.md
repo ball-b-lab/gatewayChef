@@ -255,6 +255,19 @@ committen. So entstand `ug65-60.0.0.50.json`.
   IoT-Tarifen mit kleinem Volumen das Update besser an der Station im LAN machen (`--host`) oder vor Ort.
 - **Session-ID:** Gesucht wird sie in der Login-Antwort und im Cookie `td`. Am Gerät bestätigen.
 
+## Fernwartung: Abgleich mit dem Standard (/fleet)
+
+„Standard prüfen“ vergleicht jedes markierte Gateway mit dem Profil seiner Firmware und dem neuesten
+Node-RED-Flow. VPN, Mobilfunk und Netz-Abschnitte bleiben außen vor (gerätespezifisch, Risiko VPN-Verlust),
+Firmware wird nur angezeigt. „An Standard angleichen“ ändert ein Gateway nur, wenn es gerade stabil ist
+(mehrmals erreichbar, Latenz ok, LNS ONLINE), und arbeitet in fester Reihenfolge: Flow, Einzelparameter,
+LNS-Ziele zuletzt mit Nachtest und automatischem Rollback. Mehrere Gateways laufen nacheinander, Stopp beim
+ersten Fehler. Details: `docs/api.md` (`/api/fleet/compare`, `/api/fleet/align`).
+
+Stand 22.11.2026: 8 Gateways online. JK_Test entspricht dem Standard. Die anderen 7 brauchen Flow 1.1.1,
+die neue LNS-Reihenfolge und WLAN-Land DE. 172.30.1.148 wird von der Stabilitätsprüfung abgewiesen
+(`LNS_DISCONNECTED`).
+
 ## Plattform-Empfehlung
 
 | Teil | Plattform | Warum |

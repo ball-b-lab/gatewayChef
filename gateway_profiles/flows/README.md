@@ -12,5 +12,8 @@ Eine Datei je Version: `<version>.json` (z. B. `1.0.0.json`). Inhalt ist der nor
   heute nur `gateway_login_password_enc` aus `GATEWAY_PASSWORD`.
 - `1.1.0` braucht das 3. Packet-Forwarder-Ziel (Patch `driveby-udp-forward`). Erst den Patch einspielen,
   dann den Flow. Details: `docs/NODERED_DRIVEBY_REVIEW.md`.
+- `1.1.1` (22.11.2026): ACK an den Packet Forwarder geht von Port 1702 (vorher Zufallsport, der Forwarder
+  verwarf die ACKs, `connected 0`, `ackr 0`). Danach Patch `lns-nodered-first`: Node-RED ist 1. Ziel,
+  Cortex 2., der interne LNS ist aus.
 
 Erzeugen vom Referenzgerät: `python scripts/fleet.py nodered-export --host <ip> --version 1.0.0`
