@@ -200,8 +200,8 @@ class Fleet:
         return {"vpn_ip": vpn_ip, "result": "changed", "changes": changes, "detail": "geschrieben, geprueft" + fw_note}
 
     # ------------------------------------------------------------ firmware
-    def firmware_upgrade(self, vpn_ip, version, apply=False, images=None, wait_secs=None):
-        return firmware_upgrade(self, self._gateway(vpn_ip), version, apply, images, wait_secs)
+    def firmware_upgrade(self, vpn_ip, version, apply=False, images=None, wait_secs=None, force=False):
+        return firmware_upgrade(self, self._gateway(vpn_ip), version, apply, images, wait_secs, force)
 
     # ------------------------------------------------------------ node-red
     def post_update_check(self, gw):
@@ -248,7 +248,7 @@ def _flow_hash(fleet, host):
         return None
 
 
-def firmware_upgrade(fleet, gw, version, apply=False, images=None, wait_secs=None):
+def firmware_upgrade(fleet, gw, version, apply=False, images=None, wait_secs=None, force=False):
     host = gw["vpn_ip"]
     images = images if images is not None else fw.find_images()
     if version not in images:
@@ -266,6 +266,13 @@ def firmware_upgrade(fleet, gw, version, apply=False, images=None, wait_secs=Non
     if not apply:
         return {"vpn_ip": host, "result": "would_change", "detail": plan_txt}
     fw.upload_form()  # refuse before touching anything if the form values are unknown
+    if not force:
+        # ~141 MB over the SIM and a reboot: only when the gateway is stable in the network right now
+        from services.fleet_align import stability
+        stable, why = stability(fleet, gw)
+        if not stable:
+            return {"vpn_ip": host, "result": "skipped", "detail": f"nicht stabil, kein Upload: {why}",
+                    "checks": [{"label": "Stabil im Netz", "ok": False, "info": why}]}
     flows_before = _flow_hash(fleet, host)
     up = fw.upload(client, host, image)
     wait = wait_secs or int(os.getenv("FIRMWARE_UPGRADE_WAIT", "1200"))

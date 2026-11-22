@@ -260,13 +260,16 @@ committen. So entstand `ug65-60.0.0.50.json`.
 „Standard prüfen“ vergleicht jedes markierte Gateway mit dem Profil seiner Firmware und dem neuesten
 Node-RED-Flow. VPN, Mobilfunk und Netz-Abschnitte bleiben außen vor (gerätespezifisch, Risiko VPN-Verlust),
 Firmware wird nur angezeigt. „An Standard angleichen“ ändert ein Gateway nur, wenn es gerade stabil ist
-(mehrmals erreichbar, Latenz ok, LNS ONLINE), und arbeitet in fester Reihenfolge: Flow, Einzelparameter,
+(mehrmals erreichbar, Latenz ok, Cloud-LNS laut Packet Forwarder verbunden), und arbeitet in fester Reihenfolge: Flow, Einzelparameter,
 LNS-Ziele zuletzt mit Nachtest und automatischem Rollback. Mehrere Gateways laufen nacheinander, Stopp beim
 ersten Fehler. Details: `docs/api.md` (`/api/fleet/compare`, `/api/fleet/align`).
 
 Stand 22.11.2026: 8 Gateways online. JK_Test entspricht dem Standard. Die anderen 7 brauchen Flow 1.1.1,
-die neue LNS-Reihenfolge und WLAN-Land DE. 172.30.1.148 wird von der Stabilitätsprüfung abgewiesen
-(`LNS_DISCONNECTED`).
+die neue LNS-Reihenfolge und WLAN-Land DE. Die Node-RED-Anzeige `/lora/health` ist dafür kein
+verlässliches Signal: Sie liest Cortex-ACK-Zeilen aus dem Forwarder-Log und meldet auf älteren Flows
+UNKNOWN/LNS_DISCONNECTED, auf 172.30.0.115 (FW 48-r2, Flow 1.1.1) seit dem Flow-Update OFFLINE, obwohl der
+Forwarder überall `connected 1` meldet und Daten fließen. Stabilitätsprüfung und LNS-Nachtest nutzen deshalb
+den Forwarder-Status; alle 8 Gateways sind damit stabil.
 
 ## Plattform-Empfehlung
 

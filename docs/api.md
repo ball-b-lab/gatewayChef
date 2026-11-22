@@ -173,18 +173,20 @@ Ohne `apply: true` wird immer nur geprüft.
 - `POST /api/fleet/nodered` `{ vpn_ip, version, apply }`
   - `data.result`: `ok | would_change | updated | unchanged | failed | offline`; bei `failed` zusätzlich
     `rolled_back` und `rollback_ok`
-- `POST /api/fleet/firmware` `{ vpn_ip, version, apply }`
-  - `data.result`: `ok | would_change | updated | failed | offline`, dazu `checks: [{label, ok, info}]`
+- `POST /api/fleet/firmware` `{ vpn_ip, version, apply, force }`
+  - Vor dem Upload Stabilitaetspruefung wie bei `align` (4x erreichbar, Latenz < 3 s, Cloud-LNS laut Forwarder verbunden);
+    sonst `skipped` ohne Upload. `force: true` ueberspringt die Pruefung.
+  - `data.result`: `ok | would_change | updated | skipped | failed | offline`, dazu `checks: [{label, ok, info}]`
     (Upload, Neustart, Firmware, upgrade_error, Schnittstelle, Node-RED-Flows erhalten)
 - `GET /api/fleet/compare?ip=a,b` Soll-Ist gegen den Standard (Profil der Firmware ohne VPN/Mobilfunk/Netz,
   neuester Flow). Je Gateway `result: ok | would_change | blocked | offline | error`, `changes: [{label, lns, fields}]`,
   `flow: {current, target, ok}`, `firmware_ok`, `firmware_newest`. Schreibt nichts.
 - `POST /api/fleet/align` `{ vpn_ip, apply, force }` gleicht ein Gateway an den Standard an.
   - Ohne `apply` nur Vergleich. Mit `apply` zuerst Stabilitätsprüfung (`STABLE_SAMPLES`=4 Antworten im
-    Abstand `STABLE_INTERVAL`=5 s, Latenz < `STABLE_MAX_MS`=3000, `/lora/health` ONLINE). Nicht stabil →
+    Abstand `STABLE_INTERVAL`=5 s, Latenz < `STABLE_MAX_MS`=3000, Cloud-LNS laut Packet Forwarder `servs[].connected` verbunden; `/lora/health` zaehlt nicht, die Anzeige ist auf aelteren Flows unzuverlaessig). Nicht stabil →
     `result: skipped`, nichts geschrieben. `force` überspringt die Prüfung (nur vor Ort).
   - Reihenfolge: Flow → Parameter → LNS-Ziele zuletzt und allein. Nach den LNS-Zielen muss das Gateway
-    antworten, `/lora/health` ONLINE sein (`LNS_VERIFY_WAIT`=90 s) und der Datenweg frische Pakete liefern,
+    antworten, der Forwarder den Cloud-LNS als verbunden melden (`LNS_VERIFY_WAIT`=90 s) und der Datenweg frische Pakete liefern,
     sonst werden die alten Ziele zurückgeschrieben (`rolled_back`, `rollback_ok`), `result: failed`.
   - `result: changed | skipped | failed | ok | would_change`, dazu `checks`.
 - `GET /api/fleet/catalog` enthält zusätzlich `firmware_images` und `firmware_upload_configured`

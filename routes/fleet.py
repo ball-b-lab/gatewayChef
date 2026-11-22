@@ -79,7 +79,7 @@ def fleet_firmware():
     data = request.json or {}
     try:
         ip, version, apply = data.get("vpn_ip"), str(data.get("version") or ""), bool(data.get("apply"))
-        run = lambda: _fleet().firmware_upgrade(ip, version, apply=apply)  # noqa: E731
+        run = lambda: _fleet().firmware_upgrade(ip, version, apply=apply, force=bool(data.get("force")))  # noqa: E731
         return ok(jobs.tracked("firmware", ip, f"Firmware {version}", run) if apply else run())
     except _ERRORS as exc:
         return error(str(exc), 400)
