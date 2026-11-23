@@ -121,6 +121,10 @@ PC aus.
 dem anderen, per Kabel direkt am Gateway-Port der Station. Installation und Bedienung:
 `docs/LINUX_STATION.md`.
 
+**Stand (23.11.2026):** Eingerichtete Gateways stehen mit `eth0` auf DHCP. Die Station verteilt deshalb auf
+jedem Gateway-Port Adressen (dnsmasq, 192.168.1.100–150, ohne Route/DNS) und sucht das Gateway zuerst unter
+der neuesten Lease, dann unter den Werks-IPs (`utils/gateway_lan.py`).
+
 **Stand (21.11.2026):** Die Werks-IP ist fest, ohne DHCP. Gebaut ist deshalb Variante 2: ein Namespace je
 Port (USB-Adapter oder VLAN-Switch) und die Seite `/station` mit Port-Karten und Vorgangsliste (laufend,
 fertig, Fehler, Protokoll). Am fertig eingerichteten Referenzgerät hängt `eth0` als WAN per DHCP im Büronetz

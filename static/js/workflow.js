@@ -1025,7 +1025,7 @@ export async function runReadPipeline(options = {}) {
         const deviceResult = await GatewayAdapter.fetchDevice();
         if (!deviceResult.ok) {
             state.statuses.gateway = { connected: false, updatedAt: null, error: deviceResult.error };
-            setConnectionState(false, 'Gateway unter http://192.168.1.1 nicht erreichbar.');
+            setConnectionState(false, 'Gateway im LAN nicht erreichbar (DHCP-Lease, 192.168.1.1, 192.168.23.150 geprüft).');
             setGatewayBlocked(true, deviceResult.error);
             setOperatorHintForError('Gateway nicht erreichbar');
             log('!! Gateway nicht erreichbar: ' + deviceResult.error, 'error');
@@ -1037,6 +1037,7 @@ export async function runReadPipeline(options = {}) {
         state.readPhaseComplete = true;
         setGatewayBlocked(false);
         setConnectionState(true, 'Gateway erreichbar.');
+        await refreshGatewayLanHost();
         try {
             await applyGatewayState(deviceResult.data, null);
         } catch (e) {
@@ -1839,10 +1840,27 @@ export async function copyText(text, label) {
             log(`!! Copy fehlgeschlagen (${label}): ${e}`, 'error');
         }
     }
+export function gatewayUrl(url) {
+        // Templates link to the factory address; the gateway may sit on a DHCP lease instead.
+        const host = state.gatewayLanHost;
+        return host && url ? url.replace('http://192.168.1.1', `http://${host}`) : url;
+    }
+export async function refreshGatewayLanHost() {
+        try {
+            const res = await safeJson('/api/gateway/lan-host');
+            const host = res?.data?.data?.host || res?.data?.host || null;
+            state.gatewayLanHost = host;
+            const link = document.getElementById('gatewayLoginLink');
+            if (link && host) link.href = `http://${host}`;
+            if (host) log(`.. Gateway im LAN unter ${host}`, 'info');
+        } catch (e) {
+            state.gatewayLanHost = null;
+        }
+    }
 export async function copyAndOpen(text, label, url) {
         await copyText(text, label);
         if (!url) return;
-        window.open(url, '_blank', 'noopener');
+        window.open(gatewayUrl(url), '_blank', 'noopener');
     }
 export function copyField(fieldId) {
         const value = document.getElementById(fieldId).value;

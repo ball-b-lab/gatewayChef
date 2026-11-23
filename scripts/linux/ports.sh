@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Einrichtungs-Ports der Station: ein Linux-Network-Namespace je Gateway.
 #
-# Alle UG65 kommen mit derselben festen Werks-IP und ohne DHCP. Im selben Netz
+# Neue UG65 kommen mit derselben festen Werks-IP, eingerichtete holen eth0 per DHCP. Im selben Netz
 # stoeren sie sich (ARP). Deshalb bekommt jeder Port ein eigenes Namespace
 # "gcp<N>": darin sieht die Station genau ein Gateway unter seiner Werks-IP.
 # Internet (Cloud-API, Milesight) und VPN gehen per veth + NAT ueber den Host.
@@ -53,6 +53,7 @@ up_port() {
   fi
   for a in "${GW_ADDRS[@]}"; do ip -n "$ns" addr replace "$a" dev "$dev"; done
   ip -n "$ns" link set "$dev" up
+  dhcp_up "$n" "$dev"
 
   hv="gch$n"; nv="gcn$n"
   if ! ip link show "$hv" >/dev/null 2>&1; then
@@ -64,6 +65,18 @@ up_port() {
   ip -n "$ns" route replace default via "$TRANSFER.$n.1"
   mkdir -p "/etc/netns/$ns"; resolv > "/etc/netns/$ns/resolv.conf"
   echo "Port $n: $ns  $dev${vlan:+ (VLAN $vlan auf $ifc)}"
+}
+
+dhcp_up() {
+  # Eingerichtete Gateways haben eth0 auf DHCP: je Namespace ein dnsmasq (nur Adressen,
+  # keine Route/DNS). Leases liest utils/gateway_lan.py (GATEWAYCHEF_PORT=<N>).
+  local n="$1" dev="$2" ns="gcp$1" pid="/run/gatewaychef/dhcp-gcp$1.pid"
+  command -v dnsmasq >/dev/null || { echo "Port $n: dnsmasq fehlt (apt install dnsmasq-base), kein DHCP" >&2; return 0; }
+  mkdir -p /run/gatewaychef /var/lib/gatewaychef
+  [[ -f "$pid" ]] && kill "$(cat "$pid")" 2>/dev/null || true
+  ip netns exec "$ns" dnsmasq --conf-file=/dev/null --port=0 --interface="$dev" --bind-interfaces \
+    --dhcp-range=192.168.1.100,192.168.1.150,255.255.255.0,10m --dhcp-option=3 --dhcp-option=6 \
+    --dhcp-authoritative --dhcp-leasefile="/var/lib/gatewaychef/dhcp-gcp$n.leases" --pid-file="$pid" --user=root
 }
 
 nat_up() {
@@ -87,6 +100,7 @@ NFT
 down() {
   local n ifc vlan
   while read -r n ifc vlan; do
+    [[ -f "/run/gatewaychef/dhcp-gcp$n.pid" ]] && kill "$(cat "/run/gatewaychef/dhcp-gcp$n.pid")" 2>/dev/null || true
     ip netns del "gcp$n" 2>/dev/null || true      # Interfaces fallen an den Host zurueck
     ip link del "gch$n" 2>/dev/null || true
     rm -rf "/etc/netns/gcp$n"
@@ -97,7 +111,9 @@ down() {
 list() {
   local n ifc vlan out
   while read -r n ifc vlan; do
-    out=$(ip netns exec "gcp$n" curl -s -m 2 http://192.168.23.150/node-red/device-info 2>/dev/null ||
+    lease=$(sort -rn "/var/lib/gatewaychef/dhcp-gcp$n.leases" 2>/dev/null | awk 'NR==1{print $3}')
+    out=$( { [[ -n "$lease" ]] && ip netns exec "gcp$n" curl -s -m 2 "http://$lease/node-red/device-info"; } 2>/dev/null ||
+          ip netns exec "gcp$n" curl -s -m 2 http://192.168.23.150/node-red/device-info 2>/dev/null ||
           ip netns exec "gcp$n" curl -s -m 2 http://192.168.1.1/node-red/device-info 2>/dev/null || true)
     printf "Port %-2s %-18s %s\n" "$n" "$ifc${vlan:+.$vlan}" "${out:-(kein Gateway)}" | cut -c1-160
   done < <(ports)

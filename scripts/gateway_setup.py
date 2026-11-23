@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config  # noqa: E402,F401  (loads .env)
 from services.setup.model import Gateway  # noqa: E402
+from utils import gateway_lan  # noqa: E402
 from services.setup.pipeline import exit_code, format_results, from_env  # noqa: E402
 
 
@@ -48,7 +49,7 @@ def _live(result):
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--host", help="Gateway-IP im LAN. Standard: erste antwortende aus GATEWAY_LAN_CANDIDATES "
-                   "(kommagetrennt), sonst GATEWAY_IP und 192.168.23.150")
+                   "(kommagetrennt), sonst GATEWAY_IP und 192.168.23.150; DHCP-Leases der Station zuerst")
     p.add_argument("--profile", default=os.getenv("GATEWAY_PROFILE", "auto"))
     p.add_argument("--vpn-ip")
     p.add_argument("--new", action="store_true", help="freie VPN-IP aus dem Pool nehmen")
@@ -69,8 +70,7 @@ def main(argv=None):
 
     gw = Gateway(vpn_ip=a.vpn_ip, serial_number=a.serial, sim_iccid=a.iccid, sim_vendor_id=a.sim_vendor_id,
                  client_id=a.client_id, client_name=a.client_name, name=a.name)
-    host = a.host or find_gateway(os.getenv("GATEWAY_LAN_CANDIDATES") or
-                                os.getenv("GATEWAY_IP", "192.168.1.1") + ",192.168.23.150")
+    host = a.host or find_gateway(",".join(gateway_lan.candidates()))
     try:
         pipeline = from_env(host, a.profile, vpn_wait_secs=a.vpn_wait, on_step=_live if a.live else None)
     except ValueError as exc:

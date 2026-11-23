@@ -60,8 +60,20 @@ NET
   fi
 fi
 
+if [[ -n "$GW_PORT" ]]; then
+  # Eingerichtete Gateways haben eth0 auf DHCP: Station verteilt Adressen auf dem Gateway-Port
+  # (192.168.1.100-150, ohne Route/DNS). GatewayChef liest die Leases (utils/gateway_lan.py).
+  echo ".. DHCP auf $GW_PORT"
+  apt-get install -y -qq dnsmasq-base >/dev/null
+  install -d -m 755 /var/lib/gatewaychef
+  install -m 644 "$HOME_DIR/app/scripts/linux/gatewaychef-dhcp@.service" /etc/systemd/system/gatewaychef-dhcp@.service
+  systemctl daemon-reload
+  systemctl enable "gatewaychef-dhcp@$GW_PORT" >/dev/null
+  systemctl restart "gatewaychef-dhcp@$GW_PORT"
+fi
+
 echo ".. Einrichtungs-Ports (ein Netz-Namespace je Gateway)"
-apt-get install -y -qq iproute2 nftables >/dev/null
+apt-get install -y -qq iproute2 nftables dnsmasq-base >/dev/null
 [[ -f /etc/gatewaychef/ports ]] || cat > /etc/gatewaychef/ports <<'PORTS'
 # Eine Zeile je Port, ein Gateway je Port. Alle UG65 haben dieselbe feste Werks-IP, jeder Port
 # bekommt deshalb ein eigenes Netz-Namespace (scripts/linux/ports.sh).

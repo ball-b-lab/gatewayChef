@@ -9,6 +9,9 @@ import sys
 
 import requests
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils import gateway_lan  # noqa: E402
+
 
 def probe(candidates, http=requests):
     for host in [h.strip() for h in candidates.split(",") if h.strip()]:
@@ -24,8 +27,7 @@ def probe(candidates, http=requests):
 
 
 def main():
-    cands = os.getenv("GATEWAY_LAN_CANDIDATES") or "192.168.23.150,192.168.1.1"
-    out = probe(cands)
+    out = probe(",".join(gateway_lan.candidates()))
     print(json.dumps(out, ensure_ascii=False))
     return 0 if out["host"] else 3
 
