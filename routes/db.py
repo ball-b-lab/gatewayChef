@@ -52,6 +52,7 @@ def _require_api_token():
         return _proxy_to_cloud_db_api()
     if APP_MODE == "cloud_api":
         return enforce_api_token()
+    # APP_MODE=cloud: auth.oidc.guard already admitted session or API token
     return None
 
 

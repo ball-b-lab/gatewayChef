@@ -180,6 +180,22 @@ function applyAuthModeStatus() {
     const skipAuthMode = !!runtime.skip_auth_mode;
 
     badge.classList.remove('bg-secondary', 'bg-success', 'bg-warning', 'bg-danger', 'text-dark');
+    if (runtime.oidc_enabled) {
+        badge.textContent = 'Authentik';
+        badge.classList.add('bg-success');
+        fetch('/auth/me').then(r => r.json()).then(res => {
+            const u = res && res.data;
+            if (!u) return;
+            badge.textContent = u.name || u.email || 'angemeldet';
+            badge.title = (u.email || '') + ' (Authentik)';
+            const out = document.createElement('a');
+            out.href = '/auth/logout';
+            out.className = 'btn btn-outline-secondary btn-sm';
+            out.textContent = 'Abmelden';
+            badge.after(out);
+        }).catch(() => {});
+        return;
+    }
     if (skipAuthMode) {
         badge.textContent = 'Auth: SKIP (Test)';
         badge.classList.add('bg-warning', 'text-dark');

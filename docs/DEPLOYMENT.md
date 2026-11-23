@@ -355,3 +355,25 @@ API_TOKEN='<token>' BASE_URL='https://<deine-coolify-app-url>' ./scripts/smoke_t
 - `SKIP_AUTH=true|false`
   - Nur Operator-/Testhinweis in der UI (Badge `Auth: SKIP (Test)`).
   - Veraendert keine API-Security automatisch; ist fuer Smoke/Runtime-Transparenz gedacht.
+
+## Cloud mit Oberfläche hinter Authentik (`APP_MODE=cloud`)
+
+Volle GatewayChef-Oberfläche in Coolify, Login über Authentik (OIDC, Code-Flow mit PKCE).
+Ohne gültige Sitzung: Seiten leiten auf Authentik um, `/api/*` antwortet 401.
+Lokale Apps greifen weiter mit `X-API-Token` auf `/api/db/*` bzw. `X-Ping-Service-Token`
+auf `/api/network/*` zu; alle anderen APIs gehen nur mit Login.
+
+Coolify-Env (Secrets nie ins Repo):
+
+| Variable | Wert |
+|---|---|
+| `APP_MODE` | `cloud` |
+| `OIDC_ISSUER` | `https://authentik.app.ball-b.de/application/o/gatewaychef/` |
+| `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | aus dem Authentik-Provider „GatewayChef" |
+| `OIDC_ALLOWED_GROUP` | `gatewaychef` (nur diese Gruppe kommt hinein) |
+| `FLASK_SECRET_KEY` | zufällig, ≥ 32 Zeichen |
+| `FLASK_DEBUG` | wird außerhalb `local` ignoriert (immer aus) |
+
+Authentik-Provider: OAuth2/OpenID, confidential, Redirect-URI
+`https://<gatewaychef-domain>/auth/callback`, Scopes `openid profile email`, Signierschlüssel
+RS256. Fehlt eine OIDC-Variable, startet die App im Modus `cloud` nicht (kein offener Betrieb).

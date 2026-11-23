@@ -24,6 +24,11 @@ from config import (
     VPN_PING_PROVIDER_URL,
     RECOMMENDED_GATEWAY_FIRMWARE,
     API_SERVICE_TOKEN,
+    OIDC_ISSUER,
+    OIDC_CLIENT_ID,
+    OIDC_CLIENT_SECRET,
+    OIDC_ALLOWED_GROUP,
+    FLASK_SECRET_KEY,
 )
 from routes.gateway import bp as gateway_bp
 from routes.db import bp as db_bp
@@ -140,7 +145,8 @@ def index():
             "db_api_provider_url": DB_API_PROVIDER_URL or "",
             "vpn_ping_proxy_enabled": bool(VPN_PING_PROVIDER_URL),
             "vpn_ping_proxy_url": VPN_PING_PROVIDER_URL or "",
-            "local_auth_enabled": bool(ENABLE_LOCAL_AUTH),
+            "local_auth_enabled": bool(ENABLE_LOCAL_AUTH) and APP_MODE != 'cloud',
+            "oidc_enabled": APP_MODE == 'cloud',
             "skip_auth_mode": bool(SKIP_AUTH),
             "recommended_gateway_firmware": RECOMMENDED_GATEWAY_FIRMWARE,
         },
@@ -151,10 +157,14 @@ def version():
     return ok(_version_payload())
 
 
+if APP_MODE == 'cloud':
+    from auth import oidc
+    oidc.init_app(app, OIDC_ISSUER, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, OIDC_ALLOWED_GROUP, FLASK_SECRET_KEY)
+
 app.register_blueprint(db_bp)
 app.register_blueprint(network_bp)
 if APP_MODE != 'cloud_api':
-    if ENABLE_LOCAL_AUTH:
+    if ENABLE_LOCAL_AUTH and APP_MODE != 'cloud':
         try:
             from routes.auth import bp as auth_bp
         except ModuleNotFoundError as exc:
@@ -196,5 +206,5 @@ if __name__ == '__main__':
     if open_browser_enabled:
         threading.Thread(target=open_browser).start()
 
-    debug_enabled = os.getenv("FLASK_DEBUG", "true").lower() == "true"
+    debug_enabled = os.getenv("FLASK_DEBUG", "true").lower() == "true" and APP_MODE == "local"
     app.run(host=HOST, port=PORT, debug=debug_enabled)
