@@ -4,8 +4,10 @@ port, see scripts/linux/ports.sh). The web UI starts the setup pipeline per
 port as a subprocess via the root helper `gatewaychef-port` and streams its
 output onto the job board (services/jobs.py).
 
-Every UG65 comes with the same fixed factory IP and no DHCP. The namespaces
-keep them apart, so the pipeline runs unchanged with `--host <factory ip>`.
+New UG65 come with the same fixed factory IP, set-up ones take eth0 by DHCP.
+The namespaces keep them apart; the pipeline runs with `--host <detected ip>`.
+Known gateways (EUI in the inventory) come with their DB record, so the page
+can prefill name, ICCID, SIM vendor, client and VPN IP.
 """
 import json
 import os
@@ -18,6 +20,7 @@ import time
 from services import jobs
 
 PORTS_FILE = os.getenv("STATION_PORTS_FILE", "/etc/gatewaychef/ports")
+_NAME = re.compile(r"^(?P<suffix>\S+)\s+(?P<client_id>\d+)\s+-\s+(?P<client_name>.+)$")
 _SAFE = re.compile(r"^[\w .:+\-/äöüÄÖÜß]{1,80}$")
 MODES = {"check": ["--check"], "dry": [], "apply": ["--apply"]}
 OPTION_FLAGS = {"client_id": "--client-id", "client_name": "--client-name", "iccid": "--iccid",
@@ -67,15 +70,42 @@ def build_args(mode, opts):
     return args
 
 
+def default_lookup(eui):
+    """Inventory record for an EUI (DB or cloud API, as for the setup pipeline); None if unknown."""
+    from services.setup.factory import build_inventory
+    return build_inventory().find_by_eui(eui)
+
+
+def known_record(record):
+    """Fields for the page from an inventory record. Name '<x.y> <client_id> - <client_name>'."""
+    if not record:
+        return None
+    name = record.get("gateway_name") or ""
+    m = _NAME.match(name)
+    return {
+        "name": name or None,
+        "vpn_ip": record.get("vpn_ip"),
+        "serial": record.get("serial_number"),
+        "iccid": record.get("sim_iccid"),
+        "sim_vendor_id": record.get("sim_vendor_id"),
+        "sim_vendor_name": record.get("sim_vendor_name"),
+        "status": record.get("status_overall"),
+        "client_id": m.group("client_id") if m else None,
+        "client_name": m.group("client_name") if m else None,
+    }
+
+
 class Station:
     def __init__(self, board=None, ports=None, runner=None, popen=subprocess.Popen, run=subprocess.run,
-                 log_dir=None):
+                 log_dir=None, lookup=None):
         self.board = board or jobs.BOARD
         self._ports = ports
         self.runner = runner
         self.popen, self.run = popen, run
         self.log_dir = log_dir if log_dir is not None else os.getenv("STATION_LOG_DIR", "")
         self._probe_cache = {}
+        self.lookup = lookup or default_lookup
+        self._known_cache = {}
 
     def ports(self):
         return self._ports if self._ports is not None else load_ports()
@@ -107,12 +137,27 @@ class Station:
         self._probe_cache[port] = (time.time(), info)
         return info
 
+    def known(self, eui, max_age=60):
+        """DB record for a detected gateway: {"record": {...}|None, "error": str|None}, cached per EUI."""
+        if not eui or set(eui.replace("F", "").replace("E", "")) <= {"0"}:
+            return {"record": None, "error": None}
+        cached = self._known_cache.get(eui)
+        if cached and time.time() - cached[0] < max_age:
+            return cached[1]
+        try:
+            info = {"record": known_record(self.lookup(eui)), "error": None}
+        except Exception as exc:  # DB/API down: page still works, fields stay empty
+            info = {"record": None, "error": str(exc)[:200]}
+        self._known_cache[eui] = (time.time(), info)
+        return info
+
     def overview(self):
         rows = []
         for p in self.ports():
             job = self.board.running_on_port(p["port"])
             last = next((j for j in self.board.all() if j.port == p["port"]), None)
-            rows.append(dict(p, gateway=self.probe(p["port"]),
+            gw = self.probe(p["port"])
+            rows.append(dict(p, gateway=gw, known=self.known(gw.get("eui")) if gw.get("host") else None,
                              job=(job or last).as_dict() if (job or last) else None))
         return rows
 
