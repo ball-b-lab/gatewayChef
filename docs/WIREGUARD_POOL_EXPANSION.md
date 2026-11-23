@@ -113,3 +113,12 @@ Die erzeugten Dateien haben die Rechte 600 und enthalten Private Keys. Nach dem 
 hängt jedem Gateway-Peer zusätzlich `192.168.1.0/24` an. In WireGuard muss `AllowedIPs` je Peer eindeutig
 sein, deshalb gilt dieses Netz am Server nur für den zuletzt geladenen Peer. Bei allen anderen Peers ist es
 wirkungslos und täuscht eine Erreichbarkeit vor, die es nicht gibt.
+
+## Server-Pflege mit wgpeer (seit 2026-11-23)
+
+WireGuard UI und `wg-quick-watcher@wg0.path` sind abgeschaltet. Peers auf dem VPN-Server
+nur noch mit `wgpeer` (`scripts/vpn/wgpeer.py`, installiert als `/usr/local/sbin/wgpeer`) ändern:
+Trockenlauf zeigt Diff (Schlüssel geschwärzt), `--apply` macht Backup und `wg syncconf` ohne Neustart.
+`192.168.1.0/24` ist aus allen Server-Peers entfernt (war auf 559 Peers doppelt, serverseitig ungenutzt).
+Bereiche: infra 172.30.0.2–99, gw 172.30.0.100–254/1.x/2.x, station 172.30.100.x.
+`wgpeer-seen.timer` sichert alle 5 min die letzten Handshakes nach `/var/lib/wgpeer/lastseen.json`.

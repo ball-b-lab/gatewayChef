@@ -208,3 +208,12 @@ Dieses Repo erzeugt bereits den dafuer passenden Peer-Block-Teil mit `wg0_extens
 
 Siehe `docs/WIREGUARD_POOL_EXPANSION.md`, Abschnitt „Pool automatisch auffüllen“. `scripts/pool_refill.py`
 erzeugt die `[Peer]`-Blöcke für diese `wg0.conf` und importiert die Plätze erst danach in die DB.
+
+## Server-Pflege mit wgpeer (seit 2026-11-23)
+
+WireGuard UI und `wg-quick-watcher@wg0.path` sind abgeschaltet. Peers auf dem VPN-Server
+nur noch mit `wgpeer` (`scripts/vpn/wgpeer.py`, installiert als `/usr/local/sbin/wgpeer`) ändern:
+Trockenlauf zeigt Diff (Schlüssel geschwärzt), `--apply` macht Backup und `wg syncconf` ohne Neustart.
+`192.168.1.0/24` ist aus allen Server-Peers entfernt (war auf 559 Peers doppelt, serverseitig ungenutzt).
+Bereiche: infra 172.30.0.2–99, gw 172.30.0.100–254/1.x/2.x, station 172.30.100.x.
+`wgpeer-seen.timer` sichert alle 5 min die letzten Handshakes nach `/var/lib/wgpeer/lastseen.json`.
