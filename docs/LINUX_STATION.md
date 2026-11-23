@@ -27,7 +27,8 @@ Das Skript:
   das Gateway unter beiden möglichen Werksadressen erreichbar, und der Internetverkehr läuft weiter über
   den anderen Port,
 - startet auf dem Gateway-Port einen **DHCP-Server** (`gatewaychef-dhcp@<port>`, dnsmasq, Bereich
-  192.168.77.100–150 auf eigenem Netz 192.168.77.0/24, ohne Route und DNS; 192.168.1.0/24 geht nicht, das nutzt das
+  192.168.77.100–150 auf eigenem Netz 192.168.77.0/24, mit der Station als Router und NAT ins Internet, weil das UG65 ein Angebot ohne Router
+  ablehnt und eth0 dann zur Hauptverbindung macht; 192.168.1.0/24 geht nicht, das nutzt das
   UG65 intern selbst und lehnt die Adresse ab). Eingerichtete Gateways haben `eth0` auf DHCP und holen sich dort
   eine Adresse, neue Gateways bleiben unter ihrer festen Werks-IP erreichbar,
 - richtet `gatewaychef.service` ein (Weboberfläche auf Port 5000). Bei jedem Start holt der Dienst `main`

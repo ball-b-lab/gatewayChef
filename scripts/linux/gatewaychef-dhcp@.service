@@ -1,7 +1,7 @@
 [Unit]
 Description=GatewayChef DHCP fuer das Gateway am Port %i
-# Eingerichtete Gateways holen sich eth0 per DHCP. Nur Adressen, keine Route, kein DNS:
-# das Gateway sieht nur die Station. Leases: /var/lib/gatewaychef/dhcp-lan.leases
+# Eingerichtete Gateways holen sich eth0 per DHCP. Das UG65 will einen Router im Angebot;
+# ohne NAT auf dem Host hat es ueber eth0 dann kein Internet (Station-Ports/ports.sh NATen). Leases: /var/lib/gatewaychef/dhcp-lan.leases
 After=network.target
 Wants=network.target
 
@@ -10,7 +10,7 @@ ExecStartPre=/usr/bin/install -d -m 755 /var/lib/gatewaychef
 ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --conf-file=/dev/null --port=0 \
   --interface=%i --bind-dynamic --except-interface=lo \
   --dhcp-range=192.168.77.100,192.168.77.150,255.255.255.0,10m \
-  --dhcp-option=3 --dhcp-option=6 --dhcp-authoritative \
+  --dhcp-option=3,192.168.77.1 --dhcp-option=6,1.1.1.1,9.9.9.9 --dhcp-authoritative \
   --dhcp-leasefile=/var/lib/gatewaychef/dhcp-lan.leases --log-dhcp --user=root
 Restart=on-failure
 RestartSec=5

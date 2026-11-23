@@ -63,7 +63,7 @@ fi
 
 if [[ -n "$GW_PORT" ]]; then
   # Eingerichtete Gateways haben eth0 auf DHCP: Station verteilt Adressen auf dem Gateway-Port
-  # (192.168.77.100-150, eigenes Netz, ohne Route/DNS). GatewayChef liest die Leases (utils/gateway_lan.py).
+  # (192.168.77.100-150, eigenes Netz, Station als Router). GatewayChef liest die Leases (utils/gateway_lan.py).
   echo ".. DHCP auf $GW_PORT"
   apt-get install -y -qq dnsmasq-base >/dev/null
   install -d -m 755 /var/lib/gatewaychef
