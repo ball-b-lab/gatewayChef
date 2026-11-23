@@ -48,7 +48,8 @@ def drive_by_summary(health):
         "app_last_poll": app.get("last_poll"),
         "app_client": app.get("client"),
         "app_polls": app.get("polls", 0),
-        "radio": health.get("radio"),  # flow >= 1.2.0: CRC error rate, RSSI/SNR, last 30 min
+        "radio": health.get("radio"),  # flow >= 1.2.0: CRC error rate, RSSI/SNR, last 30 min (1.3.0: sf, tx_failed)
+        "devices": health.get("devices"),  # flow >= 1.3.0: sensors heard in the last 24 h
     }
 
 

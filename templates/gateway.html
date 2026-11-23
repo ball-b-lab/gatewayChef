@@ -36,8 +36,13 @@
   <div id="err" class="alert alert-danger py-2 mt-2" style="display:none"></div>
 
   <div class="row g-2 my-2" id="tiles"></div>
-  <div class="small text-muted mb-1">Gerätezustand <span class="fw-normal">(live vom Gateway beim „Tief prüfen“; Funkqualität braucht Drive-by-Schnittstelle ≥ 1.2.0)</span></div>
+  <div class="small text-muted mb-1">Gerätezustand <span class="fw-normal">(live vom Gateway beim „Tief prüfen“; Funk- und Downlink-Werte brauchen Drive-by-Schnittstelle ≥ 1.2.0 bzw. 1.3.0)</span></div>
   <div class="row g-2 mb-2" id="tiles2"></div>
+  <div class="card mb-2" id="sensbox" style="display:none"><div class="card-body py-2">
+    <div class="small text-muted mb-1">Gehörte Sensoren (letzte 24 h, aus der Drive-by-Schnittstelle ≥ 1.3.0) <span id="sfdist" class="ms-2"></span></div>
+    <div style="max-height:18rem;overflow:auto"><table class="table table-sm small mb-0"><thead class="table-light"><tr>
+      <th>Sensor</th><th>zuletzt</th><th>Pakete</th><th>RSSI</th><th>SNR</th><th>SF</th><th>Kanal</th><th>FCnt</th></tr></thead><tbody id="sens"></tbody></table></div>
+  </div></div>
 
   <div class="row g-2">
     <div class="col-12 col-lg-8"><div class="card-box h-100">
@@ -174,7 +179,26 @@ function renderTiles2() {
     tile('Funkqualität (30 min)', crc != null ? `${crc} % CRC-Fehler` : '–',
          rad ? `${rad.rx_total} Pakete · RSSI Ø ${rad.rssi_avg ?? '–'} dBm · SNR Ø ${rad.snr_avg ?? '–'} dB` : 'ab Drive-by-Schnittstelle 1.2.0',
          crc == null ? '' : crc < 15 ? 'ok' : crc < 40 ? 'mid' : 'bad'),
+    tile('Downlinks (30 min)', rad && rad.tx_failed != null ? (rad.tx_failed ? `${rad.tx_failed} nicht gesendet` : 'alle gesendet') : '–',
+         rad && rad.tx_failed != null ? `${rad.tx_sent} von ${rad.tx_requested} gesendet (Grund kennt nur ChirpStack)` : 'ab Drive-by-Schnittstelle 1.3.0',
+         rad && rad.tx_failed != null ? (rad.tx_failed ? 'bad' : 'ok') : ''),
   );
+  renderSensors(r.driveby);
+}
+function renderSensors(d) {
+  const box = document.getElementById('sensbox'), devs = d && d.devices, sf = d && d.radio && d.radio.sf;
+  box.style.display = devs ? '' : 'none'; if (!devs) return;
+  const tot = sf ? Object.values(sf).reduce((a, v) => a + v, 0) : 0;
+  document.getElementById('sfdist').textContent = tot ? 'Spreading Factor (30 min): ' + Object.keys(sf).sort((a, b) => +a.slice(2) - +b.slice(2))
+    .map(k => `${k} ${Math.round(sf[k] / tot * 100)} %`).join(' · ') : '';
+  const tb = document.getElementById('sens'); tb.replaceChildren();
+  if (!devs.length) { const tr = el('tr'); tr.append(el('td', 'Noch keine Sensoren gehört (sammelt seit Installation/Neustart des Flows).', 'text-muted')); tb.append(tr); return; }
+  devs.slice().sort((a, b) => a.seconds_since - b.seconds_since).forEach(x => {
+    const tr = el('tr');
+    [x.kind === 'join' ? `${x.id} (Join)` : x.id, ago(x.seconds_since), x.count, x.rssi, x.snr, x.sf ? 'SF' + x.sf : '–', x.freq, x.fcnt ?? '–']
+      .forEach((v, i) => tr.append(el('td', String(v ?? '–'), i === 5 && x.sf >= 11 ? 'mid' : i === 3 && x.rssi < -115 ? 'bad' : '')));
+    tb.append(tr);
+  });
 }
 function renderHead() {
   const g = (stats && stats.gateway) || db || {};

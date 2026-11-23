@@ -168,6 +168,8 @@ Ohne `apply: true` wird immer nur geprüft.
   `flow_version`, `receiving` (stat < 65 s), `seconds_since_stat`, `seconds_since_rxpk`, `rxpk`,
   `app_seconds_since_poll`, `app_last_poll`, `app_client`, `app_polls` (wann die dbmonitor-App zuletzt `/status` abgeholt hat).
   Ab Flow 1.2.0 zusätzlich `driveby.radio` (letzte 30 min): `crc_error_pct`, `rx_total`, `rx_ok`, `ack_pct`, `rssi_avg`, `snr_avg`, `rssi_min`.
+  Ab Flow 1.3.0 zusätzlich `driveby.radio.sf` (`{"SF7": n, …}`), `driveby.radio.tx_failed` und `driveby.devices`
+  (gehörte Sensoren 24 h: `id`, `kind` devaddr|join, `count`, `seconds_since`, `rssi`, `snr`, `sf`, `freq`, `fcnt`).
   `deep` liefert außerdem `health` über die Gateway-API (ohne IMSI/ICCID/IMEI/Zell-ID):
   `health.cellular` (`status`, `connected_for`, `provider`, `net_type`, `band`, `register`, `signal_dbm`, `rsrp_dbm`,
   `rsrq_db`, `sinr_db`, `data_usage` = Modemzähler) und `health.system` (`uptime_s`, `cpu_load`, `memory_avail_percent`,
