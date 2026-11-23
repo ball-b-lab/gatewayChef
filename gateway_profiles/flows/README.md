@@ -20,3 +20,6 @@ Erzeugen vom Referenzgerät: `python scripts/fleet.py nodered-export --host <ip>
 - `1.2.0` (23.11.2026): `/node-red/driveby/health` liefert zusätzlich `radio` (letzte 30 min aus den
   Packet-Forwarder-Statistiken): `crc_error_pct`, `rx_total`/`rx_ok`, `ack_pct`, `rssi_avg`/`snr_avg`/`rssi_min`
   der empfangenen Pakete. Sonst unverändert zu 1.1.1.
+- `1.3.0` (23.11.2026): `devices` = gehörte Sensoren der letzten 24 h (DevAddr bzw. DevEUI bei Join, max. 500)
+  mit `count`, `seconds_since`, `rssi`, `snr`, `sf`, `freq`, `fcnt`; `radio.sf` (SF-Verteilung 30 min) und
+  `radio.tx_failed` (Downlinks, die der Forwarder nicht senden konnte = dwnb − txnb; den Grund sieht nur der LNS).
