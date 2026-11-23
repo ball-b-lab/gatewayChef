@@ -377,3 +377,11 @@ Coolify-Env (Secrets nie ins Repo):
 Authentik-Provider: OAuth2/OpenID, confidential, Redirect-URI
 `https://<gatewaychef-domain>/auth/callback`, Scopes `openid profile email`, Signierschlüssel
 RS256. Fehlt eine OIDC-Variable, startet die App im Modus `cloud` nicht (kein offener Betrieb).
+
+### Firmware-Updates aus der Cloud
+
+Persistentes Coolify-Volume `gatewaychef-firmware` → `/data/firmware`, `FIRMWARE_DIR=/data/firmware`,
+dazu `FIRMWARE_UPLOAD_TYPE`/`FIRMWARE_UPLOAD_FILE` wie lokal. Images lädt man in der Flotte unter
+„4 · Firmware → Firmware-Dateien verwalten“ hoch (`POST /api/fleet/firmware/images`, multipart `file`,
+Name muss die Version enthalten; wird zu `<version>[-rN].bin` normalisiert, SHA-256 in der Antwort).
+Löschen: `DELETE /api/fleet/firmware/images/<version>`. Beides nur mit Authentik-Login.

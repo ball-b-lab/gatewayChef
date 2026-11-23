@@ -128,6 +128,27 @@ def fleet_firmware():
         return error(str(exc), 400)
 
 
+@bp.route("/api/fleet/firmware/images", methods=["POST"])
+def firmware_image_upload():
+    """Store a firmware image (.bin, name with version) in FIRMWARE_DIR for remote upgrades."""
+    f = request.files.get("file")
+    if not f:
+        return error("Datei fehlt.", 400)
+    try:
+        return ok(fw.store_image(f.stream, f.filename))
+    except (fw.FirmwareError, OSError) as exc:
+        return error(str(exc), 400)
+
+
+@bp.route("/api/fleet/firmware/images/<version>", methods=["DELETE"])
+def firmware_image_delete(version):
+    try:
+        fw.delete_image(version)
+        return ok({"deleted": version})
+    except (fw.FirmwareError, OSError) as exc:
+        return error(str(exc), 404)
+
+
 @bp.route("/api/fleet/compare", methods=["GET"])
 def fleet_compare():
     """Soll-Ist against our standard for the given VPN IPs (comma separated)."""
