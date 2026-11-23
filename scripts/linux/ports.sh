@@ -19,7 +19,7 @@
 #   ports.sh list    Ports und Gateway-Antwort zeigen
 set -euo pipefail
 CONF="${GATEWAYCHEF_PORTS:-/etc/gatewaychef/ports}"
-GW_ADDRS=("192.168.1.200/24" "192.168.23.200/24")   # beide moeglichen Werksnetze
+GW_ADDRS=("192.168.1.200/24" "192.168.23.200/24" "192.168.77.1/24")   # Werksnetze + DHCP-Netz
 TRANSFER="10.231"                                   # 10.231.<N>.0/30 Host <-> Namespace
 
 ports() { [[ -f "$CONF" ]] && grep -Ev '^\s*(#|$)' "$CONF" || true; }
@@ -75,7 +75,7 @@ dhcp_up() {
   mkdir -p /run/gatewaychef /var/lib/gatewaychef
   [[ -f "$pid" ]] && kill "$(cat "$pid")" 2>/dev/null || true
   ip netns exec "$ns" dnsmasq --conf-file=/dev/null --port=0 --interface="$dev" --bind-interfaces \
-    --dhcp-range=192.168.1.100,192.168.1.150,255.255.255.0,10m --dhcp-option=3 --dhcp-option=6 \
+    --dhcp-range=192.168.77.100,192.168.77.150,255.255.255.0,10m --dhcp-option=3 --dhcp-option=6 \
     --dhcp-authoritative --dhcp-leasefile="/var/lib/gatewaychef/dhcp-gcp$n.leases" --pid-file="$pid" --user=root
 }
 
