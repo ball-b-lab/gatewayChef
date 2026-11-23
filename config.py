@@ -44,6 +44,12 @@ PORT = int(os.getenv("PORT", 5000))
 HOST = os.getenv("HOST", "0.0.0.0")
 APP_MODE = os.getenv("APP_MODE", "local").strip().lower()
 ENABLE_LOCAL_AUTH = os.getenv("ENABLE_LOCAL_AUTH", "true").strip().lower() == "true"
+# APP_MODE=cloud: full UI in the cloud, login via Authentik (OIDC)
+OIDC_ISSUER = os.getenv("OIDC_ISSUER", "").strip()
+OIDC_CLIENT_ID = os.getenv("OIDC_CLIENT_ID", "").strip()
+OIDC_CLIENT_SECRET = os.getenv("OIDC_CLIENT_SECRET", "").strip()
+OIDC_ALLOWED_GROUP = os.getenv("OIDC_ALLOWED_GROUP", "").strip()
+FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "").strip()
 SKIP_AUTH = os.getenv("SKIP_AUTH", "false").strip().lower() == "true"
 
 # ChirpStack Configuration
