@@ -71,6 +71,12 @@
     </div>
   </div>
 
+  <div class="block mb-3">
+    <div class="d-flex align-items-baseline gap-3 flex-wrap">
+      <h2>Einstellungen</h2><div id="switches" class="d-flex gap-3 small"></div>
+    </div>
+  </div>
+
   <div id="noports" class="alert alert-secondary d-none">
     Keine Ports eingerichtet. Auf der Station <code>/etc/gatewaychef/ports</code> anlegen und
     <code>systemctl restart gatewaychef-ports</code> (siehe <code>docs/LINUX_STATION.md</code>).
@@ -266,6 +272,22 @@ async function clearCred() {
   showCred((await (await fetch("/api/station/credentials", {method: "DELETE"})).json()).data);
 }
 
+async function loadSwitches() {
+  try {
+    const d = (await (await fetch("/api/station/switches")).json()).data;
+    document.getElementById("switches").innerHTML = Object.entries(d).map(([k, s]) =>
+      `<label class="form-check-label"><input type="checkbox" class="form-check-input me-1" ${s.value ? "checked" : ""}
+        onchange="setSwitch('${k}', this.checked)">${esc(s.label)}</label>`).join("");
+  } catch (e) {}
+}
+async function setSwitch(k, v) {
+  const r = await fetch("/api/station/switches", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({[k]: v})});
+  if (!r.ok) alert("Speichern fehlgeschlagen");
+  loadSwitches();
+}
+
+loadSwitches();
 loadCred();
 refresh();
 setInterval(refresh, 3000);
