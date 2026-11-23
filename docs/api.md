@@ -190,3 +190,15 @@ Ohne `apply: true` wird immer nur geprüft.
     sonst werden die alten Ziele zurückgeschrieben (`rolled_back`, `rollback_ok`), `result: failed`.
   - `result: changed | skipped | failed | ok | would_change`, dazu `checks`.
 - `GET /api/fleet/catalog` enthält zusätzlich `firmware_images` und `firmware_upload_configured`
+
+## VPN-Peers (`/vpn`, `GET /api/vpn/peers`)
+
+Seite `/vpn` listet alle Peers des Gateway-VPN mit Name, letztem Handshake, Traffic und — wo
+vorhanden — Gateway-Name/Seriennr./Status aus der DB. Filter: online (< 3 min), heute, inaktiv
+(> 1 Tag), nie verbunden; Bereich (Infrastruktur/Gateways/Stationen); freie Pool-Plätze ausblenden.
+
+Quelle: Der VPN-Server schreibt minütlich `wgpeer json` (ohne Schlüssel) nach
+`/var/lib/wgpeer/www/peers.json` und stellt es per `wgpeer-http.service` nur auf
+`172.30.0.1:8787` bereit (nur durch den Tunnel erreichbar). Die App liest es über
+`VPN_PEERS_URL` (Default `http://172.30.0.1:8787/peers.json`). In `APP_MODE=cloud` nur mit
+Authentik-Login.

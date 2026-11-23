@@ -37,6 +37,7 @@ from routes.chirpstack import bp as chirpstack_bp
 from routes.milesight import bp as milesight_bp
 from routes.webservice import bp as webservice_bp
 from routes.fleet import bp as fleet_bp
+from routes.vpn import bp as vpn_bp
 from routes.station import bp as station_bp
 from utils.response import error, ok
 
@@ -179,6 +180,7 @@ if APP_MODE != 'cloud_api':
     app.register_blueprint(milesight_bp)
     app.register_blueprint(webservice_bp)
     app.register_blueprint(fleet_bp)
+    app.register_blueprint(vpn_bp)
     app.register_blueprint(station_bp)
 
 
