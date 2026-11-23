@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gateway {{ ip }}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="icon" type="image/png" href="/static/icon/IconGatewayChef.png">
+<style>
+  body { background: #f6f7f9; }
+  .tile { background: #fff; border: 1px solid #dee2e6; border-radius: .5rem; padding: .6rem .75rem; height: 100%; }
+  .tile .k { font-size: .75rem; color: #6c757d; text-transform: uppercase; letter-spacing: .03em; }
+  .tile .v { font-size: 1.15rem; font-weight: 600; }
+  .tile .s { font-size: .8rem; color: #6c757d; }
+  .ok { color: #1a9a4b; } .bad { color: #c83232; } .muted { color: #6c757d; }
+  .card-box { background: #fff; border: 1px solid #dee2e6; border-radius: .5rem; padding: .75rem; }
+  .card-box h2 { font-size: 1rem; }
+  svg text { font-size: 10px; fill: #6c757d; }
+  .bar-rx { fill: #3b7dd8; } .bar-tx { fill: #e0a800; }
+  .actions .btn, .actions select { margin: 0 .3rem .4rem 0; }
+</style>
+</head>
+<body>
+<div class="container-fluid py-3" style="max-width: 1300px">
+  <div class="d-flex align-items-baseline gap-3 mb-1 flex-wrap">
+    <a href="/fleet" class="small">← Flotte</a>
+    <h1 class="h4 mb-0" id="title">Gateway {{ ip }}</h1>
+    <span id="sub" class="text-muted small"></span>
+    <span class="ms-auto"></span>
+    <a href="/vpn" class="small">VPN-Peers</a>
+    {% if cloud %}<a href="/auth/logout" class="small">Abmelden</a>{% endif %}
+  </div>
+  <div id="err" class="alert alert-danger py-2 mt-2" style="display:none"></div>
+
+  <div class="row g-2 my-2" id="tiles"></div>
+
+  <div class="row g-2">
+    <div class="col-12 col-lg-8"><div class="card-box h-100">
+      <div class="d-flex align-items-baseline gap-2">
+        <h2 class="mb-0">Funkpakete (ChirpStack)</h2>
+        <div class="btn-group btn-group-sm ms-auto">
+          <button class="btn btn-outline-secondary active" id="d1" onclick="loadStats(1)">24 Stunden</button>
+          <button class="btn btn-outline-secondary" id="d7" onclick="loadStats(7)">7 Tage</button>
+        </div>
+      </div>
+      <div class="small text-muted mb-1"><span style="color:#3b7dd8">■</span> empfangen (Uplinks von Sensoren) · <span style="color:#e0a800">■</span> gesendet (Downlinks)</div>
+      <div id="chart" class="small text-muted">lade …</div>
+      <div id="freq" class="small mt-2"></div>
+    </div></div>
+    <div class="col-12 col-lg-4"><div class="card-box h-100 actions">
+      <h2>Fernwartung für dieses Gateway</h2>
+      <div class="small text-muted mb-2">„prüfen“ ändert nichts. Schreibende Aktionen fragen nach und laufen nur, wenn das Gateway stabil erreichbar ist.</div>
+      <div class="fw-semibold small">Prüfen</div>
+      <button class="btn btn-sm btn-outline-primary" onclick="loadLive()">Tief prüfen</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="act('compare')">Standard prüfen</button>
+      <div class="fw-semibold small mt-1">Ändern</div>
+      <button class="btn btn-sm btn-warning" onclick="act('align', true)">An Standard angleichen</button><br>
+      <select id="flow" class="form-select form-select-sm d-inline-block" style="width:auto"></select>
+      <button class="btn btn-sm btn-outline-secondary" onclick="act('nodered')">Drive-by-Schnittstelle prüfen</button>
+      <button class="btn btn-sm btn-warning" onclick="act('nodered', true)">aktualisieren</button><br>
+      <select id="firmware" class="form-select form-select-sm d-inline-block" style="width:auto"></select>
+      <button class="btn btn-sm btn-outline-secondary" onclick="act('firmware')">Firmware prüfen</button>
+      <button class="btn btn-sm btn-danger" onclick="act('firmware', true)">aktualisieren</button>
+      <div id="actres" class="small mt-2"></div>
+    </div></div>
+  </div>
+
+  <div class="row g-2 mt-0">
+    <div class="col-12 col-lg-6"><div class="card-box h-100">
+      <h2>Soll-Ist gegen unseren Standard</h2>
+      <div id="compare" class="small text-muted">lade …</div>
+    </div></div>
+    <div class="col-12 col-lg-6"><div class="card-box h-100">
+      <h2>Letzte Vorgänge <span class="small text-muted fw-normal">(seit dem letzten Neustart der App)</span></h2>
+      <div id="jobs" class="small text-muted">lade …</div>
+    </div></div>
+  </div>
+</div>
+
+<script>
+const IP = {{ ip|tojson }};
+let live = null, stats = null, db = null;
+
+async function api(path, body) {
+  const opt = body ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)} : {};
+  const res = await fetch(path, opt);
+  if (res.status === 401) { location.href = '/auth/login?next=' + encodeURIComponent(location.pathname); throw new Error('nicht angemeldet'); }
+  const json = await res.json().catch(() => ({ok: false, error: {message: 'HTTP ' + res.status}}));
+  if (!json.ok) throw new Error((json.error && json.error.message) || ('HTTP ' + res.status));
+  return json.data;
+}
+const fmtv = v => v != null && typeof v === 'object' ? JSON.stringify(v).replace(/"/g, '').slice(0, 160) : String(v);
+const el = (t, txt, cls) => { const e = document.createElement(t); if (txt != null) e.textContent = txt; if (cls) e.className = cls; return e; };
+function ago(s) {
+  if (s == null || isNaN(s)) return 'nie';
+  s = Math.max(0, Math.round(s));
+  if (s < 90) return `vor ${s} s`;
+  if (s < 5400) return `vor ${Math.round(s / 60)} min`;
+  if (s < 172800) return `vor ${Math.round(s / 3600)} h`;
+  return `vor ${Math.round(s / 86400)} Tagen`;
+}
+const since = iso => iso ? (Date.now() - Date.parse(iso)) / 1000 : null;
+const bytes = n => !n ? '0' : n < 1e6 ? (n / 1e3).toFixed(0) + ' kB' : n < 1e9 ? (n / 1e6).toFixed(1) + ' MB' : (n / 1e9).toFixed(2) + ' GB';
+
+function tile(k, v, s, cls) {
+  const c = el('div', null, 'col-6 col-md-4 col-xl-2'), t = el('div', null, 'tile');
+  t.append(el('div', k, 'k'), el('div', v ?? '–', 'v ' + (cls || '')), el('div', s || '', 's'));
+  c.append(t); return c;
+}
+function renderTiles() {
+  const box = document.getElementById('tiles'); box.replaceChildren();
+  const r = live || {}, cs = (stats && stats.chirpstack) || {}, vpn = (stats && stats.vpn) || {};
+  const d = r.driveby;
+  box.append(
+    tile('VPN', r.online === true ? 'erreichbar' : r.online === false ? 'nicht erreichbar' : '…',
+         r.online === false ? (r.identity || '') : r.latency_ms != null ? `${r.latency_ms} ms Antwortzeit` : '', r.online ? 'ok' : r.online === false ? 'bad' : ''),
+    tile('VPN-Verbindung', vpn.error ? '–' : ago(vpn.handshake ? Date.now() / 1000 - vpn.handshake : null),
+         vpn.error || `letzter Handshake · ↓ ${bytes(vpn.rx)} ↑ ${bytes(vpn.tx)}`, vpn.live ? 'ok' : ''),
+    tile('ChirpStack', cs.error ? '–' : ago(since(cs.last_seen)), cs.error || 'zuletzt gesehen (LNS)',
+         cs.last_seen && since(cs.last_seen) < 300 ? 'ok' : cs.last_seen ? 'bad' : ''),
+    tile('Firmware', r.firmware, r.firmware ? (r.profile_ok ? 'Profil vorhanden' : '⚠ kein Profil') : (r.cgi_error || 'Tief prüfen liest sie'),
+         r.firmware && !r.profile_ok ? 'bad' : ''),
+    tile('Drive-by-Schnittstelle', r.flow ? (r.flow.version || '?') : (d && d.flow_version) || (r.online ? 'fehlt / alt' : '–'),
+         r.flow ? (r.flow.up_to_date ? 'aktuell' : 'veraltet') + (r.flow.modified ? ', geändert' : '') : 'WLAN-Abholung der Daten',
+         r.flow ? (r.flow.up_to_date ? 'ok' : 'bad') : ''),
+    tile('Funkempfang', d ? (d.receiving ? 'empfängt' : 'kein Empfang') : '–',
+         d ? `Funk ${ago(d.seconds_since_rxpk)} · ${d.rxpk} Pakete · Drive-by ${ago(d.app_seconds_since_poll)}` : '', d ? (d.receiving ? 'ok' : 'bad') : ''),
+  );
+}
+function renderHead() {
+  const g = (stats && stats.gateway) || db || {};
+  document.getElementById('title').textContent = (g.gateway_name || 'Gateway') + ' · ' + IP;
+  document.title = (g.gateway_name || IP) + ' – Gateway';
+  document.getElementById('sub').textContent = [g.eui && 'EUI ' + g.eui, g.serial_number && 'S/N ' + g.serial_number,
+    g.status_overall, live && live.wifi_country && 'WLAN-Region ' + live.wifi_country].filter(Boolean).join(' · ');
+}
+
+function chart(cs) {
+  const box = document.getElementById('chart');
+  if (cs.error) { box.textContent = cs.error; return; }
+  const ts = cs.rx.timestamps.length ? cs.rx.timestamps : cs.tx.timestamps;
+  const rx = cs.rx.values, tx = cs.tx.values;
+  if (!ts.length) { box.textContent = 'Keine Daten im Zeitraum.'; return; }
+  const W = 760, H = 190, L = 34, B = 22, n = ts.length, bw = (W - L) / n;
+  const max = Math.max(1, ...rx, ...tx);
+  const y = v => (H - B) - (v / max) * (H - B - 8);
+  const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', '100%');
+  const add = (tag, attrs, text) => { const e = document.createElementNS(ns, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; svg.append(e); return e; };
+  [0, .5, 1].forEach(f => { const v = Math.round(max * f); add('line', {x1: L, x2: W, y1: y(v), y2: y(v), stroke: '#eee'}); add('text', {x: 2, y: y(v) + 3}, v); });
+  const hourly = cs.aggregation === 'HOUR';
+  ts.forEach((t, i) => {
+    const x = L + i * bw, d = new Date(t);
+    const r = add('rect', {x: x + 1, y: y(rx[i] || 0), width: Math.max(1, bw * .55 - 1), height: (H - B) - y(rx[i] || 0), class: 'bar-rx'});
+    add('rect', {x: x + bw * .55, y: y(tx[i] || 0), width: Math.max(1, bw * .35), height: (H - B) - y(tx[i] || 0), class: 'bar-tx'});
+    const label = hourly ? d.toLocaleTimeString('de-DE', {hour: '2-digit'}) + ' Uhr' : d.toLocaleDateString('de-DE', {weekday: 'short', day: '2-digit', month: '2-digit'});
+    const tip = document.createElementNS(ns, 'title'); tip.textContent = `${label}: ${rx[i] || 0} empfangen, ${tx[i] || 0} gesendet`; r.append(tip);
+    if (!hourly || i % 3 === 0) add('text', {x: x + bw / 2, y: H - 6, 'text-anchor': 'middle'}, hourly ? d.getHours() + 'h' : label);
+  });
+  box.replaceChildren(svg);
+  const sum = a => a.reduce((s, v) => s + (v || 0), 0);
+  const f = document.getElementById('freq'); f.replaceChildren();
+  f.append(el('span', `Summe: ${sum(rx)} empfangen, ${sum(tx)} gesendet. `, 'fw-semibold'));
+  const fr = Object.entries(cs.rx_per_freq || {});
+  if (fr.length) f.append(el('span', 'Pro Frequenz: ' + fr.map(([k, v]) => `${(k / 1e6 || k)} MHz: ${v}`).join(' · '), 'text-muted'));
+}
+
+async function loadStats(days) {
+  document.getElementById('d1').classList.toggle('active', days === 1);
+  document.getElementById('d7').classList.toggle('active', days === 7);
+  try {
+    stats = await api(`/api/fleet/gateway/${IP}/stats?days=${days}`);
+    chart(stats.chirpstack); renderHead(); renderTiles();
+  } catch (e) { document.getElementById('chart').textContent = e.message; }
+}
+async function loadLive() {
+  try {
+    const r = await api(`/api/fleet/status?ip=${IP}&deep=1`);
+    live = r[0] || {}; db = live; renderHead(); renderTiles();
+  } catch (e) { showErr(e.message); }
+}
+async function loadCompare() {
+  const box = document.getElementById('compare');
+  try {
+    const r = (await api('/api/fleet/compare?ip=' + IP))[0];
+    box.replaceChildren();
+    const ch = r.changes || [];
+    if (r.result === 'error' || r.result === 'offline') { box.textContent = r.detail || r.result; box.className = 'small bad'; return; }
+    box.className = 'small';
+    box.append(el('div', ch.length || (r.flow && !r.flow.ok) ? `${ch.length} Abweichung(en) vom Standard` : 'Entspricht dem Standard ✓',
+                  'fw-semibold ' + (ch.length ? 'text-primary' : 'ok')));
+    if (r.flow) box.append(el('div', `Drive-by-Schnittstelle: ${r.flow.current || '?'} → Soll ${r.flow.target || '?'} ${r.flow.ok ? '✓' : ''}`));
+    ch.forEach(c => box.append(el('div', `${c.label}${c.lns ? ' [LNS]' : ''}: ` + Object.entries(c.fields).map(([k, v]) => `${k} ${fmtv(v[0])} → ${fmtv(v[1])}`).join(', '))));
+  } catch (e) { box.textContent = e.message; }
+}
+async function loadJobs() {
+  const box = document.getElementById('jobs');
+  try {
+    const js = await api('/api/fleet/jobs?ip=' + IP);
+    box.replaceChildren();
+    if (!js.length) { box.textContent = 'Keine Vorgänge.'; return; }
+    js.forEach(j => {
+      const cls = {ok: 'ok', failed: 'bad', running: 'text-primary'}[j.state] || 'muted';
+      box.append(el('div', `${new Date(j.started * 1000).toLocaleString('de-DE')} · ${j.label} · ${j.state}${j.detail ? ': ' + j.detail : ''}`, cls));
+    });
+  } catch (e) { box.textContent = e.message; }
+}
+function showErr(m) { const e = document.getElementById('err'); e.textContent = m; e.style.display = ''; }
+
+async function act(kind, apply = false) {
+  const out = document.getElementById('actres');
+  const version = kind === 'nodered' ? document.getElementById('flow').value : kind === 'firmware' ? document.getElementById('firmware').value : undefined;
+  const what = {compare: 'Standard prüfen', align: 'An Standard angleichen', nodered: 'Drive-by-Schnittstelle ' + version, firmware: 'Firmware ' + version}[kind];
+  if (apply && !confirm(`${what} auf ${IP} schreiben?`)) return;
+  out.className = 'small mt-2 text-muted';
+  out.textContent = kind === 'firmware' && apply ? 'Upload und Neustart laufen, bis zu 20 Minuten …' : 'läuft …';
+  try {
+    if (kind === 'compare') { await loadCompare(); out.textContent = 'siehe Soll-Ist'; return; }
+    const r = await api('/api/fleet/' + kind, {vpn_ip: IP, version, apply});
+    const ch = (r.changes || []).map(c => c.label).join(', ');
+    out.className = 'small mt-2 ' + ({ok: 'ok', changed: 'ok', updated: 'ok', unchanged: 'ok', would_change: 'text-primary', skipped: 'muted'}[r.result] || 'bad');
+    out.textContent = `${r.result}: ${r.detail || ''} ${ch}`;
+  } catch (e) { out.className = 'small mt-2 bad'; out.textContent = 'Fehler: ' + e.message; }
+  loadJobs(); if (apply) { loadLive(); loadCompare(); }
+}
+
+(async () => {
+  try {
+    const cat = await api('/api/fleet/catalog');
+    const fs = document.getElementById('flow');
+    cat.flows.slice().reverse().forEach(v => { const o = el('option', 'Version ' + v); o.value = v; fs.append(o); });
+    const fw = document.getElementById('firmware');
+    cat.firmware_images.slice().reverse().forEach(i => { const o = el('option', `FW ${i.label}`); o.value = i.version; fw.append(o); });
+    if (!cat.firmware_images.length) fw.append(el('option', 'keine Firmware-Dateien'));
+  } catch (e) { /* optional */ }
+  renderTiles();
+  // one login at a time: the gateway's web server stumbles over parallel sessions
+  loadStats(1); loadJobs();
+  await loadLive(); await loadCompare();
+})();
+</script>
+</body>
+</html>

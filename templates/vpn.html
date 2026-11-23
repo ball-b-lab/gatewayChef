@@ -21,9 +21,9 @@
   <div class="d-flex align-items-baseline gap-3 mb-2 flex-wrap">
     <h1 class="h4 mb-0">VPN-Peers</h1>
     <span id="stamp" class="text-muted small"></span>
-    <a href="/fleet" class="ms-auto small">Flotte</a>
-    <a href="/station" class="small">Station &amp; Vorgänge</a>
-    <a href="/" class="small">Einrichtung</a>
+    <a href="/fleet" class="ms-auto small">← Flotte</a>
+    {% if not cloud %}<a href="/station" class="small">Station &amp; Vorgänge</a>
+    <a href="/" class="small">Einrichtung vor Ort</a>{% else %}<a href="/auth/logout" class="small">Abmelden</a>{% endif %}
   </div>
 
   <div id="counts" class="mb-2"></div>

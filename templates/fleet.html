@@ -12,53 +12,99 @@
   td.result { white-space: normal; min-width: 260px; font-size: .85rem; }
   .dot { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; }
   .on { background: #1a9a4b; } .off { background: #c83232; } .unk { background: #aaa; }
-  .toolbar > * { margin: 0 .5rem .5rem 0; }
+  .block { background: #fff; border: 1px solid #dee2e6; border-radius: .5rem; padding: .6rem .75rem; height: 100%; }
+  .block h2 { font-size: .95rem; margin: 0 0 .15rem; }
+  .block p { font-size: .8rem; color: #6c757d; margin: 0 0 .5rem; }
+  .block .btn, .block select { margin: 0 .3rem .3rem 0; }
+  .chip { cursor: pointer; }
+  .chip.active { outline: 2px solid #0d6efd; }
+  .filters > * { margin: 0 .5rem .5rem 0; }
+  a.gw { text-decoration: none; }
+  th[data-k] { cursor: pointer; user-select: none; }
+  th.sorted::after { content: attr(data-dir); margin-left: .2rem; color: #0d6efd; }
 </style>
 </head>
 <body>
 <div class="container-fluid py-3">
-  <div class="d-flex align-items-baseline gap-3 mb-2">
-    <h1 class="h4 mb-0">Gateway-Flotte</h1>
-    <span id="summary" class="text-muted"></span>
-    <a href="/vpn" class="ms-auto small">VPN-Peers</a>
-    <a href="/station" class="small">Station &amp; Vorgänge</a>
-    <a href="/" class="small">Einrichtung</a>
+  <div class="d-flex align-items-baseline gap-3 mb-2 flex-wrap">
+    <h1 class="h4 mb-0">Gateway-Flotte · Fernwartung</h1>
+    <span id="summary" class="text-muted small"></span>
+    <span class="ms-auto"></span>
+    <a href="/vpn" class="small">VPN-Peers</a>
+    {% if not cloud %}<a href="/station" class="small">Station &amp; Vorgänge</a>
+    <a href="/" class="small">Einrichtung vor Ort</a>{% endif %}
+    {% if cloud %}<span id="user" class="small text-muted"></span><a href="/auth/logout" class="small">Abmelden</a>{% endif %}
   </div>
 
-  <div class="toolbar d-flex flex-wrap align-items-center">
-    <button class="btn btn-sm btn-outline-primary" onclick="load(false)">Erreichbarkeit prüfen</button>
-    <button class="btn btn-sm btn-outline-primary" onclick="load(true)" title="Login je Gateway: Firmware, WLAN-Region, Flow-Version">Tief prüfen</button>
-    <label class="form-check-label small me-2"><input type="checkbox" class="form-check-input me-1" id="auto" onchange="toggleAuto(this.checked)">alle 30 s</label>
-    <input id="filter" class="form-control form-control-sm" style="width:14rem" placeholder="Filter (Name, IP, EUI)" oninput="render()">
-    <span class="vr mx-2"></span>
-    <select id="patch" class="form-select form-select-sm" style="width:auto"></select>
-    <button class="btn btn-sm btn-outline-secondary" onclick="run('patch', false)">Patch prüfen</button>
-    <button class="btn btn-sm btn-warning" onclick="run('patch', true)">Patch schreiben</button>
-    <span class="vr mx-2"></span>
-    <select id="flow" class="form-select form-select-sm" style="width:auto"></select>
-    <button class="btn btn-sm btn-outline-secondary" onclick="run('nodered', false)">Node-RED prüfen</button>
-    <button class="btn btn-sm btn-warning" onclick="run('nodered', true)">Node-RED aktualisieren</button>
-    <span class="vr mx-2"></span>
-    <select id="firmware" class="form-select form-select-sm" style="width:auto"></select>
-    <button class="btn btn-sm btn-outline-secondary" onclick="run('firmware', false)">Firmware prüfen</button>
-    <button class="btn btn-sm btn-danger" onclick="run('firmware', true)" title="Gateways nacheinander, Stopp beim ersten Fehler">Firmware aktualisieren</button>
-    <span class="vr mx-2"></span>
-    <button class="btn btn-sm btn-outline-secondary" onclick="run('compare', false)" title="Vergleich mit unserem Standard: Profil der Firmware + neuester Flow">Standard prüfen</button>
-    <button class="btn btn-sm btn-warning" onclick="run('align', true)" title="Nur wenn das Gateway stabil im Netz ist. Reihenfolge: Flow, Parameter, LNS zuletzt mit Rollback. Stopp beim ersten Fehler">An Standard angleichen</button>
+  <details class="mb-3 small bg-white border rounded px-3 py-2">
+    <summary class="fw-semibold">Was geht per Fernwartung? (über das Gateway-VPN, ohne vor Ort zu sein)</summary>
+    <ul class="mt-2 mb-1">
+      <li><b>Prüfen</b> – erreichbar über VPN, Antwortzeit. „Tief prüfen“ meldet sich an jedem Gateway an und liest Firmware, WLAN-Region und Version der Drive-by-Schnittstelle (läuft beim Öffnen einmal automatisch).</li>
+      <li><b>Standard</b> – vergleicht ein Gateway mit unserem Soll (Profil der Firmware + neueste Drive-by-Schnittstelle) und gleicht es an. Nur bei stabil erreichbaren Gateways; Reihenfolge Schnittstelle → Parameter → LNS zuletzt, mit Rückbau bei fehlendem Empfang.</li>
+      <li><b>Einstellungen (Patch)</b> – einzelne vorbereitete Einstellungen schreiben, danach zurücklesen und Erreichbarkeit prüfen.</li>
+      <li><b>Drive-by-Schnittstelle (WLAN)</b> – die Software auf dem Gateway, über die die Drive-by-App per WLAN die Daten abholt. Aktualisieren mit Rückbau bei Fehler.</li>
+      <li><b>Firmware</b> – nur nach Stabilitätsprüfung; nacheinander, Stopp beim ersten Fehler. Dauert bis zu 20 Minuten je Gateway.</li>
+      <li><b>Einzelsicht</b> – Klick auf den Namen: Statistik aus ChirpStack (Pakete pro Stunde/Tag), VPN-Verbindung, Soll-Ist und letzte Vorgänge.</li>
+    </ul>
+    <b>DB-Status:</b> DEPLOYED = eingerichtet und im Einsatz · IN_PROGRESS = aus dem Pool vergeben, Einrichtung begonnen, aber nicht abgeschlossen.<br>
+    Alles mit „prüfen“ ändert nichts. Was schreibt, ist gelb oder rot und fragt vorher nach.
+    Nicht per Fernwartung: Ersteinrichtung und alles, was das VPN selbst betrifft (dafür vor Ort, lokales GatewayChef).
+  </details>
+
+  <div class="row g-2 mb-3">
+    <div class="col-12 col-md-6 col-xl-3"><div class="block">
+      <h2>1 · Prüfen</h2><p>liest nur, ändert nichts</p>
+      <button class="btn btn-sm btn-outline-primary" onclick="load(false)">Erreichbarkeit</button>
+      <button class="btn btn-sm btn-outline-primary" onclick="load(true)" title="Login je Gateway: Firmware, WLAN-Region, Drive-by-Schnittstelle">Tief prüfen</button>
+      <label class="form-check-label small"><input type="checkbox" class="form-check-input me-1" id="auto" onchange="toggleAuto(this.checked)">alle 30 s</label>
+    </div></div>
+    <div class="col-12 col-md-6 col-xl-3"><div class="block">
+      <h2>2 · Standard &amp; Einstellungen</h2><p>Soll-Ist und Angleichen, einzelne Patches</p>
+      <button class="btn btn-sm btn-outline-secondary" onclick="run('compare', false)">Standard prüfen</button>
+      <button class="btn btn-sm btn-warning" onclick="run('align', true)" title="Nur wenn stabil. Schnittstelle → Parameter → LNS zuletzt, mit Rückbau">An Standard angleichen</button><br>
+      <select id="patch" class="form-select form-select-sm d-inline-block" style="width:auto"></select>
+      <button class="btn btn-sm btn-outline-secondary" onclick="run('patch', false)">prüfen</button>
+      <button class="btn btn-sm btn-warning" onclick="run('patch', true)">schreiben</button>
+    </div></div>
+    <div class="col-12 col-md-6 col-xl-3"><div class="block">
+      <h2>3 · Drive-by-Schnittstelle (WLAN)</h2><p>Software für das Abholen der Daten per WLAN</p>
+      <select id="flow" class="form-select form-select-sm d-inline-block" style="width:auto"></select>
+      <button class="btn btn-sm btn-outline-secondary" onclick="run('nodered', false)">prüfen</button>
+      <button class="btn btn-sm btn-warning" onclick="run('nodered', true)">aktualisieren</button>
+    </div></div>
+    <div class="col-12 col-md-6 col-xl-3"><div class="block">
+      <h2>4 · Firmware</h2><p>erst ein Test-Gateway, Stopp beim ersten Fehler</p>
+      <select id="firmware" class="form-select form-select-sm d-inline-block" style="width:auto"></select>
+      <button class="btn btn-sm btn-outline-secondary" onclick="run('firmware', false)">prüfen</button>
+      <button class="btn btn-sm btn-danger" onclick="run('firmware', true)">aktualisieren</button>
+    </div></div>
   </div>
-  <div class="small text-muted mb-2">„An Standard angleichen“ ändert nur Gateways, die gerade stabil antworten (mehrmals erreichbar, LNS ONLINE).
-    Die LNS-Ziele werden zuletzt und einzeln umgestellt und bei fehlendem Empfang zurückgerollt. Aktionen gelten für die markierten Zeilen. „Schreiben“ und „Aktualisieren“ laufen nacheinander,
-    lesen danach zurück und prüfen, ob das Gateway über VPN wieder antwortet. Node-RED wird bei einem Fehler zurückgerollt.</div>
+
+  <div id="chips" class="mb-2"></div>
+  <div class="filters d-flex flex-wrap align-items-center">
+    <input id="q" class="form-control form-control-sm" style="width:20rem" placeholder="Suche in allen Spalten (Name, IP, EUI, Firmware, Fehler …)" oninput="render()">
+    <select id="fFw" class="form-select form-select-sm" style="width:auto" onchange="render()"><option value="">Firmware: alle</option></select>
+    <select id="fFlow" class="form-select form-select-sm" style="width:auto" onchange="render()">
+      <option value="">Drive-by-Schnittstelle: alle</option><option value="current">aktuell</option><option value="old">veraltet / fehlt</option></select>
+    <select id="fRx" class="form-select form-select-sm" style="width:auto" onchange="render()">
+      <option value="">Funkempfang: alle</option><option value="yes">empfängt</option><option value="no">kein Empfang</option></select>
+    <select id="fDb" class="form-select form-select-sm" style="width:auto" onchange="render()">
+      <option value="">DB-Status: alle</option><option value="DEPLOYED">im Einsatz (DEPLOYED)</option><option value="IN_PROGRESS">Einrichtung offen (IN_PROGRESS)</option></select>
+    <label class="form-check-label small"><input type="checkbox" class="form-check-input me-1" id="fSel" onchange="render()">nur markierte</label>
+    <span id="selInfo" class="small text-muted"></span>
+    <button class="btn btn-sm btn-link" onclick="resetFilters()">Filter zurücksetzen</button>
+  </div>
 
   <div class="table-responsive bg-white border rounded">
     <table class="table table-sm table-hover mb-0">
       <thead class="table-light"><tr>
-        <th><input type="checkbox" id="all" onchange="toggleAll(this.checked)"></th>
-        <th></th><th>VPN-IP</th><th>Name</th><th>EUI</th><th>Status</th><th>ms</th>
-        <th>Firmware</th><th>WLAN</th><th>Flow</th>
-        <th title="Packet Forwarder -> Node-RED (UDP): letzte Statusmeldung / letztes Funkpaket">Empfang</th>
-        <th title="Wann hat die db_monitor-App zuletzt /node-red/status abgerufen?">dbmonitor zuletzt</th>
-        <th>Ergebnis</th>
+        <th><input type="checkbox" id="all" title="alle angezeigten markieren" onchange="toggleAll(this.checked)"></th>
+        <th data-k="online" title="sortieren">●</th><th data-k="ip">VPN-IP</th><th data-k="name">Name</th><th data-k="eui">EUI</th>
+        <th data-k="db" title="DEPLOYED = im Einsatz · IN_PROGRESS = Einrichtung begonnen, nicht abgeschlossen">DB-Status</th><th data-k="ms">ms</th>
+        <th data-k="fw">Firmware</th><th data-k="wifi">WLAN-Region</th><th data-k="flow">Drive-by-Schnittstelle</th>
+        <th data-k="rx" title="Packet Forwarder → Drive-by-Schnittstelle: letzte Statusmeldung / letztes Funkpaket">Funkempfang</th>
+        <th data-k="poll" title="Wann hat die Drive-by-App (dbmonitor) zuletzt Daten per WLAN abgeholt?">Drive-by zuletzt</th>
+        <th data-k="result">Ergebnis</th>
       </tr></thead>
       <tbody id="rows"><tr><td colspan="13" class="text-muted p-3">Lade …</td></tr></tbody>
     </table>
@@ -66,18 +112,34 @@
 </div>
 
 <script>
-let rows = [], results = {}, selected = new Set();
+let rows = [], results = {}, selected = new Set(), stateFilter = '', deepRunning = false;
+let sortKey = 'online', sortDir = 1;
+const ipNum = ip => (ip || '').split('.').reduce((a, b) => a * 256 + +b, 0);
+const SORT = {
+  online: r => r.online === true ? 0 : r.online == null ? 1 : 2, ip: r => ipNum(r.vpn_ip), name: r => (r.gateway_name || '').toLowerCase(),
+  eui: r => r.eui || '', db: r => r.status_overall || '', ms: r => r.latency_ms ?? 1e9, fw: r => r.firmware || '~',
+  wifi: r => r.wifi_country || '~', flow: r => flowText(r) || '~', rx: r => r.driveby ? (r.driveby.receiving ? 0 : 1) : 2,
+  poll: r => r.driveby && r.driveby.app_seconds_since_poll != null ? r.driveby.app_seconds_since_poll : 1e12,
+  result: r => results[r.vpn_ip] ? results[r.vpn_ip].text : '~',
+};
+// full-text: every value of the row (incl. nested drive-by/flow data) plus shown texts and last action result
+function haystack(r) {
+  const vals = [];
+  (function walk(v) { if (v == null) return; if (typeof v === 'object') Object.values(v).forEach(walk); else vals.push(String(v)); })(r);
+  vals.push(flowText(r), r.online === true ? 'online' : r.online === false ? 'offline' : '', results[r.vpn_ip] ? results[r.vpn_ip].text : '');
+  return vals.join(' ').toLowerCase();
+}
 
 async function api(path, body) {
   const opt = body ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)} : {};
   const res = await fetch(path, opt);
+  if (res.status === 401) { location.href = '/auth/login?next=' + encodeURIComponent(location.pathname); throw new Error('nicht angemeldet'); }
   const json = await res.json().catch(() => ({ok: false, error: {message: 'HTTP ' + res.status}}));
   if (!json.ok) throw new Error((json.error && json.error.message) || json.message || ('HTTP ' + res.status));
   return json.data;
 }
-
+const fmtv = v => v != null && typeof v === 'object' ? JSON.stringify(v).replace(/"/g, '').slice(0, 160) : String(v);
 function el(tag, text, cls) { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; }
-
 function ago(s) {
   if (s == null) return 'nie';
   if (s < 90) return `vor ${s} s`;
@@ -85,24 +147,35 @@ function ago(s) {
   if (s < 172800) return `vor ${Math.round(s / 3600)} h`;
   return `vor ${Math.round(s / 86400)} d`;
 }
-
 function flowText(r) {
   if (r.flow) return (r.flow.version || 'unbekannt') + (r.flow.modified ? ' (geändert)' : '') + (r.flow.up_to_date ? ' ✓' : '');
   if (r.driveby && r.driveby.flow_version) return r.driveby.flow_version;
   if (r.online && !r.driveby) return 'alt (< 1.1)';
   return r.flow_error ? '–' : '';
 }
+const flowCurrent = r => !!(r.flow && r.flow.up_to_date);
+const receiving = r => !!(r.driveby && r.driveby.receiving);
 
-function receiveCell(r) {
+function fwCell(r) {
   const td = el('td');
-  if (!r.driveby) { td.textContent = r.online ? 'kein UDP-Flow' : ''; td.className = 'text-muted'; return td; }
-  const d = r.driveby;
-  td.textContent = (d.receiving ? '● ' : '○ ') + `stat ${ago(d.seconds_since_stat)} · Funk ${ago(d.seconds_since_rxpk)} (${d.rxpk})`;
-  td.className = d.receiving ? 'text-success' : 'text-danger';
-  td.title = d.receiving ? 'Packet Forwarder liefert per UDP' : 'Keine Statusmeldung per UDP: 3. Forwarder-Ziel fehlt?';
+  if (r.firmware) {
+    td.textContent = r.firmware + (!r.profile_ok ? ' ⚠ kein Profil' : '');
+    if (r.deep_age != null) td.title = 'gelesen ' + ago(r.deep_age);
+  } else if (r.online) {
+    td.textContent = deepRunning ? 'wird gelesen …' : (r.cgi_error ? 'Login fehlgeschlagen' : '–');
+    td.className = 'text-muted'; td.title = r.cgi_error || 'Tief prüfen liest die Firmware';
+  }
   return td;
 }
-
+function receiveCell(r) {
+  const td = el('td');
+  if (!r.driveby) { td.textContent = r.online ? 'Schnittstelle fehlt' : ''; td.className = 'text-muted'; return td; }
+  const d = r.driveby;
+  td.textContent = (d.receiving ? '● ' : '○ ') + `Status ${ago(d.seconds_since_stat)} · Funk ${ago(d.seconds_since_rxpk)} (${d.rxpk})`;
+  td.className = d.receiving ? 'text-success' : 'text-danger';
+  td.title = d.receiving ? 'Packet Forwarder liefert an die Drive-by-Schnittstelle' : 'Keine Statusmeldung: 3. Forwarder-Ziel fehlt?';
+  return td;
+}
 function appCell(r) {
   const td = el('td');
   if (!r.driveby) return td;
@@ -113,61 +186,104 @@ function appCell(r) {
   return td;
 }
 
+function visible() {
+  const q = document.getElementById('q').value.toLowerCase();
+  const fw = document.getElementById('fFw').value, fl = document.getElementById('fFlow').value;
+  const rx = document.getElementById('fRx').value, db = document.getElementById('fDb').value;
+  const onlySel = document.getElementById('fSel').checked;
+  return rows.filter(r => {
+    if (q && !q.split(/\s+/).every(w => haystack(r).includes(w))) return false;
+    if (stateFilter === 'online' && r.online !== true) return false;
+    if (stateFilter === 'offline' && r.online !== false) return false;
+    if (stateFilter === 'error' && !(results[r.vpn_ip] && results[r.vpn_ip].cls === 'text-danger')) return false;
+    if (fw && (r.firmware || '?') !== fw) return false;
+    if (fl === 'current' && !flowCurrent(r)) return false;
+    if (fl === 'old' && (flowCurrent(r) || r.online === false)) return false;
+    if (rx === 'yes' && !receiving(r)) return false;
+    if (rx === 'no' && (receiving(r) || r.online === false)) return false;
+    if (db && r.status_overall !== db) return false;
+    if (onlySel && !selected.has(r.vpn_ip)) return false;
+    return true;
+  });
+}
+
+function renderChips() {
+  const n = {all: rows.length, online: rows.filter(r => r.online === true).length, offline: rows.filter(r => r.online === false).length,
+             error: rows.filter(r => results[r.vpn_ip] && results[r.vpn_ip].cls === 'text-danger').length};
+  const box = document.getElementById('chips'); box.replaceChildren();
+  [['', 'alle', n.all, 'text-bg-light'], ['online', 'online', n.online, 'text-bg-success'],
+   ['offline', 'offline', n.offline, 'text-bg-danger'], ['error', 'Fehler bei Aktion', n.error, 'text-bg-warning']].forEach(([k, t, c, cls]) => {
+    const b = el('span', `${t}: ${c}`, `badge ${cls} border me-2 chip` + (stateFilter === k ? ' active' : ''));
+    b.onclick = () => { stateFilter = k; render(); };
+    box.append(b);
+  });
+  const recv = rows.filter(receiving).length;
+  const live = rows.filter(r => r.driveby && r.driveby.app_seconds_since_poll != null && r.driveby.app_seconds_since_poll < 300).length;
+  box.append(el('span', `${recv} mit Funkempfang · ${live} gerade per Drive-by abgeholt`, 'small text-muted'));
+}
+
 function render() {
-  const q = document.getElementById('filter').value.toLowerCase();
-  const body = document.getElementById('rows');
-  body.replaceChildren();
-  const shown = rows.filter(r => !q || [r.vpn_ip, r.gateway_name, r.eui].join(' ').toLowerCase().includes(q));
+  const fwSel = document.getElementById('fFw'), cur = fwSel.value;
+  const fws = [...new Set(rows.map(r => r.firmware).filter(Boolean))].sort();
+  if (fwSel.options.length - 1 !== fws.length) {
+    fwSel.replaceChildren(el('option', 'Firmware: alle'));
+    fwSel.options[0].value = '';
+    fws.forEach(f => { const o = el('option', f); o.value = f; fwSel.append(o); });
+    fwSel.value = cur;
+  }
+  const body = document.getElementById('rows'); body.replaceChildren();
+  const shown = visible();
+  const key = SORT[sortKey];
+  shown.sort((a, b) => { const x = key(a), y = key(b); return (x > y ? 1 : x < y ? -1 : ipNum(a.vpn_ip) - ipNum(b.vpn_ip)) * sortDir; });
+  document.querySelectorAll('th[data-k]').forEach(th => { th.classList.toggle('sorted', th.dataset.k === sortKey); th.dataset.dir = sortDir > 0 ? '▲' : '▼'; });
   for (const r of shown) {
     const tr = el('tr');
     const cb = el('input'); cb.type = 'checkbox'; cb.checked = selected.has(r.vpn_ip);
-    cb.onchange = () => cb.checked ? selected.add(r.vpn_ip) : selected.delete(r.vpn_ip);
+    cb.onchange = () => { cb.checked ? selected.add(r.vpn_ip) : selected.delete(r.vpn_ip); selInfo(); };
     const c0 = el('td'); c0.append(cb); tr.append(c0);
     const dot = el('span', null, 'dot ' + (r.online === true ? 'on' : r.online === false ? 'off' : 'unk'));
     const c1 = el('td'); c1.append(dot); c1.title = r.identity || ''; tr.append(c1);
-    tr.append(el('td', r.vpn_ip), el('td', r.gateway_name || ''), el('td', r.eui || '', 'font-monospace small'),
-              el('td', r.status_overall || ''), el('td', r.latency_ms ?? ''),
-              el('td', (r.firmware || '') + (r.firmware && !r.profile_ok ? ' ⚠ kein Profil' : '')),
-              el('td', r.wifi_country || ''), el('td', flowText(r)), receiveCell(r), appCell(r));
+    const name = el('td'); const a = el('a', r.gateway_name || '(ohne Name)', 'gw'); a.href = '/fleet/gw/' + r.vpn_ip; a.title = 'Einzelsicht mit Statistik'; name.append(a);
+    tr.append(el('td', r.vpn_ip, 'font-monospace'), name, el('td', r.eui || '', 'font-monospace small'),
+              el('td', r.status_overall || '', 'small'), el('td', r.latency_ms ?? ''),
+              fwCell(r), el('td', r.wifi_country || ''), el('td', flowText(r)), receiveCell(r), appCell(r));
     const res = results[r.vpn_ip];
     const c = el('td', res ? res.text : (r.online === false ? r.identity : (r.cgi_error || r.flow_error || '')), 'result');
     if (res) c.classList.add(res.cls);
     tr.append(c);
     body.append(tr);
   }
-  const online = rows.filter(r => r.online).length;
-  const recv = rows.filter(r => r.driveby && r.driveby.receiving).length;
-  const live = rows.filter(r => r.driveby && r.driveby.app_seconds_since_poll != null && r.driveby.app_seconds_since_poll < 300).length;
-  document.getElementById('summary').textContent = rows.length
-    ? `${online}/${rows.length} online · ${recv} empfangen per UDP · ${live} gerade von dbmonitor gelesen` : '';
+  if (!shown.length) { const tr = el('tr'); const td = el('td', 'Keine Gateways für diesen Filter.', 'text-muted p-3'); td.colSpan = 13; tr.append(td); body.append(tr); }
+  renderChips(); selInfo();
 }
+function selInfo() { document.getElementById('selInfo').textContent = selected.size ? `${selected.size} markiert` : 'Aktionen gelten für markierte Zeilen'; }
+function toggleAll(on) { visible().forEach(r => on ? selected.add(r.vpn_ip) : selected.delete(r.vpn_ip)); render(); }
+function resetFilters() { ['q', 'fFw', 'fFlow', 'fRx', 'fDb'].forEach(i => document.getElementById(i).value = ''); document.getElementById('fSel').checked = false; stateFilter = ''; render(); }
 
-function toggleAll(on) {
-  const q = document.getElementById('filter').value.toLowerCase();
-  rows.filter(r => !q || [r.vpn_ip, r.gateway_name, r.eui].join(' ').toLowerCase().includes(q))
-      .forEach(r => on ? selected.add(r.vpn_ip) : selected.delete(r.vpn_ip));
-  render();
-}
+document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
+  sortDir = sortKey === th.dataset.k ? -sortDir : 1; sortKey = th.dataset.k; render();
+});
 
 let autoTimer = null;
-function toggleAuto(on) {
-  clearInterval(autoTimer);
-  autoTimer = on ? setInterval(() => load(false, true), 30000) : null;
-}
+function toggleAuto(on) { clearInterval(autoTimer); autoTimer = on ? setInterval(() => load(false, true), 30000) : null; }
 
 async function load(deep, keepResults) {
-  document.getElementById('summary').textContent = deep ? 'prüfe tief …' : 'prüfe …';
+  const sum = document.getElementById('summary');
+  sum.textContent = deep ? 'lese Firmware und Schnittstelle je Gateway …' : 'prüfe …';
+  deepRunning = deep;
   try { rows = await api('/api/fleet/status' + (deep ? '?deep=1' : '')); if (!keepResults) results = {}; }
-  catch (e) { document.getElementById('summary').textContent = 'Fehler: ' + e.message; return; }
+  catch (e) { sum.textContent = 'Fehler: ' + e.message; deepRunning = false; return; }
+  deepRunning = false;
+  sum.textContent = 'Stand ' + new Date().toLocaleTimeString('de-DE') + (deep ? ' (tief geprüft)' : '');
   render();
 }
 
 async function run(kind, apply) {
   const ips = [...selected];
-  if (!ips.length) { alert('Erst Gateways markieren.'); return; }
+  if (!ips.length) { alert('Erst Gateways in der Tabelle markieren.'); return; }
   const sel = {patch: 'patch', nodered: 'flow', firmware: 'firmware'}[kind];
   const name = sel ? document.getElementById(sel).value : '';
-  const what = {patch: 'Patch ', nodered: 'Node-RED ', firmware: 'Firmware ', compare: 'Standard-Vergleich', align: 'Angleichen an Standard'}[kind] + name;
+  const what = {patch: 'Einstellung ', nodered: 'Drive-by-Schnittstelle ', firmware: 'Firmware ', compare: 'Standard-Vergleich', align: 'Angleichen an Standard'}[kind] + name;
   if (apply && kind === 'firmware' && ips.length > 1 &&
       !confirm('Firmware auf mehrere Gateways: zuerst ein einzelnes Test-Gateway aktualisieren. Trotzdem fortfahren?')) return;
   if (apply && !confirm(`${what} auf ${ips.length} Gateway(s) schreiben?`)) return;
@@ -176,11 +292,11 @@ async function run(kind, apply) {
     try {
       const body = kind === 'patch' ? {vpn_ip: ip, name, apply} : (kind === 'align' ? {vpn_ip: ip, apply} : {vpn_ip: ip, version: name, apply});
       if (kind === 'firmware' && apply) results[ip] = {text: 'Upload und Neustart laufen, das dauert bis zu 20 Minuten …', cls: 'text-muted'}, render();
-      if (kind === 'align') results[ip] = {text: 'prüfe Stabilität, dann Flow → Parameter → LNS …', cls: 'text-muted'}, render();
+      if (kind === 'align') results[ip] = {text: 'prüfe Stabilität, dann Schnittstelle → Parameter → LNS …', cls: 'text-muted'}, render();
       const r = kind === 'compare' ? (await api('/api/fleet/compare?ip=' + encodeURIComponent(ip)))[0]
                                    : await api('/api/fleet/' + kind, body);
-      const changes = (r.changes || []).map(c => c.label + (c.lns ? ' [LNS]' : '') + ': ' + Object.entries(c.fields).map(([k, v]) => `${k} ${v[0]}→${v[1]}`).join(', ')).join('; ');
-      const rb = r.rolled_back ? ` (zurückgerollt: ${r.rollback_ok ? 'ok' : 'FEHLER'})` : '';
+      const changes = (r.changes || []).map(c => c.label + (c.lns ? ' [LNS]' : '') + ': ' + Object.entries(c.fields).map(([k, v]) => `${k} ${fmtv(v[0])}→${fmtv(v[1])}`).join(', ')).join('; ');
+      const rb = r.rolled_back ? ` (zurückgebaut: ${r.rollback_ok ? 'ok' : 'FEHLER'})` : '';
       const cls = {ok: 'text-success', changed: 'text-success', updated: 'text-success', unchanged: 'text-success',
                    would_change: 'text-primary', skipped: 'text-muted'}[r.result] || 'text-danger';
       const checks = (r.checks || []).map(c => `${c.ok === false ? '✗' : c.ok ? '✓' : '·'} ${c.label}: ${c.info}`).join(' | ');
@@ -196,18 +312,22 @@ async function run(kind, apply) {
 }
 
 (async () => {
+  {% if cloud %}fetch('/auth/me').then(r => r.json()).then(r => { if (r.data) document.getElementById('user').textContent = r.data.name || r.data.email; }).catch(() => {});{% endif %}
   try {
     const cat = await api('/api/fleet/catalog');
     const ps = document.getElementById('patch');
     for (const p of cat.patches) { const o = el('option', p.name + (p.risky.length ? ' ⚠' : '')); o.value = p.name; o.title = p.description; ps.append(o); }
+    if (!cat.patches.length) ps.append(el('option', 'keine Patches'));
     const fs = document.getElementById('flow');
-    for (const v of cat.flows.slice().reverse()) { const o = el('option', 'Flow ' + v); o.value = v; fs.append(o); }
-    if (!cat.flows.length) fs.append(el('option', 'keine Flow-Bundles'));
+    for (const v of cat.flows.slice().reverse()) { const o = el('option', 'Version ' + v); o.value = v; fs.append(o); }
+    if (!cat.flows.length) fs.append(el('option', 'keine Versionen'));
     const fw = document.getElementById('firmware');
     for (const i of cat.firmware_images.slice().reverse()) { const o = el('option', `FW ${i.label} (${i.mb} MB)`); o.value = i.version; fw.append(o); }
-    if (!cat.firmware_images.length) fw.append(el('option', 'FIRMWARE_DIR leer'));
+    if (!cat.firmware_images.length) fw.append(el('option', 'keine Firmware-Dateien hinterlegt'));
   } catch (e) { /* catalog optional */ }
-  load(false);
+  await load(false);
+  // firmware etc. need a login per gateway: read once in the background unless already known
+  if (rows.some(r => r.online && !r.firmware)) load(true, true);
 })();
 </script>
 </body>

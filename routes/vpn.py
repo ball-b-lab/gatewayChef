@@ -20,7 +20,8 @@ PEERS_URL = os.getenv("VPN_PEERS_URL", "http://172.30.0.1:8787/peers.json")
 
 @bp.route("/vpn")
 def vpn_page():
-    return render_template("vpn.html")
+    from config import APP_MODE
+    return render_template("vpn.html", cloud=APP_MODE == "cloud")
 
 
 @bp.route("/api/vpn/peers", methods=["GET"])
