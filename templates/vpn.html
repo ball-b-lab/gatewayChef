@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VPN-Peers</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="icon" type="image/png" href="/static/icon/IconGatewayChef.png">
+<style>
+  body { background: #f6f7f9; }
+  td, th { white-space: nowrap; vertical-align: middle; }
+  th[data-k] { cursor: pointer; user-select: none; }
+  .dot { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; }
+  .s-online { background: #1a9a4b; } .s-today { background: #e0a800; } .s-idle { background: #c83232; } .s-never { background: #bbb; }
+  .toolbar > * { margin: 0 .5rem .5rem 0; }
+  .chip { cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="container-fluid py-3">
+  <div class="d-flex align-items-baseline gap-3 mb-2 flex-wrap">
+    <h1 class="h4 mb-0">VPN-Peers</h1>
+    <span id="stamp" class="text-muted small"></span>
+    <a href="/fleet" class="ms-auto small">Flotte</a>
+    <a href="/station" class="small">Station &amp; Vorgänge</a>
+    <a href="/" class="small">Einrichtung</a>
+  </div>
+
+  <div id="counts" class="mb-2"></div>
+
+  <div class="toolbar d-flex flex-wrap align-items-center">
+    <select id="state" class="form-select form-select-sm" style="width:auto" onchange="render()">
+      <option value="">Status: alle</option>
+      <option value="online">online (&lt; 3 min)</option>
+      <option value="today">heute gesehen</option>
+      <option value="idle">inaktiv (&gt; 1 Tag)</option>
+      <option value="never">nie verbunden</option>
+      <option value="offline">nicht online</option>
+    </select>
+    <select id="range" class="form-select form-select-sm" style="width:auto" onchange="render()">
+      <option value="">Bereich: alle</option>
+      <option value="infra">Infrastruktur &amp; Personen (0.2–0.99)</option>
+      <option value="gw">Gateways</option>
+      <option value="station">Stationen (100.x)</option>
+    </select>
+    <label class="form-check-label small"><input type="checkbox" class="form-check-input me-1" id="used" checked onchange="render()">freie Pool-Plätze ausblenden</label>
+    <input id="q" class="form-control form-control-sm" style="width:16rem" placeholder="Suche (Name, IP, Seriennr., EUI)" oninput="render()">
+    <label class="form-check-label small"><input type="checkbox" class="form-check-input me-1" id="auto" checked onchange="toggleAuto()">alle 60 s</label>
+    <button class="btn btn-sm btn-outline-primary" onclick="load()">Neu laden</button>
+  </div>
+  <div id="err" class="alert alert-danger py-2" style="display:none"></div>
+
+  <div class="table-responsive bg-white border rounded">
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-light"><tr>
+        <th></th><th data-k="ip">VPN-IP</th><th data-k="name">Name (VPN)</th><th data-k="gateway_name">Gateway (DB)</th>
+        <th data-k="serial_number">Seriennr.</th><th data-k="status">DB-Status</th><th data-k="age">Zuletzt gesehen</th>
+        <th data-k="rx">Empfangen</th><th data-k="tx">Gesendet</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <p class="small text-muted mt-2">Quelle: VPN-Server (wg0, <code>wgpeer json</code>, minütlich) + Gateway-Datenbank.
+    „Zuletzt gesehen“ ist der letzte WireGuard-Handshake; aktive Peers erneuern ihn etwa alle 2 Minuten.
+    Empfangen/Gesendet zählen seit dem letzten Neustart des VPN-Servers.</p>
+</div>
+<script>
+let peers = [], generated = 0, sortKey = 'ip', sortDir = 1, timer = null;
+const ipNum = ip => ip.split('.').reduce((a, b) => a * 256 + +b, 0);
+const el = (t, txt, cls) => { const e = document.createElement(t); if (txt != null) e.textContent = txt; if (cls) e.className = cls; return e; };
+
+function stateOf(p) {
+  if (!p.handshake) return 'never';
+  const age = generated - p.handshake;
+  if (p.live && age < 180) return 'online';
+  return age < 86400 ? 'today' : 'idle';
+}
+function ago(p) {
+  if (!p.handshake) return 'nie';
+  const s = Math.max(0, Math.floor(Date.now() / 1000) - p.handshake);
+  if (s < 90) return `vor ${s} s`;
+  if (s < 5400) return `vor ${Math.round(s / 60)} min`;
+  if (s < 172800) return `vor ${Math.round(s / 3600)} h`;
+  return `vor ${Math.round(s / 86400)} Tagen`;
+}
+const bytes = n => !n ? '' : n < 1e6 ? (n / 1e3).toFixed(0) + ' kB' : n < 1e9 ? (n / 1e6).toFixed(1) + ' MB' : (n / 1e9).toFixed(2) + ' GB';
+const isFreeSlot = p => p.range === 'gw' && !p.gateway_name && !p.status && !p.handshake && /^ug65_\d+$|^$/.test(p.name || '');
+
+function filtered() {
+  const st = document.getElementById('state').value, rg = document.getElementById('range').value;
+  const hideFree = document.getElementById('used').checked, q = document.getElementById('q').value.trim().toLowerCase();
+  return peers.filter(p => {
+    const s = stateOf(p);
+    if (st === 'offline' ? s === 'online' : st && s !== st) return false;
+    if (rg && p.range !== rg) return false;
+    if (hideFree && isFreeSlot(p)) return false;
+    return !q || [p.ip, p.name, p.gateway_name, p.serial_number, p.eui].join(' ').toLowerCase().includes(q);
+  });
+}
+
+function render() {
+  const rows = filtered();
+  const val = (p, k) => k === 'ip' ? ipNum(p.ip) : k === 'age' ? -(p.handshake || 0) : (p[k] ?? '');
+  rows.sort((a, b) => { const x = val(a, sortKey), y = val(b, sortKey); return (x > y ? 1 : x < y ? -1 : 0) * sortDir; });
+  const tb = document.getElementById('rows'); tb.replaceChildren();
+  for (const p of rows) {
+    const tr = el('tr'), s = stateOf(p);
+    const d = el('span', null, 'dot s-' + s); d.title = {online: 'online', today: 'heute gesehen', idle: 'inaktiv', never: 'nie verbunden'}[s];
+    const td0 = el('td'); td0.append(d);
+    tr.append(td0, el('td', p.ip, 'font-monospace'), el('td', p.name || ''), el('td', p.gateway_name || ''),
+      el('td', p.serial_number || '', 'small'), el('td', p.status || '', 'small'), el('td', ago(p)),
+      el('td', bytes(p.rx), 'small text-muted'), el('td', bytes(p.tx), 'small text-muted'));
+    tb.append(tr);
+  }
+  const c = {online: 0, today: 0, idle: 0, never: 0};
+  peers.forEach(p => c[stateOf(p)]++);
+  const box = document.getElementById('counts'); box.replaceChildren();
+  [['online', 'online'], ['today', 'heute gesehen'], ['idle', 'inaktiv'], ['never', 'nie verbunden']].forEach(([k, t]) => {
+    const b = el('span', null, 'badge text-bg-light border me-2 chip'); b.append(el('span', null, 'dot s-' + k + ' me-1'), `${t}: ${c[k]}`);
+    b.onclick = () => { document.getElementById('state').value = k; render(); };
+    box.append(b);
+  });
+  box.append(el('span', `${rows.length} von ${peers.length} angezeigt`, 'small text-muted'));
+}
+
+async function load() {
+  const err = document.getElementById('err');
+  try {
+    const r = await fetch('/api/vpn/peers');
+    if (r.status === 401) { location.href = '/auth/login?next=/vpn'; return; }
+    const res = await r.json();
+    if (!res.ok) throw new Error(res.error?.message || 'Fehler');
+    peers = res.data.peers; generated = res.data.generated;
+    document.getElementById('stamp').textContent = 'Stand ' + new Date(generated * 1000).toLocaleTimeString('de-DE');
+    err.style.display = 'none';
+    render();
+  } catch (e) { err.textContent = e.message; err.style.display = ''; }
+}
+function toggleAuto() {
+  clearInterval(timer);
+  if (document.getElementById('auto').checked) timer = setInterval(load, 60000);
+}
+document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
+  sortDir = sortKey === th.dataset.k ? -sortDir : 1; sortKey = th.dataset.k; render();
+});
+load(); toggleAuto();
+</script>
+</body>
+</html>
