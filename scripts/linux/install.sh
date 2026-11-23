@@ -42,7 +42,7 @@ if [[ -n "$GW_PORT" ]]; then
   # (192.168.1.1 and 192.168.23.150). No default route, no DNS on this port.
   if command -v nmcli >/dev/null; then
     nmcli -t -f NAME con show | grep -qx gw-lan || nmcli con add type ethernet ifname "$GW_PORT" con-name gw-lan >/dev/null
-    nmcli con mod gw-lan ipv4.method manual ipv4.addresses "192.168.1.200/24,192.168.23.200/24" \
+    nmcli con mod gw-lan ipv4.method manual ipv4.addresses "192.168.1.200/24,192.168.23.200/24,192.168.77.1/24" \
       ipv4.never-default yes ipv4.ignore-auto-dns yes ipv6.method disabled connection.autoconnect yes
     nmcli con up gw-lan >/dev/null || echo "   (gw-lan kommt hoch, sobald ein Gateway steckt)"
   else
@@ -53,6 +53,7 @@ Name=$GW_PORT
 [Network]
 Address=192.168.1.200/24
 Address=192.168.23.200/24
+Address=192.168.77.1/24
 ConfigureWithoutCarrier=yes
 NET
     systemctl enable --now systemd-networkd >/dev/null
@@ -62,7 +63,7 @@ fi
 
 if [[ -n "$GW_PORT" ]]; then
   # Eingerichtete Gateways haben eth0 auf DHCP: Station verteilt Adressen auf dem Gateway-Port
-  # (192.168.1.100-150, ohne Route/DNS). GatewayChef liest die Leases (utils/gateway_lan.py).
+  # (192.168.77.100-150, eigenes Netz, ohne Route/DNS). GatewayChef liest die Leases (utils/gateway_lan.py).
   echo ".. DHCP auf $GW_PORT"
   apt-get install -y -qq dnsmasq-base >/dev/null
   install -d -m 755 /var/lib/gatewaychef
