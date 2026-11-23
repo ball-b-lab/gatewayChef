@@ -79,3 +79,28 @@ class GatewayLanTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ZeroMacRetryTest(unittest.TestCase):
+    def test_device_info_retries_zero_mac(self):
+        from services.setup import checks
+        answers = [{"device": {"mac": "00:00:00:00:00:00"}}, {"device": {"mac": "24:E1:24:F7:83:E6"}}]
+
+        class R:
+            def __init__(self, d):
+                self.d = d
+
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return self.d
+
+        class H:
+            def get(self, url, timeout=None):
+                return R(answers.pop(0))
+
+        info = checks.device_info("x", http=H(), sleep=lambda s: None)
+        self.assertEqual(info["device"]["mac"], "24:E1:24:F7:83:E6")
+        self.assertTrue(checks.zero_mac({"device": {"mac": "00:00:00:00:00:00"}}))
+        self.assertFalse(checks.zero_mac({"device": {"mac": "24:E1:24:F7:83:E6"}}))

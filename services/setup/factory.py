@@ -5,7 +5,7 @@ which implementation is used:
   INVENTORY_BACKEND   api | db   (default: api if DB_API_PROVIDER_URL is set and no DB host,
                                   i.e. no DB credentials on the operator laptop)
   WEBSERVICE_BACKEND  ws1 (default) | ws2 | off
-  MILESIGHT_ENABLED   true (default) | false
+  MILESIGHT_ENABLED   false (default) | true
   CHIRPSTACK_ENABLED  false (default) | true
 """
 import os
@@ -44,7 +44,7 @@ def build_webservice():
 def build_registries():
     """Ordered list of external registrations."""
     regs = []
-    if _flag("MILESIGHT_ENABLED", True):
+    if _flag("MILESIGHT_ENABLED", False):   # Schreiben an Milesight geht derzeit nicht; ggf. durch eigene Plattform ersetzt
         regs.append(MilesightPlatform(os.getenv("MILESIGHT_URL", "https://eu-openapi.milesight.com"),
                                       os.getenv("MILESIGHT_CLIENT_ID", ""), os.getenv("MILESIGHT_CLIENT_SECRET", ""),
                                       os.getenv("MILESIGHT_TOKEN_URL", "")))

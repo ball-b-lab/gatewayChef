@@ -38,7 +38,7 @@ weiteres System (z. B. ERPNext) ist eine neue `Registry`-Klasse und eine Zeile i
 |---|---|---|
 | `INVENTORY_BACKEND` | `api`, `db` | `api`, wenn `DB_API_PROVIDER_URL` gesetzt und kein `DB_HOST` |
 | `WEBSERVICE_BACKEND` | `ws1`, `ws2`, `off` | `ws1` |
-| `MILESIGHT_ENABLED` | `true`/`false` | `true` |
+| `MILESIGHT_ENABLED` | `true`/`false` | `false` (Schreiben an die Milesight-Plattform geht derzeit nicht) |
 | `CHIRPSTACK_ENABLED` | `true`/`false` | `false` |
 | `GATEWAY_PROFILE` | Profilname | `ug65-60.0.0.49` |
 
