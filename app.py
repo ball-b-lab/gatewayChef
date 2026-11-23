@@ -6,7 +6,7 @@ import sys
 import subprocess
 import requests
 from pathlib import Path
-from flask import Flask, render_template
+from flask import Flask, redirect, render_template
 from werkzeug.exceptions import HTTPException
 from config import (
     PORT,
@@ -138,6 +138,9 @@ def handle_exception(e):
 def index():
     if APP_MODE == 'cloud_api':
         return {"ok": True, "service": "gatewaychef-cloud-api", "mode": APP_MODE}
+    if APP_MODE == 'cloud':
+        # cloud = remote maintenance only; on-site setup needs the gateway's own WLAN
+        return redirect('/fleet')
     return render_template(
         'index.html',
         runtime={
@@ -175,13 +178,15 @@ if APP_MODE != 'cloud_api':
             print("WARNUNG: jwt Paket fehlt. Auth-Blueprint wird nicht registriert.", flush=True)
         if auth_bp is not None:
             app.register_blueprint(auth_bp)
-    app.register_blueprint(gateway_bp)
-    app.register_blueprint(chirpstack_bp)
-    app.register_blueprint(milesight_bp)
-    app.register_blueprint(webservice_bp)
+    if APP_MODE != 'cloud':
+        # on-site setup (gateway WLAN, station ports): local tool only
+        app.register_blueprint(gateway_bp)
+        app.register_blueprint(chirpstack_bp)
+        app.register_blueprint(milesight_bp)
+        app.register_blueprint(webservice_bp)
+        app.register_blueprint(station_bp)
     app.register_blueprint(fleet_bp)
     app.register_blueprint(vpn_bp)
-    app.register_blueprint(station_bp)
 
 
 def open_browser():

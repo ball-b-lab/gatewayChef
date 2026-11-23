@@ -202,3 +202,17 @@ Quelle: Der VPN-Server schreibt minütlich `wgpeer json` (ohne Schlüssel) nach
 `172.30.0.1:8787` bereit (nur durch den Tunnel erreichbar). Die App liest es über
 `VPN_PEERS_URL` (Default `http://172.30.0.1:8787/peers.json`). In `APP_MODE=cloud` nur mit
 Authentik-Login.
+
+## Fernwartung in der Cloud (`APP_MODE=cloud`)
+
+In der Cloud gibt es nur Fernwartung: `/` leitet auf `/fleet`, die Einrichtung vor Ort
+(`/api/gateway/*`, Milesight, ChirpStack-Anlage, Webservice, `/station`) ist nicht registriert.
+
+- `/fleet`: Funktionsblöcke Prüfen · Standard & Einstellungen · Drive-by-Schnittstelle (WLAN) ·
+  Firmware; Filter (online/offline, Firmware, Schnittstelle, Funkempfang, DB-Status), Suche über
+  alle Felder, Sortierung per Spaltenkopf. Firmware/WLAN-Region/Schnittstelle werden beim Öffnen
+  einmal per „Tief prüfen“ gelesen und für schnelle Prüfungen gemerkt (`deep_age`).
+- `/fleet/gw/<ip>`: Einzelsicht mit ChirpStack-Paketen (24 h stündlich / 7 Tage täglich),
+  VPN-Handshake und Traffic, Soll-Ist, letzte Vorgänge, Aktionen für dieses Gateway.
+- `GET /api/fleet/gateway/<ip>/stats?days=1|7` → `{gateway, chirpstack{last_seen, rx, tx, rx_per_freq}, vpn}`
+- `GET /api/fleet/jobs?ip=` → letzte Vorgänge (nur seit Start des Prozesses)

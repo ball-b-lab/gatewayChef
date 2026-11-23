@@ -158,7 +158,8 @@ class Fleet:
     def status(self, deep=False, only=None):
         gws = [g for g in self.gateways() if not only or g["vpn_ip"] in only]
         bundles = nr.load_bundles() if deep else None
-        with ThreadPoolExecutor(max_workers=self.workers) as pool:
+        # mostly waiting on VPN timeouts of offline gateways: many threads, few CPU
+        with ThreadPoolExecutor(max_workers=max(self.workers, 64)) as pool:
             return list(pool.map(lambda g: self.probe(g, deep, bundles), gws))
 
     # ------------------------------------------------------------ remote patch

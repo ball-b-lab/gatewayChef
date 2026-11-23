@@ -1,3 +1,4 @@
+import time
 """
 Fleet management page and API (station / any instance inside the VPN).
 Writes require apply=true in the body; without it everything is a dry run.
@@ -14,6 +15,8 @@ from services import nodered as nr
 from utils.response import error, ok
 
 bp = Blueprint("fleet", __name__)
+_LAST_DEEP = {}  # vpn_ip -> (fields, time) of the last successful deep check (this process)
+_DEEP_KEYS = ("firmware", "profile_ok", "firmware_compat", "firmware_deltas", "wifi_country", "flow")
 _ERRORS = (fl.FleetError, gc.GatewayConfigError, nr.NodeRedError, fw.FirmwareError)
 
 
@@ -21,9 +24,38 @@ def _fleet():
     return fl.from_env()
 
 
+def _cloud():
+    from config import APP_MODE
+    return APP_MODE == "cloud"
+
+
 @bp.route("/fleet")
 def fleet_page():
-    return render_template("fleet.html")
+    return render_template("fleet.html", cloud=_cloud())
+
+
+@bp.route("/fleet/gw/<ip>")
+def gateway_page(ip):
+    return render_template("gateway.html", ip=ip, cloud=_cloud())
+
+
+@bp.route("/api/fleet/jobs", methods=["GET"])
+def fleet_jobs():
+    """Recent remote actions (this process only), optionally for one VPN IP."""
+    ip = request.args.get("ip")
+    return ok([j.as_dict() for j in jobs.BOARD.all() if not ip or j.target == ip][:50])
+
+
+@bp.route("/api/fleet/gateway/<ip>/stats", methods=["GET"])
+def gateway_stats(ip):
+    """ChirpStack last seen + packet counts (per hour or day) and the VPN peer of one gateway."""
+    from services import gateway_stats as gs
+    try:
+        gw = _fleet()._gateway(ip)
+    except _ERRORS as exc:
+        return error(str(exc), 404)
+    days = 7 if request.args.get("days") == "7" else 1
+    return ok({"gateway": gw, "chirpstack": gs.chirpstack(gw.get("eui"), days), "vpn": gs.vpn_peer(ip)})
 
 
 @bp.route("/api/fleet/status", methods=["GET"])
@@ -31,9 +63,20 @@ def fleet_status():
     deep = request.args.get("deep") in ("1", "true")
     only = [ip for ip in (request.args.get("ip") or "").split(",") if ip] or None
     try:
-        return ok(_fleet().status(deep=deep, only=only))
+        rows = _fleet().status(deep=deep, only=only)
     except Exception as exc:  # inventory unreachable etc.
         return error(f"Status fehlgeschlagen: {exc}", 502)
+    # remember the last deep check (firmware, WLAN region, drive-by interface) and show it on quick checks
+    now = time.time()
+    for r in rows:
+        if deep and r.get("online"):
+            _LAST_DEEP[r["vpn_ip"]] = ({k: r[k] for k in _DEEP_KEYS if k in r}, now)
+        elif not deep and r["vpn_ip"] in _LAST_DEEP:
+            cached, at = _LAST_DEEP[r["vpn_ip"]]
+            for k, v in cached.items():
+                r.setdefault(k, v)
+            r["deep_age"] = int(now - at)
+    return ok(rows)
 
 
 @bp.route("/api/fleet/catalog", methods=["GET"])
