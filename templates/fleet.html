@@ -44,6 +44,7 @@
       <li><b>Einstellungen (Patch)</b> – einzelne vorbereitete Einstellungen schreiben, danach zurücklesen und Erreichbarkeit prüfen.</li>
       <li><b>Drive-by-Schnittstelle (WLAN)</b> – die Software auf dem Gateway, über die die Drive-by-App per WLAN die Daten abholt. Aktualisieren mit Rückbau bei Fehler.</li>
       <li><b>Firmware</b> – nur nach Stabilitätsprüfung; nacheinander, Stopp beim ersten Fehler. Dauert bis zu 20 Minuten je Gateway.</li>
+      <li><b>Weboberfläche</b> – Klick auf die VPN-IP eines erreichbaren Gateways öffnet seine eigene Oberfläche. Das geht nur, wenn dein Rechner selbst im Gateway-VPN ist (WireGuard-Profil).</li>
       <li><b>Einzelsicht</b> – Klick auf den Namen: Statistik aus ChirpStack (Pakete pro Stunde/Tag), VPN-Verbindung, Soll-Ist und letzte Vorgänge.</li>
     </ul>
     <b>DB-Status:</b> DEPLOYED = eingerichtet und im Einsatz · IN_PROGRESS = aus dem Pool vergeben, Einrichtung begonnen, aber nicht abgeschlossen.<br>
@@ -251,7 +252,11 @@ function render() {
     const dot = el('span', null, 'dot ' + (r.online === true ? 'on' : r.online === false ? 'off' : 'unk'));
     const c1 = el('td'); c1.append(dot); c1.title = r.identity || ''; tr.append(c1);
     const name = el('td'); const a = el('a', r.gateway_name || '(ohne Name)', 'gw'); a.href = '/fleet/gw/' + r.vpn_ip; a.title = 'Einzelsicht mit Statistik'; name.append(a);
-    tr.append(el('td', r.vpn_ip, 'font-monospace'), name, el('td', r.eui || '', 'font-monospace small'),
+    const ipTd = el('td', null, 'font-monospace');
+    if (r.online) { const w = el('a', r.vpn_ip); w.href = 'http://' + r.vpn_ip + '/'; w.target = '_blank'; w.rel = 'noopener';
+      w.title = 'Weboberfläche des Gateways öffnen (nur mit VPN auf deinem Rechner)'; ipTd.append(w, ' ↗'); }
+    else ipTd.textContent = r.vpn_ip;
+    tr.append(ipTd, name, el('td', r.eui || '', 'font-monospace small'),
               el('td', r.status_overall || '', 'small'), el('td', r.latency_ms ?? ''),
               fwCell(r), el('td', r.wifi_country || ''), el('td', flowText(r)), receiveCell(r), appCell(r));
     const res = results[r.vpn_ip];

@@ -26,6 +26,8 @@
     <a href="/fleet" class="small">← Flotte</a>
     <h1 class="h4 mb-0" id="title">Gateway {{ ip }}</h1>
     <span id="sub" class="text-muted small"></span>
+    <a id="web" class="btn btn-sm btn-outline-primary" href="http://{{ ip }}/" target="_blank" rel="noopener"
+       title="Öffnet die Weboberfläche des Gateways direkt – funktioniert nur, wenn dein Rechner im Gateway-VPN ist">Weboberfläche ↗</a>
     <span class="ms-auto"></span>
     <a href="/vpn" class="small">VPN-Peers</a>
     {% if cloud %}<a href="/auth/logout" class="small">Abmelden</a>{% endif %}
