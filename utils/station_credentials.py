@@ -68,3 +68,42 @@ def status():
     """For the page: which login applies, user name only."""
     user, password, source = webservice_login()
     return {"source": source if user and password else "none", "user": user or None}
+
+
+# ---------------------------------------------------------------- switches
+# Station-wide switches set on the page (same directory, station-settings.json). A switch not set on
+# the page falls back to the env value (e.g. MILESIGHT_ENABLED).
+
+def settings_path():
+    return os.getenv("STATION_SETTINGS_FILE") or os.path.join(os.path.dirname(path()), "station-settings.json")
+
+
+def _settings():
+    try:
+        with open(settings_path(), encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def switch(name, env_default=False):
+    """(value, source): page setting if set, else env, else env_default."""
+    data = _settings()
+    if isinstance(data.get(name), bool):
+        return data[name], "station"
+    env = os.getenv(name.upper())
+    if env is not None and env.strip():
+        return env.strip().lower() in {"1", "true", "yes", "on"}, "env"
+    return env_default, "default"
+
+
+def set_switch(name, value):
+    data = _settings()
+    data[name] = bool(value)
+    target = settings_path()
+    os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(target) or ".", prefix=".set-")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump(data, fh)
+    os.replace(tmp, target)

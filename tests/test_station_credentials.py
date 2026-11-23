@@ -59,3 +59,26 @@ class CredentialsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SwitchTest(unittest.TestCase):
+    def setUp(self):
+        d = tempfile.mkdtemp()
+        self.env = mock.patch.dict(os.environ, {"STATION_SETTINGS_FILE": os.path.join(d, "s.json"),
+                                                "STATION_CREDENTIALS_FILE": os.path.join(d, "c.json")})
+        self.env.start()
+        os.environ.pop("MILESIGHT_ENABLED", None)
+
+    def tearDown(self):
+        self.env.stop()
+
+    def test_default_env_then_page(self):
+        from services.setup import factory
+        self.assertEqual(creds.switch("milesight_enabled"), (False, "default"))
+        self.assertFalse(any("milesight" in r.name for r in factory.build_registries()))
+        os.environ["MILESIGHT_ENABLED"] = "true"
+        self.assertEqual(creds.switch("milesight_enabled"), (True, "env"))
+        creds.set_switch("milesight_enabled", False)
+        self.assertEqual(creds.switch("milesight_enabled"), (False, "station"))
+        creds.set_switch("milesight_enabled", True)
+        self.assertTrue(any("milesight" in r.name for r in factory.build_registries()))

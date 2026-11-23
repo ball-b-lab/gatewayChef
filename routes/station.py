@@ -66,3 +66,21 @@ def station_credentials_save():
 def station_credentials_clear():
     creds.clear()
     return ok(creds.status())
+
+
+SWITCHES = {"milesight_enabled": "Milesight-Plattform beim Einrichten beschreiben"}
+
+
+@bp.route("/api/station/switches", methods=["GET"])
+def station_switches():
+    return ok({k: dict(zip(("value", "source"), creds.switch(k)), label=v) for k, v in SWITCHES.items()})
+
+
+@bp.route("/api/station/switches", methods=["POST"])
+def station_switches_set():
+    data = request.json or {}
+    for k, v in data.items():
+        if k not in SWITCHES or not isinstance(v, bool):
+            return error(f"Schalter {k!r} unbekannt oder kein true/false", 400)
+        creds.set_switch(k, v)
+    return station_switches()

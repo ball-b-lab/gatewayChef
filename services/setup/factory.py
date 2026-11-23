@@ -44,7 +44,8 @@ def build_webservice():
 def build_registries():
     """Ordered list of external registrations."""
     regs = []
-    if _flag("MILESIGHT_ENABLED", False):   # Schreiben an Milesight geht derzeit nicht; ggf. durch eigene Plattform ersetzt
+    from utils.station_credentials import switch
+    if switch("milesight_enabled")[0]:   # Schalter auf /station, sonst MILESIGHT_ENABLED (Standard aus)
         regs.append(MilesightPlatform(os.getenv("MILESIGHT_URL", "https://eu-openapi.milesight.com"),
                                       os.getenv("MILESIGHT_CLIENT_ID", ""), os.getenv("MILESIGHT_CLIENT_SECRET", ""),
                                       os.getenv("MILESIGHT_TOKEN_URL", "")))
