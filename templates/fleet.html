@@ -39,7 +39,10 @@
   <details class="mb-3 small bg-white border rounded px-3 py-2">
     <summary class="fw-semibold">Was geht per Fernwartung? (über das Gateway-VPN, ohne vor Ort zu sein)</summary>
     <ul class="mt-2 mb-1">
-      <li><b>Prüfen</b> – erreichbar über VPN, Antwortzeit. „Tief prüfen“ meldet sich an jedem Gateway an und liest Firmware, WLAN-Region und Version der Drive-by-Schnittstelle (läuft beim Öffnen einmal automatisch).</li>
+      <li><b>Prüfen</b> – „Erreichbarkeit“ fragt nur, ob das Gateway über das VPN antwortet und mit der richtigen EUI (Antwortzeit in ms, Funkempfang).
+        <b>„Tief prüfen“</b> geht einen Schritt weiter: es <i>meldet sich mit dem Gateway-Zugang an</i> (wie in der Weboberfläche) und liest
+        Firmware-Version, WLAN-Region und Version der Drive-by-Schnittstelle. Es ändert nichts, dauert aber länger und belastet die Gateways etwas mehr.
+        Läuft beim Öffnen der Seite einmal automatisch; die Werte werden gemerkt und bei „Erreichbarkeit“ weiter angezeigt.</li>
       <li><b>Standard</b> – vergleicht ein Gateway mit unserem Soll (Profil der Firmware + neueste Drive-by-Schnittstelle) und gleicht es an. Nur bei stabil erreichbaren Gateways; Reihenfolge Schnittstelle → Parameter → LNS zuletzt, mit Rückbau bei fehlendem Empfang.</li>
       <li><b>Einstellungen (Patch)</b> – einzelne vorbereitete Einstellungen schreiben, danach zurücklesen und Erreichbarkeit prüfen.</li>
       <li><b>Drive-by-Schnittstelle (WLAN)</b> – die Software auf dem Gateway, über die die Drive-by-App per WLAN die Daten abholt. Aktualisieren mit Rückbau bei Fehler.</li>
@@ -54,7 +57,9 @@
 
   <div class="row g-2 mb-3">
     <div class="col-12 col-md-6 col-xl-3"><div class="block">
-      <h2>1 · Prüfen</h2><p>liest nur, ändert nichts</p>
+      <h2>1 · Prüfen</h2><p>liest nur, ändert nichts. <b>Erreichbarkeit</b>: antwortet das Gateway über VPN (schnell).
+        <b>Tief prüfen</b>: meldet sich zusätzlich an jedem erreichbaren Gateway an und liest Firmware, WLAN-Region und
+        Drive-by-Schnittstelle (dauert länger).</p>
       <button class="btn btn-sm btn-outline-primary" onclick="load(false)">Erreichbarkeit</button>
       <button class="btn btn-sm btn-outline-primary" onclick="load(true)" title="Login je Gateway: Firmware, WLAN-Region, Drive-by-Schnittstelle">Tief prüfen</button>
       <label class="form-check-label small"><input type="checkbox" class="form-check-input me-1" id="auto" onchange="toggleAuto(this.checked)">alle 30 s</label>
