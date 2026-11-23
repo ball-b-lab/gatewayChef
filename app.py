@@ -141,6 +141,10 @@ def index():
     if APP_MODE == 'cloud':
         # cloud = remote maintenance only; on-site setup needs the gateway's own WLAN
         return redirect('/fleet')
+    from services.station import load_ports
+    if load_ports():
+        # Linux station with setup ports: the station page replaces the old single-gateway UI
+        return redirect('/station')
     return render_template(
         'index.html',
         runtime={

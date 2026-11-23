@@ -7,27 +7,54 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="icon" type="image/png" href="/static/icon/IconGatewayChef.png">
 <style>
+  /* same look as /fleet (cloud app) */
   body { background: #f6f7f9; }
-  .port { width: 21rem; }
-  .port .card-header { display: flex; gap: .5rem; align-items: baseline; }
-  .st { font-size: .75rem; padding: .15rem .45rem; border-radius: .3rem; color: #fff; }
+  .block { background: #fff; border: 1px solid #dee2e6; border-radius: .5rem; padding: .6rem .75rem; }
+  .block h2 { font-size: .95rem; margin: 0 0 .15rem; }
+  .block p { font-size: .8rem; color: #6c757d; margin: 0 0 .5rem; }
+  .port { width: 27rem; max-width: 100%; }
+  .port.busy { border-color: #0d6efd; box-shadow: 0 0 0 1px #0d6efd; }
+  .port-head { display: flex; gap: .5rem; align-items: baseline; margin-bottom: .4rem; }
+  .dot { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; }
+  .on { background: #1a9a4b; } .off { background: #c83232; } .unk { background: #aaa; }
+  .st { font-size: .72rem; padding: .12rem .45rem; border-radius: .3rem; color: #fff; white-space: nowrap; }
   .st-running { background: #0d6efd; } .st-ok { background: #1a9a4b; } .st-diff { background: #b58105; }
   .st-failed { background: #c83232; } .st-none { background: #999; }
-  .log { background: #111; color: #ddd; font: .72rem/1.35 ui-monospace, Menlo, monospace; max-height: 22rem;
+  .st-known { background: #1a9a4b; } .st-new { background: #6f42c1; } .st-db { background: #6c757d; }
+  dl.facts { display: grid; grid-template-columns: 7.5rem 1fr; gap: .1rem .5rem; font-size: .82rem; margin: 0 0 .5rem; }
+  dl.facts dt { color: #6c757d; font-weight: normal; }
+  dl.facts dd { margin: 0; word-break: break-all; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; }
+  .form-grid .wide { grid-column: 1 / -1; }
+  .form-grid label { font-size: .72rem; color: #6c757d; margin: 0; }
+  .form-grid input { font-size: .82rem; }
+  .log { background: #111; color: #ddd; font: .72rem/1.35 ui-monospace, Menlo, monospace; max-height: 24rem;
          overflow: auto; white-space: pre-wrap; padding: .5rem; border-radius: .3rem; }
   .log .f { color: #ff8a8a; } .log .w { color: #ffd479; } .log .o { color: #8fe3a5; }
   td, th { vertical-align: middle; font-size: .85rem; }
-  .small-input { font-size: .8rem; }
 </style>
 </head>
 <body>
 <div class="container-fluid py-3">
-  <div class="d-flex align-items-baseline gap-3 mb-3">
+  <div class="d-flex align-items-baseline gap-3 mb-2 flex-wrap">
     <h1 class="h4 mb-0">Einrichtungsstation</h1>
-    <span id="summary" class="text-muted"></span>
-    <a href="/fleet" class="ms-auto small">Flotte (alle Gateways)</a>
-    <a href="/" class="small">Einzel-Einrichtung</a>
+    <span id="summary" class="text-muted small"></span>
+    <span class="ms-auto"></span>
+    <a href="/fleet" class="small">Flotte · Fernwartung</a>
+    <a href="/vpn" class="small">VPN-Peers</a>
   </div>
+
+  <details class="mb-3 small bg-white border rounded px-3 py-2">
+    <summary class="fw-semibold">So geht's</summary>
+    <ol class="mt-2 mb-1">
+      <li>Gateway per Kabel an einen Port stecken und hochfahren lassen (rund 2 Minuten). Die Karte zeigt es dann mit EUI.</li>
+      <li><b>Bekanntes Gateway</b> (EUI steht in der Datenbank): Name, VPN-IP, ICCID, SIM und Kunde sind schon eingetragen. Nur prüfen.</li>
+      <li><b>Neues Gateway</b>: Kunden-Nr., Kundenname, SIM-Anbieter und ICCID eintragen. Die VPN-IP kommt beim Einrichten aus dem Pool.</li>
+      <li><b>Dry-Run</b> zeigt, was sich ändern würde (schreibt nichts). <b>Einrichten</b> schreibt aufs Gateway und in die Datenbank.
+        <b>Prüfen</b> nur kontrollieren, z. B. vor dem Versand.</li>
+    </ol>
+    Gefundene Adresse: DHCP der Station (eingerichtete Gateways) oder Werks-IP (neue Gateways).
+  </details>
 
   <div id="noports" class="alert alert-secondary d-none">
     Keine Ports eingerichtet. Auf der Station <code>/etc/gatewaychef/ports</code> anlegen und
@@ -35,16 +62,18 @@
   </div>
   <div id="ports" class="d-flex flex-wrap gap-3 mb-4"></div>
 
-  <div class="d-flex align-items-baseline gap-3">
-    <h2 class="h5">Vorgänge</h2>
-    <span class="text-muted small">Einrichtungen und Flotten-Updates; läuft/fertig/Fehler. Klick auf eine Zeile zeigt das Protokoll.</span>
+  <div class="block mb-2">
+    <div class="d-flex align-items-baseline gap-3">
+      <h2>Vorgänge</h2>
+      <p class="mb-0">Einrichtungen und Flotten-Updates seit dem Start der Station. Klick zeigt das Protokoll.</p>
+    </div>
+    <table class="table table-sm table-hover mb-0">
+      <thead><tr><th>Status</th><th>Art</th><th>Gateway</th><th>Vorgang</th><th>Stand</th><th>Dauer</th><th>Start</th></tr></thead>
+      <tbody id="jobs"></tbody>
+    </table>
   </div>
-  <table class="table table-sm table-hover bg-white">
-    <thead><tr><th>Status</th><th>Art</th><th>Gateway</th><th>Vorgang</th><th>Stand</th><th>Dauer</th><th>Start</th></tr></thead>
-    <tbody id="jobs"></tbody>
-  </table>
-  <div id="joblog" class="d-none">
-    <div class="d-flex align-items-baseline gap-2"><h3 class="h6" id="joblogtitle"></h3>
+  <div id="joblog" class="block d-none">
+    <div class="d-flex align-items-baseline gap-2"><h2 id="joblogtitle"></h2>
       <button class="btn btn-sm btn-link" onclick="closeLog()">schließen</button></div>
     <div class="log" id="joblogbody"></div>
   </div>
@@ -57,8 +86,14 @@ const KIND = {setup: "Einrichtung", nodered: "Node-RED", firmware: "Firmware", p
 const badge = s => `<span class="st st-${s || "none"}">${esc(STATE[s] || "—")}</span>`;
 const dur = s => s == null ? "" : (s < 90 ? `${s} s` : `${Math.floor(s / 60)} min ${s % 60} s`);
 const clock = t => t ? new Date(t * 1000).toLocaleTimeString("de-DE") : "";
+const FIELDS = [
+  ["client_id", "Kunden-Nr.", ""], ["client_name", "Kundenname", ""],
+  ["sim_vendor_id", "SIM-Anbieter (ID)", ""], ["iccid", "ICCID", ""],
+  ["name", "Gateway-Name (leer = automatisch)", "wide"],
+];
 let openJob = null;
-const formState = {};   // keep typed values across refreshes
+const formState = {};   // per port: values typed or prefilled, kept across refreshes
+const filledFor = {};   // per port: EUI the form was prefilled for
 
 function colorLog(lines) {
   return lines.map(l => {
@@ -67,44 +102,78 @@ function colorLog(lines) {
   }).join("\n");
 }
 
-function field(p, key, ph, w) {
+function prefill(p, gw, known) {
+  // New gateway on the port -> reset the form and take what the database knows.
+  const eui = gw.host ? (gw.eui || "?") : null;
+  if (filledFor[p] === eui) return;
+  filledFor[p] = eui;
+  const rec = known && known.record;
+  formState[p] = rec ? {
+    client_id: rec.client_id || "", client_name: rec.client_name || "",
+    sim_vendor_id: rec.sim_vendor_id != null ? String(rec.sim_vendor_id) : "", iccid: rec.iccid || "",
+    name: rec.name || "", vpn_ip: rec.vpn_ip || "", new: false,
+  } : {new: !!eui};
+}
+
+function input(p, key, label, cls) {
   const v = (formState[p] || {})[key] || "";
-  return `<input class="form-control form-control-sm small-input" style="width:${w}" placeholder="${ph}"
-    value="${esc(v)}" oninput="(formState[${p}] ||= {})['${key}'] = this.value">`;
+  return `<div class="${cls}"><label>${label}</label>
+    <input class="form-control form-control-sm" value="${esc(v)}" data-port="${p}"
+      oninput="(formState[${p}] ||= {})['${key}'] = this.value"></div>`;
+}
+
+function facts(gw, known) {
+  const rec = known && known.record;
+  const rows = [["EUI", gw.eui || "?"], ["LAN-Adresse", gw.host]];
+  if (rec) {
+    rows.push(["Name", rec.name], ["VPN-IP", rec.vpn_ip], ["Seriennummer", rec.serial],
+              ["ICCID", rec.iccid], ["SIM", rec.sim_vendor_name || rec.sim_vendor_id],
+              ["Kunde", [rec.client_id, rec.client_name].filter(Boolean).join(" - ")], ["DB-Status", rec.status]);
+  } else {
+    const dev = gw.device || {};
+    if (dev.vpn_ip) rows.push(["VPN-IP (am Gerät)", dev.vpn_ip]);
+  }
+  return `<dl class="facts">${rows.filter(r => r[1]).map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`;
 }
 
 function portCard(row) {
-  const p = row.port, gw = row.gateway || {}, job = row.job;
+  const p = row.port, gw = row.gateway || {}, job = row.job, known = row.known;
   const running = job && job.state === "running";
   const where = row.vlan ? `${esc(row.iface)} · VLAN ${row.vlan}` : esc(row.iface);
-  const gwText = gw.host ? `<b>${esc(gw.eui || "EUI ?")}</b> <span class="text-muted">@ ${esc(gw.host)}</span>`
-                         : `<span class="text-muted">${gw.error ? "Fehler: " + esc(gw.error) : "kein Gateway"}</span>`;
-  const isNew = (formState[p] || {}).new;
-  const jobPart = job ? `
-      <div class="mt-2 small">${badge(job.state)} ${esc(job.label)} · ${dur(job.seconds)}
-        ${job.gateway && job.gateway.vpn_ip ? `· VPN ${esc(job.gateway.vpn_ip)}` : ""}</div>
-      <div class="small text-muted text-truncate" title="${esc(job.step || "")}">${esc(job.step || "startet …")}</div>
-      ${job.state !== "running" && job.detail ? `<div class="small">${esc(job.detail)}</div>` : ""}
-      <button class="btn btn-sm btn-link p-0" onclick="showLog(${job.id})">Protokoll</button>` : "";
-  return `<div class="card port ${running ? "border-primary" : ""}">
-    <div class="card-header"><b>Port ${p}</b><span class="small text-muted">${where}</span></div>
-    <div class="card-body py-2">
-      <div class="small mb-2">${gwText}</div>
-      <div class="d-flex flex-wrap gap-1 mb-1">
-        ${field(p, "client_id", "Kunden-Nr.", "6.5rem")}
-        ${field(p, "sim_vendor_id", "SIM-Anb.", "5rem")}
-        ${field(p, "iccid", "ICCID", "13rem")}
-        ${field(p, "name", "Name (optional)", "13rem")}
-      </div>
-      <label class="small"><input type="checkbox" class="form-check-input me-1" ${isNew ? "checked" : ""}
-        onchange="(formState[${p}] ||= {}).new = this.checked">neues Gateway (VPN-IP aus Pool)</label>
-      <div class="mt-2 d-flex gap-1">
-        <button class="btn btn-sm btn-outline-secondary" ${running || !gw.host ? "disabled" : ""} onclick="start(${p}, 'dry')">Dry-Run</button>
-        <button class="btn btn-sm btn-primary" ${running || !gw.host ? "disabled" : ""} onclick="start(${p}, 'apply')">Einrichten</button>
-        <button class="btn btn-sm btn-outline-secondary" ${running || !gw.host ? "disabled" : ""} onclick="start(${p}, 'check')" title="nur Prüfungen, z. B. vor dem Versand">Prüfen</button>
-      </div>
-      ${jobPart}
-    </div></div>`;
+  prefill(p, gw, known);
+  const st = formState[p] || {};
+  let tag = "";
+  if (gw.host) {
+    tag = known && known.record ? `<span class="st st-known">bekannt</span>`
+        : known && known.error ? `<span class="st st-db" title="${esc(known.error)}">DB nicht erreichbar</span>`
+        : `<span class="st st-new">neu</span>`;
+  }
+  const head = `<div class="port-head"><span class="dot ${gw.host ? "on" : gw.error ? "off" : "unk"}"></span>
+      <h2 class="mb-0">Port ${p}</h2><span class="small text-muted">${where}</span><span class="ms-auto">${tag}</span></div>`;
+  if (!gw.host) {
+    return `<div class="block port">${head}
+      <p>${gw.error ? "Fehler: " + esc(gw.error) : "kein Gateway – Kabel stecken, rund 2 Minuten warten"}</p>
+      ${job ? jobPart(job) : ""}</div>`;
+  }
+  const dis = running ? "disabled" : "";
+  return `<div class="block port ${running ? "busy" : ""}">${head}
+    ${facts(gw, known)}
+    <div class="form-grid mb-2">${FIELDS.map(f => input(p, ...f)).join("")}</div>
+    <label class="small d-block mb-2"><input type="checkbox" class="form-check-input me-1" ${st.new ? "checked" : ""}
+      onchange="(formState[${p}] ||= {}).new = this.checked">neues Gateway (VPN-IP aus dem Pool)</label>
+    <div class="d-flex gap-1">
+      <button class="btn btn-sm btn-outline-secondary" ${dis} onclick="start(${p}, 'dry')">Dry-Run</button>
+      <button class="btn btn-sm btn-primary" ${dis} onclick="start(${p}, 'apply')">Einrichten</button>
+      <button class="btn btn-sm btn-outline-secondary" ${dis} onclick="start(${p}, 'check')" title="nur Prüfungen, z. B. vor dem Versand">Prüfen</button>
+    </div>
+    ${job ? jobPart(job) : ""}</div>`;
+}
+
+function jobPart(job) {
+  return `<div class="mt-2 small border-top pt-2">${badge(job.state)} ${esc(job.label)} · ${dur(job.seconds)}
+      ${job.gateway && job.gateway.vpn_ip ? `· VPN ${esc(job.gateway.vpn_ip)}` : ""}
+      <div class="text-muted text-truncate" title="${esc(job.step || "")}">${esc(job.state === "running" ? (job.step || "startet …") : (job.detail || ""))}</div>
+      <button class="btn btn-sm btn-link p-0" onclick="showLog(${job.id})">Protokoll</button></div>`;
 }
 
 async function refresh() {
@@ -113,9 +182,7 @@ async function refresh() {
     const r = await fetch("/api/station/overview");
     data = (await r.json()).data;
   } catch (e) { document.getElementById("summary").textContent = "Station nicht erreichbar"; return; }
-  if (document.activeElement && document.activeElement.closest(".port")) {
-    // do not rebuild while someone types in a port card
-  } else {
+  if (!(document.activeElement && document.activeElement.closest(".port"))) {
     document.getElementById("ports").innerHTML = data.ports.map(portCard).join("");
   }
   document.getElementById("noports").classList.toggle("d-none", data.ports.length > 0);
@@ -136,7 +203,8 @@ async function refresh() {
 }
 
 async function start(port, mode) {
-  const o = formState[port] || {};
+  const o = Object.assign({}, formState[port] || {});
+  if (!o.new && o.vpn_ip) { /* known gateway: keep its VPN IP */ } else delete o.vpn_ip;
   if (mode === "apply" && !confirm(`Port ${port} wirklich einrichten (schreibt aufs Gateway und in die DB)?`)) return;
   const r = await fetch("/api/station/run", {method: "POST", headers: {"Content-Type": "application/json"},
     body: JSON.stringify({port, mode, options: o})});

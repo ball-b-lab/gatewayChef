@@ -78,7 +78,11 @@ die Station genau ein Gateway unter seiner Werks-IP. Cloud-API, Milesight und VP
 Danach `systemctl restart gatewaychef-ports` und `sudo /opt/gatewaychef/app/scripts/linux/ports.sh list`:
 Das zeigt je Port, ob ein Gateway antwortet.
 
-**Bedienung:** `http://<station>:5000/station`
+**Bedienung:** `http://<station>:5000/station`  (auf einer Station mit Ports leitet `/` automatisch dorthin, die alte
+Einzel-Einrichtung mit Copy & Paste entfällt; Aussehen wie die Cloud-App `/fleet`)
+- Steht die EUI des erkannten Gateways in der Datenbank, zeigt die Karte Name, VPN-IP, Seriennummer, ICCID, SIM,
+  Kunde und DB-Status und füllt die Felder damit vor (Kunden-Nr. und -name aus dem Namen `<x.y> <Nr> - <Kunde>`).
+  Unbekannte Gateways sind als „neu“ markiert, „neues Gateway (VPN-IP aus dem Pool)“ ist dann vorausgewählt.
 - Eine Karte je Port: erkanntes Gateway (EUI), Felder für Kunden-Nr., SIM-Anbieter, ICCID und Name, dazu
   „neues Gateway“. Die Knöpfe heißen Dry-Run, Einrichten und Prüfen. Die Läufe der Ports laufen parallel,
   die VPN-IP wird in der DB atomar reserviert.

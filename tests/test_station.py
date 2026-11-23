@@ -25,7 +25,12 @@ class Proc:
         return self.code
 
 
-def _station(lines, code=0, probe=FOUND, log_dir=""):
+RECORD = {"gateway_name": "1.116 10999 - Stadt Testhausen", "vpn_ip": "172.30.0.116", "serial_number": "6221D1924097",
+          "sim_iccid": "8946203806601120523", "sim_vendor_id": 2, "sim_vendor_name": "Whereversim",
+          "status_overall": "DEPLOYED"}
+
+
+def _station(lines, code=0, probe=FOUND, log_dir="", lookup=None):
     calls = []
 
     def run(cmd, **kw):
@@ -36,7 +41,8 @@ def _station(lines, code=0, probe=FOUND, log_dir=""):
         calls.append(cmd)
         return Proc(lines, code)
 
-    s = st.Station(board=jobs.Board(), ports=PORTS, runner=["runner"], popen=popen, run=run, log_dir=log_dir)
+    s = st.Station(board=jobs.Board(), ports=PORTS, runner=["runner"], popen=popen, run=run, log_dir=log_dir,
+                   lookup=lookup or (lambda eui: RECORD if eui == FOUND["eui"] else None))
     return s, calls
 
 
@@ -111,6 +117,36 @@ class StationTest(unittest.TestCase):
         self.assertEqual(rows[1]["job"]["state"], jobs.OK)
 
 
+    def test_overview_prefills_known_gateway(self):
+        s, _ = _station([])
+        known = s.overview()[0]["known"]["record"]
+        self.assertEqual(known["vpn_ip"], "172.30.0.116")
+        self.assertEqual(known["iccid"], "8946203806601120523")
+        self.assertEqual((known["client_id"], known["client_name"]), ("10999", "Stadt Testhausen"))
+        self.assertEqual(known["sim_vendor_id"], 2)
+
+    def test_unknown_and_db_down(self):
+        s, _ = _station([], lookup=lambda eui: None)
+        self.assertIsNone(s.overview()[0]["known"]["record"])
+
+        def boom(eui):
+            raise RuntimeError("Datenbank nicht erreichbar")
+        s, _ = _station([], lookup=boom)
+        known = s.overview()[0]["known"]
+        self.assertIsNone(known["record"])
+        self.assertIn("nicht erreichbar", known["error"])
+
+    def test_no_lookup_for_empty_eui(self):
+        calls = []
+        s, _ = _station([], probe={"host": "192.168.77.137", "eui": "000000FFFE000000"},
+                        lookup=lambda eui: calls.append(eui))
+        self.assertIsNone(s.overview()[0]["known"]["record"])
+        self.assertEqual(calls, [])
+
+    def test_name_without_client(self):
+        self.assertEqual(st.known_record({"gateway_name": "JK_Test"})["client_id"], None)
+
+
 class BoardTest(unittest.TestCase):
     def test_tracked_states(self):
         orig = jobs.BOARD
@@ -150,3 +186,18 @@ class RouteTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RootRedirectTest(unittest.TestCase):
+    def test_root_goes_to_station_when_ports_exist(self):
+        os.environ.setdefault("OPEN_BROWSER", "false")
+        import app as A
+        from unittest import mock
+        c = A.app.test_client()
+        with mock.patch.object(st, "load_ports", return_value=PORTS):
+            r = c.get("/")
+        if A.APP_MODE == "local":
+            self.assertEqual(r.status_code, 302)
+            self.assertTrue(r.headers["Location"].endswith("/station"))
+        with mock.patch.object(st, "load_ports", return_value=[]):
+            self.assertNotEqual(c.get("/").headers.get("Location", ""), "/station")
