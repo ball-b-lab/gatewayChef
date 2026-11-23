@@ -16,7 +16,7 @@ from utils.response import error, ok
 
 bp = Blueprint("fleet", __name__)
 _LAST_DEEP = {}  # vpn_ip -> (fields, time) of the last successful deep check (this process)
-_DEEP_KEYS = ("firmware", "profile_ok", "firmware_compat", "firmware_deltas", "wifi_country", "flow")
+_DEEP_KEYS = ("firmware", "profile_ok", "profile", "firmware_compat", "firmware_deltas", "wifi_country", "flow", "health")
 _ERRORS = (fl.FleetError, gc.GatewayConfigError, nr.NodeRedError, fw.FirmwareError)
 
 

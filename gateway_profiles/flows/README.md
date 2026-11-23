@@ -17,3 +17,6 @@ Eine Datei je Version: `<version>.json` (z. B. `1.0.0.json`). Inhalt ist der nor
   Cortex 2., der interne LNS ist aus.
 
 Erzeugen vom Referenzgerät: `python scripts/fleet.py nodered-export --host <ip> --version 1.0.0`
+- `1.2.0` (23.11.2026): `/node-red/driveby/health` liefert zusätzlich `radio` (letzte 30 min aus den
+  Packet-Forwarder-Statistiken): `crc_error_pct`, `rx_total`/`rx_ok`, `ack_pct`, `rssi_avg`/`snr_avg`/`rssi_min`
+  der empfangenen Pakete. Sonst unverändert zu 1.1.1.

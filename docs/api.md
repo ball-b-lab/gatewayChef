@@ -167,6 +167,12 @@ Ohne `apply: true` wird immer nur geprüft.
   Jede Zeile eines erreichbaren Gateways enthält `driveby` (aus `/node-red/driveby/health`, ab Flow 1.1.0, sonst `null`):
   `flow_version`, `receiving` (stat < 65 s), `seconds_since_stat`, `seconds_since_rxpk`, `rxpk`,
   `app_seconds_since_poll`, `app_last_poll`, `app_client`, `app_polls` (wann die dbmonitor-App zuletzt `/status` abgeholt hat).
+  Ab Flow 1.2.0 zusätzlich `driveby.radio` (letzte 30 min): `crc_error_pct`, `rx_total`, `rx_ok`, `ack_pct`, `rssi_avg`, `snr_avg`, `rssi_min`.
+  `deep` liefert außerdem `health` über die Gateway-API (ohne IMSI/ICCID/IMEI/Zell-ID):
+  `health.cellular` (`status`, `connected_for`, `provider`, `net_type`, `band`, `register`, `signal_dbm`, `rsrp_dbm`,
+  `rsrq_db`, `sinr_db`, `data_usage` = Modemzähler) und `health.system` (`uptime_s`, `cpu_load`, `memory_avail_percent`,
+  `storage_avail_percent`, `lns` = aktive Forwarder-Ziele mit `connected`). Ältere Firmware liefert nicht alle Felder.
+  Ohne exaktes Profil enthält die Zeile `profile` (genutztes neuestes Profil) und `firmware_compat`.
 - `GET /api/fleet/catalog`: Patches, Flow-Bundles, freigegebene Firmwares
 - `POST /api/fleet/patch` `{ vpn_ip, name, apply, allow_risky }`
   - `data.result`: `ok | would_change | changed | skipped | offline | failed`
