@@ -36,8 +36,9 @@ def build_webservice():
         return None
     if backend == "ws2":
         return Ws2Webservice(os.getenv("WS2_URL", ""), os.getenv("WS2_READ_KEY", ""), os.getenv("WS2_WRITE_KEY", ""))
-    return Ws1Webservice(os.getenv("WEBSERVICE_URL", "https://webservice.ball-b.de"),
-                         os.getenv("WEBSERVICE_USER", ""), os.getenv("WEBSERVICE_PASSWORD", ""))
+    from utils.station_credentials import webservice_login
+    user, password, _source = webservice_login()   # login stored on the station page wins over env
+    return Ws1Webservice(os.getenv("WEBSERVICE_URL", "https://webservice.ball-b.de"), user, password)
 
 
 def build_registries():

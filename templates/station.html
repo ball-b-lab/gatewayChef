@@ -56,6 +56,21 @@
     Gefundene Adresse: DHCP der Station (eingerichtete Gateways) oder Werks-IP (neue Gateways).
   </details>
 
+  <div class="block mb-3" id="credblock">
+    <div class="d-flex align-items-baseline gap-3 flex-wrap">
+      <h2>Webservice-Zugang</h2>
+      <p class="mb-0" id="credstatus">…</p>
+    </div>
+    <p>Mit diesem Zugang legt die Einrichtung das Gateway im Webservice an. Eigenen Zugang eintragen und speichern,
+      sonst gilt der Standard aus der Konfiguration der Station.</p>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <input id="wsuser" class="form-control form-control-sm" style="width:14rem" placeholder="Benutzer" autocomplete="off">
+      <input id="wspass" type="password" class="form-control form-control-sm" style="width:14rem" placeholder="Passwort" autocomplete="new-password">
+      <button class="btn btn-sm btn-primary" onclick="saveCred()">Speichern</button>
+      <button class="btn btn-sm btn-outline-secondary" id="credclear" onclick="clearCred()">Eigenen Zugang löschen</button>
+    </div>
+  </div>
+
   <div id="noports" class="alert alert-secondary d-none">
     Keine Ports eingerichtet. Auf der Station <code>/etc/gatewaychef/ports</code> anlegen und
     <code>systemctl restart gatewaychef-ports</code> (siehe <code>docs/LINUX_STATION.md</code>).
@@ -228,6 +243,30 @@ async function loadLog(id, quiet) {
 function showLog(id) { openJob = id; document.getElementById("joblog").classList.remove("d-none"); loadLog(id); }
 function closeLog() { openJob = null; document.getElementById("joblog").classList.add("d-none"); }
 
+function showCred(c) {
+  const t = c.source === "station" ? `eigener Zugang gespeichert: <b>${esc(c.user)}</b>`
+          : c.source === "env" ? `Standard aus der Konfiguration: <b>${esc(c.user)}</b>`
+          : `<span class="text-danger">kein Zugang – Webservice-Schritt wird übersprungen</span>`;
+  document.getElementById("credstatus").innerHTML = t;
+  document.getElementById("credclear").classList.toggle("d-none", c.source !== "station");
+}
+async function loadCred() {
+  try { showCred((await (await fetch("/api/station/credentials")).json()).data); } catch (e) {}
+}
+async function saveCred() {
+  const u = document.getElementById("wsuser"), pw = document.getElementById("wspass");
+  const r = await fetch("/api/station/credentials", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({webservice_user: u.value, webservice_password: pw.value})});
+  const body = await r.json();
+  if (!r.ok) { alert((body.error && body.error.message) || "Fehler"); return; }
+  pw.value = ""; showCred(body.data);
+}
+async function clearCred() {
+  if (!confirm("Eigenen Webservice-Zugang löschen? Danach gilt wieder der Standard.")) return;
+  showCred((await (await fetch("/api/station/credentials", {method: "DELETE"})).json()).data);
+}
+
+loadCred();
 refresh();
 setInterval(refresh, 3000);
 </script>

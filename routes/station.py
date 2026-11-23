@@ -5,6 +5,7 @@ running and finished jobs (setup runs and fleet updates).
 from flask import Blueprint, render_template, request
 
 from services import station as st
+from utils import station_credentials as creds
 from utils.response import error, ok
 
 bp = Blueprint("station", __name__)
@@ -44,3 +45,24 @@ def station_job(job_id):
     if not job:
         return error("Vorgang nicht gefunden.", 404)
     return ok(job.as_dict(with_log=True))
+
+
+@bp.route("/api/station/credentials", methods=["GET"])
+def station_credentials_status():
+    return ok(creds.status())
+
+
+@bp.route("/api/station/credentials", methods=["POST"])
+def station_credentials_save():
+    data = request.json or {}
+    try:
+        creds.save(data.get("webservice_user"), data.get("webservice_password"))
+    except (ValueError, OSError) as exc:
+        return error(str(exc), 400)
+    return ok(creds.status())
+
+
+@bp.route("/api/station/credentials", methods=["DELETE"])
+def station_credentials_clear():
+    creds.clear()
+    return ok(creds.status())

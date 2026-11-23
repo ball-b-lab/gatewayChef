@@ -89,6 +89,9 @@ Einzel-Einrichtung mit Copy & Paste entfällt; Aussehen wie die Cloud-App `/flee
 - **Vorgänge:** alle laufenden und fertigen Einrichtungen sowie Flotten-Updates (Node-RED, Firmware, Patch)
   mit Stand (letzter Schritt), Dauer und Ergebnis. Ein Klick zeigt das Protokoll, damit man von Hand
   nacharbeiten kann. Die Protokolle der Einrichtungen liegen zusätzlich in `/var/log/gatewaychef/`.
+- **Webservice-Zugang:** Oben auf der Seite kann jede Bedienerin ihren eigenen Webservice-Benutzer mit Passwort
+  speichern (`/opt/gatewaychef/station-credentials.json`, Rechte 600, Passwort wird nie angezeigt). Einrichtungen
+  nutzen dann diesen Zugang, sonst `WEBSERVICE_USER`/`WEBSERVICE_PASSWORD` aus `/etc/gatewaychef/env`.
 - Die Liste lebt im Speicher des Dienstes: Ein Neustart leert sie, die Protokolldateien bleiben.
 
 Technik: Die Weboberfläche startet `sudo -n /usr/local/sbin/gatewaychef-port <N> setup --live …`. Der Helfer
