@@ -68,14 +68,26 @@ up_port() {
 }
 
 dhcp_up() {
-  # Eingerichtete Gateways haben eth0 auf DHCP: je Namespace ein dnsmasq (nur Adressen,
-  # keine Route/DNS). Leases liest utils/gateway_lan.py (GATEWAYCHEF_PORT=<N>).
+  # Eingerichtete Gateways haben eth0 auf DHCP: je Namespace ein dnsmasq. Leases liest utils/gateway_lan.py (GATEWAYCHEF_PORT=<N>).
   local n="$1" dev="$2" ns="gcp$1" pid="/run/gatewaychef/dhcp-gcp$1.pid"
   command -v dnsmasq >/dev/null || { echo "Port $n: dnsmasq fehlt (apt install dnsmasq-base), kein DHCP" >&2; return 0; }
   mkdir -p /run/gatewaychef /var/lib/gatewaychef
   [[ -f "$pid" ]] && kill "$(cat "$pid")" 2>/dev/null || true
+  # Das UG65 nimmt ein Angebot ohne Router nicht an. Router = Station; damit das Gateway
+  # (eth0 wird dann primaer) weiter ins Internet/VPN kommt, NATet der Namespace nach draussen.
+  ip netns exec "$ns" sysctl -qw net.ipv4.ip_forward=1
+  ip netns exec "$ns" nft delete table ip gcnat 2>/dev/null || true
+  ip netns exec "$ns" nft -f - <<NFT
+table ip gcnat {
+  chain gc_post {
+    type nat hook postrouting priority srcnat;
+    oifname "gcn$n" ip saddr 192.168.77.0/24 masquerade
+  }
+}
+NFT
   ip netns exec "$ns" dnsmasq --conf-file=/dev/null --port=0 --interface="$dev" --bind-interfaces \
-    --dhcp-range=192.168.77.100,192.168.77.150,255.255.255.0,10m --dhcp-option=3 --dhcp-option=6 \
+    --dhcp-range=192.168.77.100,192.168.77.150,255.255.255.0,10m \
+    --dhcp-option=3,192.168.77.1 --dhcp-option=6,1.1.1.1,9.9.9.9 \
     --dhcp-authoritative --dhcp-leasefile="/var/lib/gatewaychef/dhcp-gcp$n.leases" --pid-file="$pid" --user=root
 }
 
