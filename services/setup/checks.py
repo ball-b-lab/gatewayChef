@@ -10,10 +10,22 @@ import requests
 from services.setup.model import normalize_eui
 
 
-def device_info(host, timeout=5, http=requests):
-    resp = http.get(f"http://{host}/node-red/device-info", timeout=timeout)
-    resp.raise_for_status()
-    return resp.json()
+def zero_mac(info):
+    """Node-RED device-info flow (<= 1.3.0) keeps the MAC in flow context and clears it after each
+    answer; with two requests at once one of them gets 00:00:00:00:00:00. Treat that as transient."""
+    mac = str(((info or {}).get("device") or {}).get("mac") or "")
+    return bool(mac) and not mac.replace(":", "").strip("0")
+
+
+def device_info(host, timeout=5, http=requests, tries=4, sleep=time.sleep):
+    for attempt in range(tries):
+        resp = http.get(f"http://{host}/node-red/device-info", timeout=timeout)
+        resp.raise_for_status()
+        info = resp.json()
+        if not zero_mac(info) or attempt == tries - 1:
+            return info
+        sleep(1.0 + attempt)
+    return info
 
 
 def lora_info(host, timeout=5, http=requests):

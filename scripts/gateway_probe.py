@@ -6,6 +6,7 @@ Reads only Node-RED /device-info (no login). Exit 0 found, 3 nothing answers.
 import json
 import os
 import sys
+import time
 
 import requests
 
@@ -19,6 +20,12 @@ def probe(candidates, http=requests):
             resp = http.get(f"http://{host}/node-red/device-info", timeout=2)
             if resp.status_code == 200:
                 info = resp.json()
+                for _ in range(3):   # flow <= 1.3.0 answers concurrent requests with MAC 00:00:...
+                    mac = (info.get("device") or {}).get("mac") or ""
+                    if not mac or mac.replace(":", "").strip("0"):
+                        break
+                    time.sleep(1)
+                    info = http.get(f"http://{host}/node-red/device-info", timeout=2).json()
                 dev = info.get("device") or {}
                 return {"host": host, "eui": (dev.get("eui") or "").upper() or None, "device": dev}
         except (requests.RequestException, ValueError):
