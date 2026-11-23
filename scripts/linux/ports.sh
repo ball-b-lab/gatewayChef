@@ -71,11 +71,11 @@ nat_up() {
   nft list table ip gatewaychef >/dev/null 2>&1 && nft delete table ip gatewaychef
   nft -f - <<NFT
 table ip gatewaychef {
-  chain post {
+  chain gc_post {
     type nat hook postrouting priority srcnat;
     ip saddr $TRANSFER.0.0/16 ip daddr != $TRANSFER.0.0/16 masquerade
   }
-  chain fwd {
+  chain gc_forward {
     type filter hook forward priority filter;
     ip saddr $TRANSFER.0.0/16 accept
     ip daddr $TRANSFER.0.0/16 ct state established,related accept
