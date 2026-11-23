@@ -50,6 +50,48 @@ def find_images(directory=None):
     return images
 
 
+MIN_IMAGE_BYTES = 20_000_000  # a UG65 image is >100 MB; anything tiny is not a firmware
+
+
+def store_image(stream, filename, directory=None, chunk=1 << 20):
+    """Save an uploaded firmware image into FIRMWARE_DIR (atomic). Returns the find_images entry."""
+    import hashlib
+    directory = directory or os.getenv("FIRMWARE_DIR", "")
+    if not directory:
+        raise FirmwareError("FIRMWARE_DIR nicht gesetzt.")
+    name = os.path.basename(filename or "").replace(" ", "_")
+    m = _IMAGE.search(name)
+    if not m:
+        raise FirmwareError("Dateiname muss die Version enthalten, z. B. 60.0.0.50.bin oder 60.0.0.49-r4.bin.")
+    name = m.group(1) + (m.group(2) or "") + ".bin"
+    os.makedirs(directory, exist_ok=True)
+    tmp, digest, size = os.path.join(directory, "." + name + ".part"), hashlib.sha256(), 0
+    try:
+        with open(tmp, "wb") as fh:
+            while True:
+                block = stream.read(chunk)
+                if not block:
+                    break
+                fh.write(block)
+                digest.update(block)
+                size += len(block)
+        if size < MIN_IMAGE_BYTES:
+            raise FirmwareError(f"Datei zu klein ({size} Bytes) für ein Firmware-Image.")
+        os.replace(tmp, os.path.join(directory, name))
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+    return {"version": m.group(1), "label": m.group(1) + (m.group(2) or ""), "file": name,
+            "size": size, "sha256": digest.hexdigest()}
+
+
+def delete_image(version, directory=None):
+    img = find_images(directory).get(version)
+    if not img:
+        raise FirmwareError(f"Firmware {version} nicht vorhanden.")
+    os.remove(img["path"])
+
+
 def upload_form():
     t, f = os.getenv("FIRMWARE_UPLOAD_TYPE", "upgrade"), os.getenv("FIRMWARE_UPLOAD_FILE", "firmware.bin")
     if not t or not f:

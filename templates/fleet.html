@@ -77,6 +77,13 @@
       <select id="firmware" class="form-select form-select-sm d-inline-block" style="width:auto"></select>
       <button class="btn btn-sm btn-outline-secondary" onclick="run('firmware', false)">prüfen</button>
       <button class="btn btn-sm btn-danger" onclick="run('firmware', true)">aktualisieren</button>
+      <details class="small mt-1"><summary>Firmware-Dateien verwalten</summary>
+        <div class="text-muted my-1">.bin vom Hersteller, Name mit Version (z. B. 60.0.0.50.bin). Liegt dann für alle bereit.</div>
+        <input type="file" id="fwfile" accept=".bin" class="form-control form-control-sm mb-1">
+        <button class="btn btn-sm btn-outline-secondary" onclick="uploadFw()">hochladen</button>
+        <span id="fwup" class="text-muted"></span>
+        <ul id="fwlist" class="mb-0 mt-1 ps-3"></ul>
+      </details>
     </div></div>
   </div>
 
@@ -311,20 +318,46 @@ async function run(kind, apply) {
   }
 }
 
-(async () => {
-  {% if cloud %}fetch('/auth/me').then(r => r.json()).then(r => { if (r.data) document.getElementById('user').textContent = r.data.name || r.data.email; }).catch(() => {});{% endif %}
+function uploadFw() {
+  const f = document.getElementById('fwfile').files[0], out = document.getElementById('fwup');
+  if (!f) { out.textContent = 'Erst Datei wählen.'; return; }
+  const fd = new FormData(); fd.append('file', f);
+  const x = new XMLHttpRequest();
+  x.upload.onprogress = e => { if (e.lengthComputable) out.textContent = `lade hoch … ${Math.round(e.loaded / e.total * 100)} %`; };
+  x.onload = () => {
+    let r = {}; try { r = JSON.parse(x.responseText); } catch (e) {}
+    out.textContent = r.ok ? `gespeichert: ${r.data.label} (${Math.round(r.data.size / 1e6)} MB, SHA-256 ${r.data.sha256.slice(0, 12)}…)` : 'Fehler: ' + ((r.error && r.error.message) || x.status);
+    if (r.ok) loadCatalog();
+  };
+  x.onerror = () => { out.textContent = 'Upload abgebrochen.'; };
+  x.open('POST', '/api/fleet/firmware/images'); x.send(fd);
+}
+async function deleteFw(v) {
+  if (!confirm(`Firmware-Datei ${v} löschen?`)) return;
+  try { await fetch('/api/fleet/firmware/images/' + encodeURIComponent(v), {method: 'DELETE'}); } finally { loadCatalog(); }
+}
+async function loadCatalog() {
   try {
     const cat = await api('/api/fleet/catalog');
-    const ps = document.getElementById('patch');
+    const ps = document.getElementById('patch'); ps.replaceChildren();
     for (const p of cat.patches) { const o = el('option', p.name + (p.risky.length ? ' ⚠' : '')); o.value = p.name; o.title = p.description; ps.append(o); }
     if (!cat.patches.length) ps.append(el('option', 'keine Patches'));
-    const fs = document.getElementById('flow');
+    const fs = document.getElementById('flow'); fs.replaceChildren();
     for (const v of cat.flows.slice().reverse()) { const o = el('option', 'Version ' + v); o.value = v; fs.append(o); }
     if (!cat.flows.length) fs.append(el('option', 'keine Versionen'));
-    const fw = document.getElementById('firmware');
-    for (const i of cat.firmware_images.slice().reverse()) { const o = el('option', `FW ${i.label} (${i.mb} MB)`); o.value = i.version; fw.append(o); }
-    if (!cat.firmware_images.length) fw.append(el('option', 'keine Firmware-Dateien hinterlegt'));
+    const fw = document.getElementById('firmware'); fw.replaceChildren();
+    const list = document.getElementById('fwlist'); list.replaceChildren();
+    for (const i of cat.firmware_images.slice().reverse()) {
+      const o = el('option', `FW ${i.label} (${i.mb} MB)`); o.value = i.version; fw.append(o);
+      const li = el('li', `${i.label} · ${i.mb} MB `); const a = el('a', 'löschen'); a.href = '#'; a.onclick = e => { e.preventDefault(); deleteFw(i.version); }; li.append(a); list.append(li);
+    }
+    if (!cat.firmware_images.length) fw.append(el('option', 'keine Firmware-Dateien – unten hochladen'));
   } catch (e) { /* catalog optional */ }
+}
+
+(async () => {
+  {% if cloud %}fetch('/auth/me').then(r => r.json()).then(r => { if (r.data) document.getElementById('user').textContent = r.data.name || r.data.email; }).catch(() => {});{% endif %}
+  await loadCatalog();
   await load(false);
   // firmware etc. need a login per gateway: read once in the background unless already known
   if (rows.some(r => r.online && !r.firmware)) load(true, true);
