@@ -52,3 +52,19 @@ run("Return Status Since", { req: { query: {}, ip: "172.30.100.7", headers: { "u
 const h2 = run("Drive-by Health", {});
 ok(h2.payload.app.client === "172.30.100.7" && h2.payload.app.polls === 2 && h2.payload.app.seconds_since_poll === 0
    && h2.payload.app.agent === "dbmonitor/2.1", "App-Abruf erfasst: " + JSON.stringify(h2.payload.app));
+
+// device-info race fix exists from 1.3.1 on (bundle version from the "gatewaychef-flow x.y.z" comment node)
+const bundleVersion = ((flows.find(n => /^gatewaychef-flow /.test(n.name || "")) || {}).name || "0.0.0").split(" ")[1].split(".").map(Number);
+if (bundleVersion[0] * 1e6 + bundleVersion[1] * 1e3 + bundleVersion[2] >= 1003001) {
+// device-info: two requests at once must both get their MAC (flow <= 1.3.0 cleared a shared flow.temp_mac -> 00:00…)
+const ifc = "wg0       Link encap:UNSPEC\n          inet addr:172.30.0.117  P-t-P:172.30.0.117\n          UP POINTOPOINT RUNNING\n";
+const iw = "phy#0\n\tInterface wlan0\n\t\tssid Gateway_F783E6\n";
+const reqA = run("safe store ssid", Object.assign(run("safe store mac", { payload: "24:e1:24:f7:83:e6\n" }), { payload: iw }));
+const reqB = run("safe store ssid", Object.assign(run("safe store mac", { payload: "24:e1:24:f7:83:e6\n" }), { payload: iw }));
+const ansA = run("function 2", Object.assign(reqA, { payload: ifc })).payload.device;
+const ansB = run("function 2", Object.assign(reqB, { payload: ifc })).payload.device;
+ok(ansA.mac === "24:E1:24:F7:83:E6" && ansB.mac === "24:E1:24:F7:83:E6" && ansB.eui === "24E124FFFEF783E6"
+   && ansB.ssid === "Gateway_F783E6" && ansB.vpn_ip === "172.30.0.117", "device-info parallel: beide Antworten mit MAC/EUI " + ansB.eui);
+const later = run("function 2", { payload: ifc }).payload.device;   // msg without gw_mac (e.g. other entry) -> last known MAC
+ok(later.mac === "24:E1:24:F7:83:E6", "device-info ohne msg.gw_mac: letzte bekannte MAC statt 00:00");
+}

@@ -11,7 +11,7 @@ from services.setup.model import normalize_eui
 
 
 def zero_mac(info):
-    """Node-RED device-info flow (<= 1.3.0) keeps the MAC in flow context and clears it after each
+    """Node-RED device-info flow (<= 1.3.0; fixed in 1.3.1) keeps the MAC in flow context and clears it after each
     answer; with two requests at once one of them gets 00:00:00:00:00:00. Treat that as transient."""
     mac = str(((info or {}).get("device") or {}).get("mac") or "")
     return bool(mac) and not mac.replace(":", "").strip("0")

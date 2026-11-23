@@ -1,0 +1,1384 @@
+[
+ {
+  "id": "4212a3100b918a98",
+  "type": "tab",
+  "label": "send_lora_pkg_log",
+  "disabled": false,
+  "info": "Dieser Flow ist ein durchdachtes Monitoring-System für ein LoRaWAN-Gateway. Er übernimmt nicht nur das Log-Forwarding, sondern überwacht auch aktiv die Verbindung zum LoRa Network Server (LNS) und bietet Visualisierungen über eine Webschnittstelle.\n\nHier ist die detaillierte Analyse der Funktionsbereiche:\n\n### 1. Dynamisches UDP Log-Forwarding (Der \"Beacon\"-Mechanismus)\n\nDies ist der Teil, den wir gerade implementiert haben.\n\n* **Empfang:** Der Node `udp in (1710)` wartet auf Beacons des Monitors. Sobald einer eintrifft, speichert der Change-Node `Set IP` die Absender-IP in `flow.monitor_ip`.\n* **Log-Quelle:** Der Node `Get Tail` liest die Logdatei des LoRa-Packet-Forwarders.\n* **Filter:** `JSON up filter` lässt nur echte Uplink-Nachrichten durch.\n* **Intelligente Adressierung (`7a2cf0c4320c3228`):** Ein Switch-Node prüft, ob `flow.monitor_ip` gesetzt ist:\n* **Pfad 1 (Dynamisch):** Falls vorhanden, wird diese IP genutzt.\n* **Pfad 2 (Fallback):** Falls leer, wird die Umgebungsvariable `UDP_TARGET_IP` als Ziel verwendet.\n\n\n* **Versand:** `udp out` schickt die Daten an das Ziel, wobei das Adressfeld leer ist, um `msg.ip` zu nutzen.\n\n### 2. Verbindungsüberwachung (Health Check)\n\nDer Flow erkennt, ob das Gateway noch mit dem Backend (LNS) kommuniziert.\n\n* **ACK-Filter:** Der Node `PULL_ACK filter` sucht im Log nach Bestätigungen vom Server.\n* **Zeitstempel:** Trifft ein ACK ein, speichert `Store last TS` die aktuelle Zeit in `flow.lastPullAck`.\n* **Watchdog:** Alle 5 Sekunden prüft `online offline check`, wie alt der letzte Zeitstempel ist. Ist er älter als 30 Sekunden, gilt das Gateway als **OFFLINE**.\n\n### 3. Ausfall-Protokoll & Ringpuffer (Gaps)\n\nDies ist ein fortgeschrittenes Feature zur Analyse von instabilen Verbindungen.\n\n* **Gap-Erkennung:** Der Node `store in ringbuffer` berechnet Lücken zwischen den ACKs. Wenn eine Lücke größer als 15 Sekunden ist, wird sie als \"Gap\" mit Start- und Endzeit gespeichert.\n* **Ringpuffer:** Die letzten 50 Gaps (oder die der letzten 24h) werden im Speicher gehalten, damit der Speicher nicht überläuft.\n\n### 4. HTTP-Schnittstellen (API & GUI)\n\nDer Flow stellt drei Endpunkte zur Verfügung:\n\n* **`/lora/health`:** Gibt einen einfachen JSON-Status zurück (200 OK bei Online, 503 Service Unavailable bei Offline). Ideal für externe Monitoring-Tools.\n* **`/lora/gaps`:** Gibt die Liste der erkannten Ausfälle als JSON zurück.\n* **`/lora/gaps/graph`:** Generiert eine **interaktive HTML-Seite** mit Chart.js. Hier werden die Ausfälle grafisch als rote Balken auf einer Zeitachse dargestellt.\n\n---\n\n### Zusammenfassung der Checkliste\n\n* [x] **Dynamische IP:** Implementiert (Port 1710).\n* [x] **Fallback-Logik:** Implementiert (nutzt `UDP_TARGET_IP`, wenn kein Beacon da ist).\n* [x] **Status-Überwachung:** Aktiv über `PULL_ACK`.\n* [x] **Visualisierung:** Integriert via HTTP-Endpunkt.\n\n**Möchtest du, dass ich die Schwellenwerte (z.B. die 30 Sekunden für den Offline-Status) noch an die 30-Sekunden-Rate deines neuen Beacons anpasse?**",
+  "env": [
+   {
+    "name": "UDP_TARGET_IP",
+    "value": "172.30.0.2",
+    "type": "str"
+   },
+   {
+    "name": "UDP_TARGET_PORT",
+    "value": "1702",
+    "type": "str"
+   }
+  ]
+ },
+ {
+  "id": "28c37d3ea9aa7926",
+  "type": "tab",
+  "label": "Configuration",
+  "disabled": false,
+  "info": ".. Live-Check: Du fragst nicht nur eine \nKonfigurationsdatei ab, sondern prüfst, \nob der VPN-Tunnel (wg0) tatsächlich eine \nIP vom Server erhalten hat. \n.. Fehlertoleranz: Wenn das Gateway neu \nist und noch kein VPN hat, antwortet es \ntrotzdem brav mit seiner MAC/EUI, damit \ndu es in ChirpStack anlegen kannst. \n.. Eindeutigkeit: Die berechnete EUI ist \ndie \"Wahrheit\", mit der du das Gateway im \nLNS registrierst.",
+  "env": []
+ },
+ {
+  "id": "f146ed2238b24b45",
+  "type": "tls-config",
+  "name": "ug65-selfsigned",
+  "cert": "",
+  "key": "",
+  "ca": "",
+  "certname": "",
+  "keyname": "",
+  "caname": "",
+  "servername": "",
+  "verifyservercert": false,
+  "alpnprotocol": ""
+ },
+ {
+  "id": "45b15b19e00004aa",
+  "type": "mqtt-broker",
+  "d": true,
+  "name": "",
+  "broker": "127.0.0.1",
+  "port": "1883",
+  "clientid": "",
+  "autoConnect": true,
+  "usetls": false,
+  "protocolVersion": "4",
+  "keepalive": "60",
+  "cleansession": true,
+  "birthTopic": "",
+  "birthQos": "0",
+  "birthPayload": "",
+  "birthMsg": {},
+  "closeTopic": "",
+  "closeQos": "0",
+  "closePayload": "",
+  "closeMsg": {},
+  "willTopic": "",
+  "willQos": "0",
+  "willPayload": "",
+  "willMsg": {},
+  "userProps": "",
+  "sessionExpiry": ""
+ },
+ {
+  "id": "2bd30f9a83b02872",
+  "type": "tail",
+  "z": "4212a3100b918a98",
+  "name": "Get Tail",
+  "filetype": "text",
+  "split": "[\\r]{0,1}\\n",
+  "filename": "/etc/urlog/lora-pkt-fwd.log",
+  "inputs": 0,
+  "x": 130,
+  "y": 500,
+  "wires": [
+   [
+    "050a113b60d4678b",
+    "37d5742b2f2b0f95"
+   ]
+  ]
+ },
+ {
+  "id": "050a113b60d4678b",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "PULL_ACK filter",
+  "func": "// 1. Payload sicher als String behandeln\nlet text = Buffer.isBuffer(msg.payload)\n    ? msg.payload.toString(\"utf8\")\n    : String(msg.payload);\n\n// 2. Filter-Logik\n// Erkennt Format A: \"... for server ball-b-cs.cortex-media.de PULL_ACK ...\"\n// Erkennt Format B: \"INFO: [down] PULL_ACK received ...\" (ohne \"for server\" Angabe)\nconst isMyServer = text.includes(\"ball-b-cs.cortex-media.de PULL_ACK\");\nconst isGenericPullAck = text.includes(\"PULL_ACK\") && !text.includes(\"for server\");\n\nif (isMyServer || isGenericPullAck) {\n    msg.payload = text;\n\n    // Visuelles Feedback am Knoten\n    node.status({ fill: \"green\", shape: \"ring\", text: \"PULL_ACK gefiltert\" });\n    return msg;\n}\n\n// Alles andere (andere Server oder andere Log-Typen wie JSON UP) verwerfen\nreturn null;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 340,
+  "y": 1120,
+  "wires": [
+   [
+    "e1f2cafdd49f6b17",
+    "8d5b01ae35357a5f",
+    "29ae635abd1364a3"
+   ]
+  ]
+ },
+ {
+  "id": "e1f2cafdd49f6b17",
+  "type": "debug",
+  "z": "4212a3100b918a98",
+  "name": "debug 48",
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "tostatus": false,
+  "complete": "true",
+  "targetType": "full",
+  "statusVal": "",
+  "statusType": "auto",
+  "x": 540,
+  "y": 1160,
+  "wires": []
+ },
+ {
+  "id": "8d5b01ae35357a5f",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "Store last PULL_ACK TS",
+  "func": "// store last valid ACK timestamp\nflow.set(\"lastPullAck\", Date.now());\n\nreturn msg;\n",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 590,
+  "y": 1120,
+  "wires": [
+   [
+    "5fe95d808d75c3d8"
+   ]
+  ]
+ },
+ {
+  "id": "280168c5f713f4c5",
+  "type": "inject",
+  "z": "4212a3100b918a98",
+  "name": "",
+  "props": [
+   {
+    "p": "payload"
+   },
+   {
+    "p": "topic",
+    "vt": "str"
+   }
+  ],
+  "repeat": "5",
+  "crontab": "",
+  "once": false,
+  "onceDelay": "5",
+  "topic": "",
+  "payload": "",
+  "payloadType": "date",
+  "x": 470,
+  "y": 1620,
+  "wires": [
+   [
+    "8575c2e303253569",
+    "37d173adccf8e4f6"
+   ]
+  ]
+ },
+ {
+  "id": "8575c2e303253569",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "ACK online offline check",
+  "func": "// =====================================\n// Konfiguration\n// =====================================\nconst MAX_AGE_SECONDS = 31;\nconst last = flow.get(\"lastPullAck\");\nconst now = Date.now();\n\n// Falls noch nie ein ACK empfangen wurde\nif (!last) {\n    const unknownData = { status: \"UNKNOWN\", seconds_since_ack: null, last_seen: null };\n    flow.set(\"gatewayStatus\", unknownData); // Auch UNKNOWN speichern\n    node.status({ fill: \"grey\", shape: \"dot\", text: \"Warte auf erstes ACK...\" });\n    msg.payload = unknownData;\n    return msg;\n}\n\n// =====================================\n// Auswertung\n// =====================================\nconst ageSeconds = (now - last) / 1000;\nconst isOnline = ageSeconds <= MAX_AGE_SECONDS;\nconst status = isOnline ? \"ONLINE\" : \"OFFLINE\";\n\n// Das Objekt erstellen, das wir senden UND speichern wollen\nconst statusUpdate = {\n    status: status,\n    seconds_since_ack: Math.round(ageSeconds),\n    last_seen: new Date(last).toISOString()\n};\n\n// =====================================\n// Speichern & Feedback\n// =====================================\nflow.set(\"gatewayStatus\", statusUpdate); // WICHTIG: Hier wird das Objekt für den HTTP-Knoten fixiert\n\nnode.status({\n    fill: isOnline ? \"green\" : \"red\",\n    shape: \"dot\",\n    text: `${status} (vor ${Math.round(ageSeconds)}s)`\n});\n\nmsg.payload = statusUpdate;\nreturn msg;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 690,
+  "y": 1660,
+  "wires": [
+   [
+    "ed855f244217a7ba"
+   ]
+  ]
+ },
+ {
+  "id": "5fe95d808d75c3d8",
+  "type": "debug",
+  "z": "4212a3100b918a98",
+  "name": "PULL_ACK received",
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "tostatus": false,
+  "complete": "true",
+  "targetType": "full",
+  "statusVal": "",
+  "statusType": "auto",
+  "x": 840,
+  "y": 1120,
+  "wires": []
+ },
+ {
+  "id": "ed855f244217a7ba",
+  "type": "debug",
+  "z": "4212a3100b918a98",
+  "name": "debug 50",
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "tostatus": false,
+  "complete": "true",
+  "targetType": "full",
+  "statusVal": "",
+  "statusType": "auto",
+  "x": 900,
+  "y": 1620,
+  "wires": []
+ },
+ {
+  "id": "d42faee98fb89ab2",
+  "type": "http in",
+  "z": "4212a3100b918a98",
+  "name": "",
+  "url": "/lora/health",
+  "method": "get",
+  "upload": false,
+  "swaggerDoc": "",
+  "x": 530,
+  "y": 1760,
+  "wires": [
+   [
+    "d6828541fb1dc439"
+   ]
+  ]
+ },
+ {
+  "id": "d6828541fb1dc439",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "read GW status and send ONLINE or Offline",
+  "func": "// Get data from flow context\nconst data = flow.get(\"gatewayStatus\") || { status: \"UNKNOWN\", seconds_since_ack: null, last_seen: null };\n\n// Get the new LNS Stat info\nconst now = Date.now();\nconst lastStat = flow.get(\"lastStatReceived\") || 0;\nconst secondsSinceStat = Math.round((now - lastStat) / 1000);\n\n// Determine LNS Connection (True Online)\n// We check if both the Network ACK and the LNS Stat are fresh (within 65 seconds)\nconst isLnsOnline = (lastStat > 0 && secondsSinceStat < 65);\nconst isNetworkOnline = (data.status === \"ONLINE\");\n\n// Final Status Integration\nif (isNetworkOnline && isLnsOnline) {\n    msg.statusCode = 200;\n    msg.payload = {\n        status: \"ONLINE\",\n        lns_connected: true,\n        last_seen: data.last_seen,\n        seconds_since_ack: data.seconds_since_ack,\n        seconds_since_stat: secondsSinceStat\n    };\n} else {\n    msg.statusCode = 503;\n    msg.payload = {\n        status: !isNetworkOnline ? data.status : \"LNS_DISCONNECTED\",\n        lns_connected: isLnsOnline,\n        seconds_since_ack: data.seconds_since_ack,\n        seconds_since_stat: secondsSinceStat,\n        last_seen: data.last_seen || \"nie\"\n    };\n}\n\nreturn msg;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 830,
+  "y": 1760,
+  "wires": [
+   [
+    "dd0a86b48ca50248"
+   ]
+  ]
+ },
+ {
+  "id": "dd0a86b48ca50248",
+  "type": "http response",
+  "z": "4212a3100b918a98",
+  "name": "",
+  "statusCode": "",
+  "headers": {},
+  "x": 1070,
+  "y": 1760,
+  "wires": []
+ },
+ {
+  "id": "21bbb66e711668a4",
+  "type": "comment",
+  "z": "4212a3100b918a98",
+  "name": "read log",
+  "info": "",
+  "x": 80,
+  "y": 440,
+  "wires": []
+ },
+ {
+  "id": "191556768471f48e",
+  "type": "comment",
+  "z": "4212a3100b918a98",
+  "name": "Filter for real uplink messages and send via udp to db monitor",
+  "info": "",
+  "x": 480,
+  "y": 560,
+  "wires": []
+ },
+ {
+  "id": "d50566d77764be33",
+  "type": "comment",
+  "z": "4212a3100b918a98",
+  "name": "Filter for ACK from LNS to get Status of the Gateway if it is connected",
+  "info": "",
+  "x": 510,
+  "y": 1080,
+  "wires": []
+ },
+ {
+  "id": "01b7779ca52e4208",
+  "type": "comment",
+  "z": "4212a3100b918a98",
+  "name": "Check if GW <-> LNS is working",
+  "info": "",
+  "x": 450,
+  "y": 1220,
+  "wires": []
+ },
+ {
+  "id": "5b6d52eff99d6b84",
+  "type": "comment",
+  "z": "4212a3100b918a98",
+  "name": "http endpoint to get offlline/online status",
+  "info": "",
+  "x": 580,
+  "y": 1720,
+  "wires": []
+ },
+ {
+  "id": "352c32fcc506f010",
+  "type": "comment",
+  "z": "4212a3100b918a98",
+  "name": "History: Ringbuffer des logs (genauere Auflösung)",
+  "info": "",
+  "x": 560,
+  "y": 1280,
+  "wires": []
+ },
+ {
+  "id": "29ae635abd1364a3",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "store in ringbuffer",
+  "func": "const ACK_INTERVAL_S = 10;   // Erwartetes Intervall\nconst GAP_THRESHOLD_S = 15;  // Ab wann loggen wir (z.B. 1.5x Intervall)\nconst MAX_GAPS = 50;\n\nconst now = Date.now();\nconst last = flow.get(\"lastPullAckBuffer\");\nlet gaps = flow.get(\"ackGaps\") || [];\n\nif (last) {\n    const gapS = (now - last) / 1000;\n\n    if (gapS > GAP_THRESHOLD_S) {\n        // DER FIX: Das Gap beginnt erst 10s NACH der letzten Nachricht\n        // Damit bleibt die Zeit zwischen 'last' und 'last + 10s' im Chart grün.\n        const gapStartTimestamp = last + (ACK_INTERVAL_S * 1000);\n\n        const newGap = {\n            start: new Date(gapStartTimestamp).toISOString(),\n            end: new Date(now).toISOString(),\n            duration_s: Math.round((now - gapStartTimestamp) / 1000)\n        };\n\n        // Nur eintragen, wenn das Gap eine positive Dauer hat\n        if (newGap.duration_s > 0) {\n            gaps.push(newGap);\n        }\n\n        // Ringpuffer & Bereinigung (älter als 24h)\n        const oneDayAgo = now - (24 * 60 * 60 * 1000);\n        gaps = gaps.filter(g => new Date(g.end).getTime() > oneDayAgo);\n\n        if (gaps.length > MAX_GAPS) {\n            gaps.shift();\n        }\n\n        flow.set(\"ackGaps\", gaps);\n    }\n}\n\n// Immer Zeitstempel aktualisieren\nflow.set(\"lastPullAckBuffer\", now);\nreturn null;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 470,
+  "y": 1320,
+  "wires": [
+   []
+  ]
+ },
+ {
+  "id": "c5e1956b9de063e6",
+  "type": "http in",
+  "z": "4212a3100b918a98",
+  "name": "",
+  "url": "/lora/gaps",
+  "method": "get",
+  "upload": false,
+  "swaggerDoc": "",
+  "x": 530,
+  "y": 1400,
+  "wires": [
+   [
+    "9a8afb8b4f63df62"
+   ]
+  ]
+ },
+ {
+  "id": "9a8afb8b4f63df62",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "prep ringbuffer to send",
+  "func": "const gaps = flow.get(\"ackGaps\") || [];\n\nmsg.statusCode = 200;\nmsg.payload = {\n    gateway: flow.get(\"gatewayId\") || \"unknown\",\n    threshold_s: 15,\n    window: \"last 24 hours (max 50 gaps)\",\n    generated_at: new Date().toISOString(),\n    gaps: gaps\n};\n\nreturn msg;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 800,
+  "y": 1400,
+  "wires": [
+   [
+    "17d4c3e5fee42af0"
+   ]
+  ]
+ },
+ {
+  "id": "17d4c3e5fee42af0",
+  "type": "http response",
+  "z": "4212a3100b918a98",
+  "name": "",
+  "statusCode": "",
+  "headers": {},
+  "x": 970,
+  "y": 1400,
+  "wires": []
+ },
+ {
+  "id": "858f1a4f2291a10f",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "supply graph",
+  "func": "// =====================================\n// 1. DATEN VORBEREITEN\n// =====================================\nconst gaps = flow.get(\"ackGaps\") || [];\nconst hours = parseFloat(msg.payload.hours) || 1;\nconst now = new Date();\nconst windowStart = new Date(now.getTime() - hours * 60 * 60 * 1000);\n\nconst dataForChart = {\n    gaps: gaps\n};\n\n// =====================================\n// 2. HTML GENERIEREN\n// =====================================\nmsg.headers = { \"Content-Type\": \"text/html\" };\nmsg.payload = `\n<!DOCTYPE html>\n<html>\n<head>\n    <meta charset=\"utf-8\">\n    <script src=\"https://cdn.jsdelivr.net/npm/chart.js\"></script>\n    <script src=\"https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns\"></script>\n    <script src=\"https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom\"></script>\n    <style>\n        body { font-family: sans-serif; margin: 20px; background: #f4f7f6; }\n        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 1000px; margin: auto; }\n        .controls { margin-bottom: 20px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }\n        .btn { padding: 8px 14px; border: 1px solid #ccc; background: #fff; cursor: pointer; border-radius: 6px; font-weight: bold; transition: 0.2s; }\n        .btn:hover { background: #eee; }\n        .btn.active { background: #d32f2f; color: white; border-color: #b71c1c; }\n        .hint { font-size: 11px; color: #888; margin-left: auto; }\n        .container { height: 180px; width: 100%; cursor: crosshair; }\n    </style>\n</head>\n<body>\n    <div class=\"card\">\n        <h3 style=\"margin-top:0; color: #d32f2f;\">Gateway Offline-Protokoll</h3>\n        <div class=\"controls\">\n            <button class=\"btn ${hours === 0.05 ? 'active' : ''}\" onclick=\"window.location.search='?hours=0.05'\">3m</button>\n            <button class=\"btn ${hours === 0.166 ? 'active' : ''}\" onclick=\"window.location.search='?hours=0.166'\">10m</button>\n            <button class=\"btn ${hours === 1 ? 'active' : ''}\" onclick=\"window.location.search='?hours=1'\">1h</button>\n            <button class=\"btn ${hours === 4 ? 'active' : ''}\" onclick=\"window.location.search='?hours=4'\">4h</button>\n            <button class=\"btn ${hours === 12 ? 'active' : ''}\" onclick=\"window.location.search='?hours=12'\">12h</button>\n            <button class=\"btn ${hours === 24 ? 'active' : ''}\" onclick=\"window.location.search='?hours=24'\">24h</button>\n            <span class=\"hint\">Maus ziehen: Zoom | Doppelklick: Reset</span>\n        </div>\n        <div class=\"container\"><canvas id=\"c\"></canvas></div>\n    </div>\n\n    <script>\n        const rawGaps = ${JSON.stringify(dataForChart.gaps)};\n        const offlineData = rawGaps.map(g => ({\n            x: [new Date(g.start).getTime(), new Date(g.end).getTime()],\n            y: \"STATUS\"\n        }));\n\n        const ctx = document.getElementById('c').getContext('2d');\n        const chart = new Chart(ctx, {\n            type: 'bar',\n            data: {\n                datasets: [{\n                    data: offlineData,\n                    backgroundColor: 'rgba(211, 47, 47, 0.8)',\n                    borderColor: '#b71c1c',\n                    borderWidth: 1,\n                    borderSkipped: false\n                }]\n            },\n            options: {\n                indexAxis: 'y',\n                responsive: true,\n                maintainAspectRatio: false,\n                scales: {\n                    x: {\n                        type: 'time',\n                        time: { \n                            // Keine feste Unit, damit Zoom dynamisch bleibt\n                            displayFormats: {\n                                millisecond: 'HH:mm:ss.SSS',\n                                second: 'HH:mm:ss',\n                                minute: 'HH:mm',\n                                hour: 'HH:mm'\n                            }\n                        },\n                        ticks: {\n                            autoSkip: true,\n                            maxTicksLimit: 20, // Erlaubt mehr Beschriftungen beim Zoomen\n                            font: { size: 10 }\n                        },\n                        min: ${windowStart.getTime()},\n                        max: ${now.getTime()}\n                    },\n                    y: {\n                        type: 'category',\n                        labels: ['STATUS'],\n                        grid: { display: false }\n                    }\n                },\n                plugins: {\n                    legend: { display: false },\n                    zoom: {\n                        zoom: {\n                            drag: { enabled: true, backgroundColor: 'rgba(26,115,232,0.1)' },\n                            mode: 'x'\n                        },\n                        pan: { enabled: true, mode: 'x' }\n                    },\n                    tooltip: {\n                        callbacks: {\n                            label: (ctx) => {\n                                const s = new Date(ctx.raw.x[0]);\n                                const e = new Date(ctx.raw.x[1]);\n                                return \"Ausfall: \" + s.toLocaleTimeString() + \" bis \" + e.toLocaleTimeString();\n                            }\n                        }\n                    }\n                }\n            }\n        });\n\n        document.getElementById('c').addEventListener('dblclick', () => chart.resetZoom());\n    </script>\n</body>\n</html>\n`;\n\nreturn msg;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 770,
+  "y": 1480,
+  "wires": [
+   [
+    "b89cf3a14a307be1"
+   ]
+  ]
+ },
+ {
+  "id": "3bf75cce14a7fcd7",
+  "type": "http in",
+  "z": "4212a3100b918a98",
+  "name": "",
+  "url": "/lora/gaps/graph",
+  "method": "get",
+  "upload": false,
+  "swaggerDoc": "",
+  "x": 550,
+  "y": 1480,
+  "wires": [
+   [
+    "858f1a4f2291a10f"
+   ]
+  ]
+ },
+ {
+  "id": "b89cf3a14a307be1",
+  "type": "http response",
+  "z": "4212a3100b918a98",
+  "name": "",
+  "statusCode": "",
+  "headers": {},
+  "x": 970,
+  "y": 1480,
+  "wires": []
+ },
+ {
+  "id": "2eba5b6040b459ba",
+  "type": "comment",
+  "z": "4212a3100b918a98",
+  "name": "Buffer rxpk and stat ",
+  "info": "",
+  "x": 570,
+  "y": 720,
+  "wires": []
+ },
+ {
+  "id": "2fd4937ee60429d0",
+  "type": "debug",
+  "z": "4212a3100b918a98",
+  "name": "debug 54",
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "tostatus": false,
+  "complete": "false",
+  "statusVal": "",
+  "statusType": "auto",
+  "x": 320,
+  "y": 500,
+  "wires": []
+ },
+ {
+  "id": "f2ad47cdd5460335",
+  "type": "comment",
+  "z": "4212a3100b918a98",
+  "name": "Status: online / offline",
+  "info": "",
+  "x": 480,
+  "y": 1540,
+  "wires": []
+ },
+ {
+  "id": "4d77f1231f641616",
+  "type": "comment",
+  "z": "4212a3100b918a98",
+  "name": "http endpoint to display table",
+  "info": "",
+  "x": 540,
+  "y": 1360,
+  "wires": []
+ },
+ {
+  "id": "e5c8555a04e661f5",
+  "type": "comment",
+  "z": "4212a3100b918a98",
+  "name": "http endpoint to display graph",
+  "info": "",
+  "x": 540,
+  "y": 1440,
+  "wires": []
+ },
+ {
+  "id": "37d173adccf8e4f6",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "stat LNS online check",
+  "func": "// Zeitstempel abrufen\nconst now = Date.now();\nconst lastStat = flow.get(\"lastStatReceived\") || 0;\nconst ageSeconds = (now - lastStat) / 1000;\n\n// Logik: Grün wenn unter 31s, sonst Rot\nconst isOnline = (lastStat > 0 && ageSeconds <= 31);\nconst status = isOnline ? \"STAT OK\" : \"STAT TIMEOUT\";\n\n// Node-Status setzen\nnode.status({\n    fill: isOnline ? \"green\" : \"red\",\n    shape: \"dot\",\n    text: `${status} (vor ${Math.round(ageSeconds)}s)`\n});\n\nreturn msg;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 680,
+  "y": 1580,
+  "wires": [
+   [
+    "ed855f244217a7ba"
+   ]
+  ]
+ },
+ {
+  "id": "37d5742b2f2b0f95",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "PUSH_ACK filter",
+  "func": "// 1. Payload sicher als String behandeln\nlet text = Buffer.isBuffer(msg.payload)\n    ? msg.payload.toString(\"utf8\")\n    : String(msg.payload);\n\n// 2. Filter-Logik\n// Erkennt Format A: \"... for server ball-b-cs.cortex-media.de PUSH_ACK ...\"\n// Erkennt Format B: \"INFO: [down] PUSH_ACK received ...\" (ohne \"for server\" Angabe)\nconst isMyServer = text.includes(\"ball-b-cs.cortex-media.de PUSH_ACK\");\nconst isGenericPushAck = text.includes(\"PUSH_ACK\") && !text.includes(\"for server\");\n\nif (isMyServer || isGenericPushAck) {\n    msg.payload = text;\n\n    // Visuelles Feedback am Knoten\n    node.status({ fill: \"green\", shape: \"ring\", text: \"PUSH_ACK gefiltert\" });\n    return msg;\n}\n\n// Alles andere (andere Server oder andere Log-Typen wie JSON UP) verwerfen\nreturn null;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 350,
+  "y": 1020,
+  "wires": [
+   [
+    "a2173e9d23dcd326"
+   ]
+  ]
+ },
+ {
+  "id": "efe66d8e8b1c49f0",
+  "type": "debug",
+  "z": "4212a3100b918a98",
+  "name": "PUSH_ACK received",
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "tostatus": false,
+  "complete": "true",
+  "targetType": "full",
+  "statusVal": "",
+  "statusType": "auto",
+  "x": 840,
+  "y": 1020,
+  "wires": []
+ },
+ {
+  "id": "a2173e9d23dcd326",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "Store last PUSH_ACK TS",
+  "func": "// store last valid ACK timestamp\nflow.set(\"lastPushAck\", Date.now());\n\nreturn msg;\n",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 590,
+  "y": 1020,
+  "wires": [
+   [
+    "efe66d8e8b1c49f0"
+   ]
+  ]
+ },
+ {
+  "id": "3125ecce6550ec96",
+  "type": "inject",
+  "z": "4212a3100b918a98",
+  "name": "Set Config Data",
+  "props": [
+   {
+    "p": "payload"
+   },
+   {
+    "p": "topic",
+    "vt": "str"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": true,
+  "onceDelay": "1",
+  "topic": "",
+  "payload": "",
+  "payloadType": "date",
+  "x": 120,
+  "y": 340,
+  "wires": [
+   [
+    "9b31c2a0b530c46f",
+    "15e766e3217e7291"
+   ]
+  ]
+ },
+ {
+  "id": "9b31c2a0b530c46f",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "Setzt IP und Version des Node-Red flows",
+  "func": "// --- Flow metadata (explicit, simple) ---\nconst flowVersion = \"1.3.1\";\nconst flowDate = \"2026-11-23\";\n\n// --- Persist flow metadata ---\nglobal.set(\"flowVersion\", flowVersion);\nglobal.set(\"flowDate\", flowDate);\n\nreturn msg;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 440,
+  "y": 340,
+  "wires": [
+   []
+  ]
+ },
+ {
+  "id": "15e766e3217e7291",
+  "type": "exec",
+  "z": "4212a3100b918a98",
+  "command": "uptime -s",
+  "addpay": "",
+  "append": "",
+  "useSpawn": "false",
+  "timer": "",
+  "winHide": false,
+  "oldrc": false,
+  "name": "",
+  "x": 540,
+  "y": 800,
+  "wires": [
+   [
+    "5363f7fec5a36075"
+   ],
+   [],
+   []
+  ]
+ },
+ {
+  "id": "5363f7fec5a36075",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "Meta Info",
+  "func": "// --- read global state ---\nconst flowVersion = global.get(\"flowVersion\") || \"unknown\";\nconst flowDate = global.get(\"flowDate\") || \"unknown\";\n\n// --- read uptime output ---\nconst uptimeRaw = String(msg.payload || \"\").trim();\nconst uptime = uptimeRaw ? uptimeRaw.replace(/\\s+/g, \" \") : \"unknown\";\n\n// --- build compact meta string ---\nconst metaStringParts = [\n    `flow=${flowVersion}@${flowDate}`,\n    `uptime=\"${uptime}\"`\n];\n\nmsg.meta = metaStringParts.join(\" | \");\nglobal.set(\"gatewayMetaString\", msg.meta);\n\nreturn msg;\n",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 740,
+  "y": 800,
+  "wires": [
+   [
+    "43e21e86643d9aa6"
+   ]
+  ]
+ },
+ {
+  "id": "43e21e86643d9aa6",
+  "type": "debug",
+  "z": "4212a3100b918a98",
+  "name": "debug 57",
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "tostatus": false,
+  "complete": "false",
+  "statusVal": "",
+  "statusType": "auto",
+  "x": 900,
+  "y": 800,
+  "wires": []
+ },
+ {
+  "id": "474638a102630e4f",
+  "type": "debug",
+  "z": "4212a3100b918a98",
+  "name": "debug 58",
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "tostatus": false,
+  "complete": "true",
+  "targetType": "full",
+  "statusVal": "",
+  "statusType": "auto",
+  "x": 740,
+  "y": 760,
+  "wires": []
+ },
+ {
+  "id": "f65fa83579fb2432",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "Buffer messages",
+  "func": "// === CONFIG ===\nconst MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h\nconst MAX_COUNT = 500;                 // zusätzlicher Schutz\n\n// === LOAD ===\nlet log = global.get(\"statusLog\") || [];\nlet seq = global.get(\"nextSeq\") || 1;\n\nconst now = Date.now();\nconst cutoff = now - MAX_AGE_MS;\n\n// === ENTRY ===\nconst entry = {\n    seq,\n    ts: now,\n    received_at: new Date(now).toISOString(),\n    meta: global.get(\"gatewayMetaString\") || null,\n    payload: msg.payload\n};\n\n// append\nlog.push(entry);\nseq++;\n\n// === TRIM (wichtig!) ===\n// nur von vorne löschen → sortiert nach Zeit\nwhile (log.length && (log[0].ts < cutoff || log.length > MAX_COUNT)) {\n    log.shift();\n}\n\n// === SAVE ===\nglobal.set(\"statusLog\", log);\nglobal.set(\"nextSeq\", seq);\n\nreturn msg;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 570,
+  "y": 760,
+  "wires": [
+   [
+    "474638a102630e4f"
+   ]
+  ]
+ },
+ {
+  "id": "7194f22b7657ebaf",
+  "type": "http in",
+  "z": "4212a3100b918a98",
+  "name": "",
+  "url": "/status",
+  "method": "get",
+  "upload": false,
+  "swaggerDoc": "",
+  "x": 580,
+  "y": 900,
+  "wires": [
+   [
+    "6f40b972f131f820"
+   ]
+  ]
+ },
+ {
+  "id": "6f40b972f131f820",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "Return Status Since",
+  "func": "// === WHO IS READING (db monitor app) -> /driveby/health ===\nconst hdr = (msg.req && msg.req.headers) || {};\nglobal.set(\"appPoll\", {\n    ts: Date.now(),\n    client: (hdr[\"x-forwarded-for\"] || (msg.req && msg.req.ip) || \"\").split(\",\")[0].trim() || null,\n    agent: (hdr[\"user-agent\"] || \"\").slice(0, 80) || null\n});\nglobal.set(\"appPollCount\", (global.get(\"appPollCount\") || 0) + 1);\n\n// === CONFIG ===\nconst MAX_ITEMS = 30;\n\n// === LOAD ===\nconst log = global.get(\"statusLog\") || [];\nconst bootId = global.get(\"bootId\");\n\n// === QUERY ===\nconst sinceRaw = msg.req?.query?.since;\nlet since = Number(sinceRaw);\nlet hasSince = Number.isFinite(since);\n\n// === STATE ===\nconst latestSeq = log.length ? log[log.length - 1].seq : 0;\n\n// sanitize since\nif (!hasSince || since < 0 || since > latestSeq) {\n    hasSince = false;\n}\n\n// optional: boot reset\nconst clientBoot = msg.req?.query?.boot_id;\nif (clientBoot && clientBoot !== bootId) {\n    hasSince = false;\n}\n\n// === CORE LOGIC ===\nlet items;\nlet dropped = false;\n\nif (!hasSince) {\n    // erster Aufruf oder Reset\n    items = log.slice(-MAX_ITEMS);\n\n} else {\n    const missing = latestSeq - since;\n\n    if (missing <= 0) {\n        // nichts Neues\n        items = [];\n\n    } else if (missing <= MAX_ITEMS) {\n        // normaler Betrieb\n        items = log.slice(-missing);\n\n    } else {\n        // zu viel verpasst → fallback\n        items = log.slice(-MAX_ITEMS);\n        dropped = true;\n    }\n}\n\n// === RESPONSE ===\nmsg.statusCode = 200;\nmsg.headers = {\n    \"Content-Type\": \"application/json\",\n    \"Cache-Control\": \"no-store\"\n};\n\nmsg.payload = {\n    boot_id: bootId,\n    latest_seq: latestSeq,\n    count: items.length,\n    dropped: dropped,\n    items: items\n};\n\n// OPTIONAL (empfohlen!)\n// msg.payload.state = global.get(\"currentState\");\n\nreturn msg;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 820,
+  "y": 900,
+  "wires": [
+   [
+    "eb55ccfe6b465937"
+   ]
+  ]
+ },
+ {
+  "id": "eb55ccfe6b465937",
+  "type": "http response",
+  "z": "4212a3100b918a98",
+  "name": "",
+  "statusCode": "",
+  "headers": {},
+  "x": 1050,
+  "y": 900,
+  "wires": []
+ },
+ {
+  "id": "e4013f2fbabc627c",
+  "type": "comment",
+  "z": "4212a3100b918a98",
+  "name": "new HTTP interface to get data",
+  "info": "",
+  "x": 610,
+  "y": 860,
+  "wires": []
+ },
+ {
+  "id": "23bc454d0218b693",
+  "type": "inject",
+  "z": "4212a3100b918a98",
+  "name": "",
+  "props": [
+   {
+    "p": "payload"
+   },
+   {
+    "p": "topic",
+    "vt": "str"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": true,
+  "onceDelay": "1",
+  "topic": "",
+  "payload": "",
+  "payloadType": "date",
+  "x": 110,
+  "y": 380,
+  "wires": [
+   [
+    "faa207cf446ab7db"
+   ]
+  ]
+ },
+ {
+  "id": "faa207cf446ab7db",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "Init status log",
+  "func": "if (!global.get(\"statusLog\")) {\n    global.set(\"statusLog\", []);\n}\n\nif (typeof global.get(\"nextSeq\") !== \"number\") {\n    global.set(\"nextSeq\", 1);\n}\n\n// Optional but recommended\nif (!global.get(\"bootId\")) {\n    global.set(\"bootId\", Date.now());\n}\n\nreturn null;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 360,
+  "y": 380,
+  "wires": [
+   []
+  ]
+ },
+ {
+  "id": "83c2362b1bc52f8a",
+  "type": "http in",
+  "z": "28c37d3ea9aa7926",
+  "name": "",
+  "url": "/device-info",
+  "method": "get",
+  "upload": false,
+  "swaggerDoc": "",
+  "x": 210,
+  "y": 180,
+  "wires": [
+   [
+    "a62a50df254f2515"
+   ]
+  ]
+ },
+ {
+  "id": "1c27c59dd5ee8663",
+  "type": "http response",
+  "z": "28c37d3ea9aa7926",
+  "name": "",
+  "statusCode": "",
+  "headers": {},
+  "x": 1030,
+  "y": 540,
+  "wires": []
+ },
+ {
+  "id": "08d00840bf54d153",
+  "type": "debug",
+  "z": "28c37d3ea9aa7926",
+  "name": "debug 55",
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "tostatus": false,
+  "complete": "true",
+  "targetType": "full",
+  "statusVal": "",
+  "statusType": "auto",
+  "x": 860,
+  "y": 120,
+  "wires": []
+ },
+ {
+  "id": "a62a50df254f2515",
+  "type": "exec",
+  "z": "28c37d3ea9aa7926",
+  "command": "cat /sys/class/net/eth0/address",
+  "addpay": "",
+  "append": "",
+  "useSpawn": "false",
+  "timer": "",
+  "winHide": false,
+  "oldrc": false,
+  "name": "",
+  "x": 610,
+  "y": 180,
+  "wires": [
+   [
+    "08d00840bf54d153",
+    "e34dc57b07610efc"
+   ],
+   [],
+   []
+  ]
+ },
+ {
+  "id": "e34dc57b07610efc",
+  "type": "function",
+  "z": "28c37d3ea9aa7926",
+  "name": "safe store mac",
+  "func": "// MAC säubern\nlet mac = msg.payload.trim().toUpperCase();\n// pro Anfrage in msg tragen (flow-Kontext war bei parallelen Anfragen ein Race -> MAC 00:00…)\nmsg.gw_mac = mac;\nflow.set(\"last_mac\", mac);\nreturn msg;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 880,
+  "y": 180,
+  "wires": [
+   [
+    "e4c7e461d877c164"
+   ]
+  ]
+ },
+ {
+  "id": "e4c7e461d877c164",
+  "type": "exec",
+  "z": "28c37d3ea9aa7926",
+  "command": "iw dev",
+  "addpay": "",
+  "append": "",
+  "useSpawn": "false",
+  "timer": "",
+  "winHide": false,
+  "oldrc": false,
+  "name": "",
+  "x": 410,
+  "y": 300,
+  "wires": [
+   [
+    "a4352f8fa6717678"
+   ],
+   [],
+   []
+  ]
+ },
+ {
+  "id": "a4352f8fa6717678",
+  "type": "function",
+  "z": "28c37d3ea9aa7926",
+  "name": "safe store ssid",
+  "func": "const raw = msg.payload;\n\nconst lines = raw\n    .split(/\\r?\\n/)\n    .map(l => l.replace(/^→+/, \"\").trim());\n\nlet ssid = null;\n\nfor (const line of lines) {\n    if (line.startsWith(\"ssid \")) {\n        ssid = line.replace(\"ssid \", \"\").trim();\n        break; // first SSID is enough\n    }\n}\n\nmsg.ssid = ssid;\n\nmsg.gw_ssid = ssid;\nflow.set(\"ssid\", ssid);\n\nreturn msg;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 880,
+  "y": 300,
+  "wires": [
+   [
+    "4f20d0d351afacf2"
+   ]
+  ]
+ },
+ {
+  "id": "63bf96bd8f771685",
+  "type": "function",
+  "z": "28c37d3ea9aa7926",
+  "name": "set login credentials",
+  "func": "msg.payload = {\n    username: \"admin\",\n    password: \"{{gateway_login_password_enc}}\" // set by GatewayChef at deploy, never in git\n};\nreturn msg;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 400,
+  "y": 840,
+  "wires": [
+   [
+    "c2e1a42c73fa879d"
+   ]
+  ]
+ },
+ {
+  "id": "c2e1a42c73fa879d",
+  "type": "http request",
+  "z": "28c37d3ea9aa7926",
+  "name": "",
+  "method": "POST",
+  "ret": "obj",
+  "paytoqs": "ignore",
+  "url": "https://192.168.1.1:8080/api/internal/login",
+  "tls": "f146ed2238b24b45",
+  "persist": false,
+  "proxy": "",
+  "insecureHTTPParser": false,
+  "authType": "",
+  "senderr": false,
+  "headers": [],
+  "x": 630,
+  "y": 840,
+  "wires": [
+   [
+    "64be5ae9e71ed8c6",
+    "b9af1eeb20dcaff5"
+   ]
+  ]
+ },
+ {
+  "id": "64be5ae9e71ed8c6",
+  "type": "debug",
+  "z": "28c37d3ea9aa7926",
+  "name": "debug 60",
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "tostatus": false,
+  "complete": "false",
+  "statusVal": "",
+  "statusType": "auto",
+  "x": 900,
+  "y": 800,
+  "wires": []
+ },
+ {
+  "id": "83f38878ea7a2693",
+  "type": "function",
+  "z": "28c37d3ea9aa7926",
+  "name": "auth header",
+  "func": "const jwt = flow.get(\"ug65_jwt\");\n\nif (!jwt) {\n    node.error(\"JWT missing – login not executed\", msg);\n    return null;\n}\n\nmsg.headers = {\n    \"Authorization\": \"Bearer \" + jwt\n};\n\nreturn msg;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 330,
+  "y": 1040,
+  "wires": [
+   [
+    "17450242e9a9e2a4"
+   ]
+  ]
+ },
+ {
+  "id": "17450242e9a9e2a4",
+  "type": "http request",
+  "z": "28c37d3ea9aa7926",
+  "name": "",
+  "method": "GET",
+  "ret": "obj",
+  "paytoqs": "ignore",
+  "url": "https://192.168.1.1:8080/api/packet-forwarder/network-servers",
+  "tls": "f146ed2238b24b45",
+  "persist": false,
+  "proxy": "",
+  "insecureHTTPParser": false,
+  "authType": "",
+  "senderr": false,
+  "headers": [],
+  "x": 530,
+  "y": 1040,
+  "wires": [
+   [
+    "debbd6c1f592c4da",
+    "ab1e2aee06d92a4b",
+    "77423091961e1bb8"
+   ]
+  ]
+ },
+ {
+  "id": "debbd6c1f592c4da",
+  "type": "function",
+  "z": "28c37d3ea9aa7926",
+  "name": "extract eui",
+  "func": "const body = msg.payload;\n\nif (!body || !body.gatewayEui) {\n    node.error(\"Gateway EUI not found\", body);\n    return null;\n}\n\nmsg.gateway = {\n    eui: body.gatewayEui,\n    id: body.gatewayId ?? null\n};\n\nreturn msg;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 710,
+  "y": 1040,
+  "wires": [
+   [
+    "1a3f55dc76d09d7f"
+   ]
+  ]
+ },
+ {
+  "id": "1a3f55dc76d09d7f",
+  "type": "debug",
+  "z": "28c37d3ea9aa7926",
+  "name": "debug 61",
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "tostatus": false,
+  "complete": "false",
+  "statusVal": "",
+  "statusType": "auto",
+  "x": 920,
+  "y": 960,
+  "wires": []
+ },
+ {
+  "id": "b9af1eeb20dcaff5",
+  "type": "function",
+  "z": "28c37d3ea9aa7926",
+  "name": "jwt speichern",
+  "func": "// JWT aus Login-Response speichern\nflow.set(\"ug65_jwt\", msg.payload.jwt);\n\n// optional: Ablaufzeit merken (für spätere Erneuerung)\nmsg.jwt = msg.payload.jwt;\nreturn msg;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 910,
+  "y": 840,
+  "wires": [
+   [
+    "83f38878ea7a2693"
+   ]
+  ]
+ },
+ {
+  "id": "ab1e2aee06d92a4b",
+  "type": "debug",
+  "z": "28c37d3ea9aa7926",
+  "name": "debug 62",
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "tostatus": false,
+  "complete": "true",
+  "targetType": "full",
+  "statusVal": "",
+  "statusType": "auto",
+  "x": 720,
+  "y": 960,
+  "wires": []
+ },
+ {
+  "id": "25f57526e369d624",
+  "type": "comment",
+  "z": "28c37d3ea9aa7926",
+  "name": "Login",
+  "info": "",
+  "x": 90,
+  "y": 780,
+  "wires": []
+ },
+ {
+  "id": "cc1a74f097b02c09",
+  "type": "comment",
+  "z": "28c37d3ea9aa7926",
+  "name": "Lese EUI",
+  "info": "",
+  "x": 100,
+  "y": 980,
+  "wires": []
+ },
+ {
+  "id": "74cd18c7581ca1dd",
+  "type": "http in",
+  "z": "28c37d3ea9aa7926",
+  "name": "",
+  "url": "/device-info-lora",
+  "method": "get",
+  "upload": false,
+  "swaggerDoc": "",
+  "x": 150,
+  "y": 840,
+  "wires": [
+   [
+    "63bf96bd8f771685"
+   ]
+  ]
+ },
+ {
+  "id": "77423091961e1bb8",
+  "type": "http response",
+  "z": "28c37d3ea9aa7926",
+  "name": "",
+  "statusCode": "",
+  "headers": {},
+  "x": 870,
+  "y": 1120,
+  "wires": []
+ },
+ {
+  "id": "4f20d0d351afacf2",
+  "type": "exec",
+  "z": "28c37d3ea9aa7926",
+  "command": "ifconfig || echo \"NO_IFCONFIG\"",
+  "addpay": "",
+  "append": "",
+  "useSpawn": "false",
+  "timer": "",
+  "winHide": false,
+  "oldrc": false,
+  "name": "",
+  "x": 610,
+  "y": 540,
+  "wires": [
+   [
+    "528e7c80e605675d",
+    "c6de4bcaaa61a17d"
+   ],
+   [],
+   []
+  ]
+ },
+ {
+  "id": "528e7c80e605675d",
+  "type": "function",
+  "z": "28c37d3ea9aa7926",
+  "name": "function 2",
+  "func": "// 1. Daten abrufen\nlet rawIfconfig = msg.payload || \"\";\nlet rawMac = msg.gw_mac || flow.get(\"last_mac\") || \"00:00:00:00:00:00\";\nlet ssid = msg.gw_ssid || flow.get(\"ssid\") || \"UNKNOWN\";\n\n// Fallback, falls ifconfig nicht lieferbar\nif (rawIfconfig.includes(\"NO_IFCONFIG\")) {\n    rawIfconfig = \"\";\n}\n\n// 2. Interfaces aus ifconfig parsen\nconst lines = rawIfconfig.split(\"\\n\");\nconst interfaces = {};\nlet current = null;\n\nfor (let line of lines) {\n    // Neues Interface: \"eth0      Link encap:Ethernet...\" oder \"wg0       Link encap:UNSPEC...\"\n    const mIf = line.match(/^([a-zA-Z0-9]+)\\s+Link encap:/);\n    if (mIf) {\n        current = mIf[1];\n        interfaces[current] = {\n            up: false,\n            ip: null\n        };\n        continue;\n    }\n    if (!current) continue;\n\n    // UP/RUNNING erkennen\n    if (line.includes(\"UP\") || line.includes(\"RUNNING\")) {\n        interfaces[current].up = true;\n    }\n\n    // IPv4: BusyBox-Format \"inet addr:172.30.0.117\"\n    const mIp = line.match(/inet addr:([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)/);\n    if (mIp) {\n        interfaces[current].ip = mIp[1];\n    }\n}\n\n// 3. VPN-IP aus wg0 bestimmen (wie bisher, nur aus parsed Interfaces)\nlet vpnIp = (interfaces.wg0 && interfaces.wg0.ip) ? interfaces.wg0.ip : \"0.0.0.0\";\n\n// 3b. Primäre Interfaces markieren (für Frontend/Filter)\nconst primaryIfNames = [\"eth0\", \"wg0\", \"wlan0\", \"ppp0\", \"ppp1\", \"wwan0\"];\nObject.keys(interfaces).forEach(name => {\n    interfaces[name].primary = primaryIfNames.includes(name);\n});\n\n// 3c. Optional: Cellular-Status ableiten (z.B. ppp0/wwan0)\nlet cellularOnline = false;\n[\"ppp0\", \"ppp1\", \"wwan0\"].forEach(name => {\n    if (interfaces[name] && interfaces[name].up && interfaces[name].ip) {\n        cellularOnline = true;\n    }\n});\n\n// 4. EUI berechnen (wie vorher)\nlet cleanMac = rawMac.replace(/:/g, \"\").toUpperCase();\nlet eui = \"0000000000000000\";\nif (cleanMac.length === 12) {\n    eui = cleanMac.substring(0, 6) + \"FFFE\" + cleanMac.substring(6);\n}\n\n// 5. Antwort-Objekt bauen (gleicher Stil wie dein Original, nur erweitert)\nmsg.payload = {\n    status: (vpnIp === \"0.0.0.0\" || vpnIp === \"\") ? \"offline\" : \"online\",\n    device: {\n        mac: rawMac,\n        eui: eui,\n        ssid: ssid,\n        vpn_ip: (vpnIp === \"0.0.0.0\" || vpnIp === \"\") ? \"not_configured\" : vpnIp,\n        interfaces: interfaces,\n        cellular_online: cellularOnline\n    },\n    meta: {\n        timestamp: new Date().toISOString(),\n        flow_version: global.get(\"flowVersion\") || null,\n    }\n};\n\n\nreturn msg;\n",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 860,
+  "y": 540,
+  "wires": [
+   [
+    "e633a34016c766ac",
+    "1c27c59dd5ee8663"
+   ]
+  ]
+ },
+ {
+  "id": "c6de4bcaaa61a17d",
+  "type": "debug",
+  "z": "28c37d3ea9aa7926",
+  "name": "debug 63",
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "tostatus": false,
+  "complete": "true",
+  "targetType": "full",
+  "statusVal": "",
+  "statusType": "auto",
+  "x": 940,
+  "y": 480,
+  "wires": []
+ },
+ {
+  "id": "e633a34016c766ac",
+  "type": "debug",
+  "z": "28c37d3ea9aa7926",
+  "name": "debug 65",
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "tostatus": false,
+  "complete": "false",
+  "statusVal": "",
+  "statusType": "auto",
+  "x": 1020,
+  "y": 600,
+  "wires": []
+ },
+ {
+  "id": "e0403461ce1c41cb",
+  "type": "comment",
+  "z": "4212a3100b918a98",
+  "name": "gatewaychef-flow 1.3.1",
+  "info": "Version des Flow-Bundles. Wird von GatewayChef zur Versionserkennung gelesen.",
+  "x": 170,
+  "y": 700,
+  "wires": []
+ },
+ {
+  "id": "95956a567865ea14",
+  "type": "comment",
+  "z": "4212a3100b918a98",
+  "name": "Drive-by: Pakete direkt vom Packet Forwarder (3. Ziel semtech 127.0.0.1:1702), nicht mehr aus dem Log",
+  "info": "",
+  "x": 430,
+  "y": 740,
+  "wires": []
+ },
+ {
+  "id": "2efd7a307f4aa52d",
+  "type": "udp in",
+  "z": "4212a3100b918a98",
+  "name": "Packet Forwarder :1702",
+  "iface": "",
+  "port": "1702",
+  "ipv": "udp4",
+  "multicast": "false",
+  "group": "",
+  "datatype": "buffer",
+  "x": 150,
+  "y": 760,
+  "wires": [
+   [
+    "9b3c89940eecbdc9"
+   ]
+  ]
+ },
+ {
+  "id": "9b3c89940eecbdc9",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "Semtech UDP: ACK + JSON",
+  "func": "// Semtech UDP protocol (packet forwarder -> 127.0.0.1:1702)\n// byte 0 version, 1-2 token, 3 identifier, PUSH_DATA: 4-11 gateway EUI, 12.. JSON\nconst buf = msg.payload;\nif (!Buffer.isBuffer(buf) || buf.length < 4) return null;\nconst ver = buf[0], t1 = buf[1], t2 = buf[2], ident = buf[3];\nconst reply = { ip: msg.ip, port: msg.port };\n\nif (ident === 0x02) {                      // PULL_DATA -> PULL_ACK (keeps the destination \"connected\")\n    reply.payload = Buffer.from([ver, t1, t2, 0x04]);\n    return [reply, null];\n}\nif (ident !== 0x00 || buf.length < 13) return null;   // only PUSH_DATA carries data\n\nreply.payload = Buffer.from([ver, t1, t2, 0x01]);   // PUSH_ACK\nconst text = buf.slice(12).toString(\"utf8\");\nlet data;\ntry { data = JSON.parse(text); } catch (e) {\n    node.warn(\"PUSH_DATA ohne gueltiges JSON\");\n    return [reply, null];\n}\nconst now = Date.now();\nconst st = flow.get(\"udpStats\") || { push_data: 0, rxpk: 0, stat: 0 };\nst.push_data++;\nflow.set(\"lastUdpPacket\", now);\nif (data.stat) {\n    st.stat++; flow.set(\"lastStatReceived\", now);\n    // radio window: packet forwarder statistics (every 30 s), last 30 min\n    const s = data.stat, win = (flow.get(\"statWindow\") || []).filter(x => now - x.ts < 30 * 60 * 1000);\n    win.push({ ts: now, rxnb: s.rxnb || 0, rxok: s.rxok || 0, rxfw: s.rxfw || 0, ackr: s.ackr, dwnb: s.dwnb || 0, txnb: s.txnb || 0 });\n    flow.set(\"statWindow\", win);\n}\nif (Array.isArray(data.rxpk) && data.rxpk.length) {\n    st.rxpk += data.rxpk.length; flow.set(\"lastRxpk\", now);\n    // signal of received packets (rssi/lsnr), last 30 min\n    const sig = (flow.get(\"sigWindow\") || []).filter(x => now - x.ts < 30 * 60 * 1000);\n    const devs = flow.get(\"devices\") || {};\n    data.rxpk.forEach(p => {\n        if (p.stat !== 1 || typeof p.rssi !== \"number\") return;\n        const sf = /SF(\\d+)/.exec(p.datr || \"\");\n        sig.push({ ts: now, rssi: p.rssi, lsnr: p.lsnr, freq: p.freq, sf: sf ? +sf[1] : null });\n        // sensor identity from the LoRaWAN header: DevAddr (data uplink) or DevEUI (join request)\n        let b; try { b = Buffer.from(p.data || \"\", \"base64\"); } catch (e) { return; }\n        const mtype = b.length ? b[0] >> 5 : -1;\n        let id = null, kind = null, fcnt = null;\n        if ((mtype === 2 || mtype === 4) && b.length >= 8) {\n            id = Buffer.from(b.slice(1, 5)).reverse().toString(\"hex\").toUpperCase(); kind = \"devaddr\"; fcnt = b[6] | (b[7] << 8);\n        } else if (mtype === 0 && b.length >= 17) {\n            id = Buffer.from(b.slice(9, 17)).reverse().toString(\"hex\").toUpperCase(); kind = \"join\";\n        }\n        if (!id) return;\n        const d = devs[id] || { kind: kind, count: 0, first: now };\n        d.count++; d.last = now; d.rssi = p.rssi; d.snr = p.lsnr; d.sf = sf ? +sf[1] : null; d.freq = p.freq;\n        if (fcnt !== null) d.fcnt = fcnt;\n        devs[id] = d;\n    });\n    // keep 24 h, at most 500 sensors\n    const keep = Object.entries(devs).filter(([, d]) => now - d.last < 24 * 3600 * 1000)\n        .sort((a, b) => b[1].last - a[1].last).slice(0, 500);\n    flow.set(\"devices\", Object.fromEntries(keep));\n    flow.set(\"sigWindow\", sig.slice(-2000));\n}\nflow.set(\"udpStats\", st);\nflow.set(\"gatewayEuiUdp\", buf.slice(4, 12).toString(\"hex\").toUpperCase());\nnode.status({ fill: \"green\", shape: \"dot\", text: `rxpk ${st.rxpk} / stat ${st.stat}` });\n\n// same shape as before: payload is the Semtech JSON as text (db monitor app parses it unchanged)\nreturn [reply, { payload: text, data: data }];\n",
+  "outputs": 2,
+  "timeout": 0,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 370,
+  "y": 760,
+  "wires": [
+   [
+    "6c3a8ac225666696"
+   ],
+   [
+    "f65fa83579fb2432"
+   ]
+  ]
+ },
+ {
+  "id": "6c3a8ac225666696",
+  "type": "udp out",
+  "z": "4212a3100b918a98",
+  "name": "ACK an Packet Forwarder",
+  "addr": "",
+  "iface": "",
+  "port": "",
+  "ipv": "udp4",
+  "outport": "1702",
+  "base64": false,
+  "multicast": "false",
+  "x": 610,
+  "y": 730,
+  "wires": []
+ },
+ {
+  "id": "4c9400b5d28bdfbb",
+  "type": "comment",
+  "z": "4212a3100b918a98",
+  "name": "Drive-by-Datenweg pruefen (GatewayChef: fleet driveby)",
+  "info": "",
+  "x": 310,
+  "y": 820,
+  "wires": []
+ },
+ {
+  "id": "14d8fa1ebf23c149",
+  "type": "http in",
+  "z": "4212a3100b918a98",
+  "name": "",
+  "url": "/driveby/health",
+  "method": "get",
+  "upload": false,
+  "swaggerDoc": "",
+  "x": 150,
+  "y": 860,
+  "wires": [
+   [
+    "d99b337f1f5afb7a"
+   ]
+  ]
+ },
+ {
+  "id": "d99b337f1f5afb7a",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "Drive-by Health",
+  "func": "const now = Date.now();\nconst age = k => { const t = flow.get(k); return t ? Math.round((now - t) / 1000) : null; };\nconst st = flow.get(\"udpStats\") || { push_data: 0, rxpk: 0, stat: 0 };\nconst statAge = age(\"lastStatReceived\");\nmsg.statusCode = (statAge !== null && statAge < 65) ? 200 : 503;\nmsg.headers = { \"Content-Type\": \"application/json\", \"Cache-Control\": \"no-store\" };\nmsg.payload = {\n    source: \"udp:1702\",\n    flow_version: global.get(\"flowVersion\") || null,\n    gateway_eui: flow.get(\"gatewayEuiUdp\") || null,\n    seconds_since_packet: age(\"lastUdpPacket\"),\n    seconds_since_stat: statAge,\n    seconds_since_rxpk: age(\"lastRxpk\"),\n    counts: st,\n    app: (() => {\n        const p = global.get(\"appPoll\");\n        return {\n            seconds_since_poll: p ? Math.round((now - p.ts) / 1000) : null,\n            last_poll: p ? new Date(p.ts).toISOString() : null,\n            client: p ? p.client : null,\n            agent: p ? p.agent : null,\n            polls: global.get(\"appPollCount\") || 0\n        };\n    })(),\n    meta: global.get(\"gatewayMetaString\") || null,\n    devices: Object.entries(flow.get(\"devices\") || {}).map(([id, d]) => ({\n        id: id, kind: d.kind, count: d.count, seconds_since: Math.round((now - d.last) / 1000),\n        rssi: d.rssi, snr: d.snr, sf: d.sf, freq: d.freq, fcnt: d.fcnt === undefined ? null : d.fcnt\n    })),\n    radio: (() => {\n        // last 30 min: crc = packets received with a bad CRC (interference, collisions, antenna)\n        const w = flow.get(\"statWindow\") || [], sig = flow.get(\"sigWindow\") || [];\n        const sum = k => w.reduce((a, x) => a + (x[k] || 0), 0);\n        const rxnb = sum(\"rxnb\"), rxok = sum(\"rxok\");\n        const acks = w.map(x => x.ackr).filter(v => typeof v === \"number\");\n        const avg = (a, k) => a.length ? Math.round(a.reduce((s, x) => s + x[k], 0) / a.length * 10) / 10 : null;\n        return {\n            window_minutes: 30, stats: w.length,\n            rx_total: rxnb, rx_ok: rxok, rx_forwarded: sum(\"rxfw\"),\n            crc_error_pct: rxnb ? Math.round((rxnb - rxok) / rxnb * 1000) / 10 : null,\n            tx_requested: sum(\"dwnb\"), tx_sent: sum(\"txnb\"),\n            ack_pct: acks.length ? Math.round(acks.reduce((a, v) => a + v, 0) / acks.length * 10) / 10 : null,\n            packets: sig.length, rssi_avg: avg(sig, \"rssi\"), snr_avg: avg(sig, \"lsnr\"),\n            rssi_min: sig.length ? Math.min(...sig.map(x => x.rssi)) : null,\n            // downlinks the forwarder could not send (too late/early, collision, duty cycle); reason only reaches the LNS\n            tx_failed: Math.max(0, sum(\"dwnb\") - sum(\"txnb\")),\n            sf: sig.reduce((a, x) => { if (x.sf) a[\"SF\" + x.sf] = (a[\"SF\" + x.sf] || 0) + 1; return a; }, {})\n        };\n    })()\n};\nreturn msg;\n",
+  "outputs": 1,
+  "timeout": 0,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 370,
+  "y": 860,
+  "wires": [
+   [
+    "b21da83805696554"
+   ]
+  ]
+ },
+ {
+  "id": "b21da83805696554",
+  "type": "http response",
+  "z": "4212a3100b918a98",
+  "name": "",
+  "statusCode": "",
+  "headers": {},
+  "x": 570,
+  "y": 860,
+  "wires": []
+ }
+]

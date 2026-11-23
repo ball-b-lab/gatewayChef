@@ -23,3 +23,6 @@ Erzeugen vom Referenzgerät: `python scripts/fleet.py nodered-export --host <ip>
 - `1.3.0` (23.11.2026): `devices` = gehörte Sensoren der letzten 24 h (DevAddr bzw. DevEUI bei Join, max. 500)
   mit `count`, `seconds_since`, `rssi`, `snr`, `sf`, `freq`, `fcnt`; `radio.sf` (SF-Verteilung 30 min) und
   `radio.tx_failed` (Downlinks, die der Forwarder nicht senden konnte = dwnb − txnb; den Grund sieht nur der LNS).
+- `1.3.1` (23.11.2026): `/node-red/device-info` trägt MAC und SSID pro Anfrage in `msg` statt im
+  Flow-Kontext. Vorher bekam bei zwei gleichzeitigen Anfragen eine davon MAC `00:00:00:00:00:00`
+  (EUI `000000FFFE000000`). Sonst unverändert zu 1.3.0.

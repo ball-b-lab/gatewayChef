@@ -35,7 +35,9 @@ class FlowBundleTest(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("node"), "node nicht installiert")
     def test_function_nodes_in_node(self):
-        out = subprocess.run(["node", os.path.join(ROOT, "tests", "nodered", "flow_functions.test.js"),
-                              os.path.join(ROOT, "gateway_profiles", "flows", "1.1.0.json")],
-                             capture_output=True, text=True, timeout=30)
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        # oldest supported bundle plus the current target (latest) one
+        for version in ("1.1.0", nr.latest_version(nr.load_bundles(secrets={"gateway_login_password_enc": "x"}))):
+            out = subprocess.run(["node", os.path.join(ROOT, "tests", "nodered", "flow_functions.test.js"),
+                                  os.path.join(ROOT, "gateway_profiles", "flows", f"{version}.json")],
+                                 capture_output=True, text=True, timeout=30)
+            self.assertEqual(out.returncode, 0, version + ": " + out.stdout + out.stderr)
