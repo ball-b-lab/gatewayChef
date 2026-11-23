@@ -25,6 +25,7 @@
   <div class="d-flex align-items-baseline gap-3 mb-1 flex-wrap">
     <a href="/fleet" class="small">← Flotte</a>
     <h1 class="h4 mb-0" id="title">Gateway {{ ip }}</h1>
+    <span id="onl" class="badge text-bg-secondary" title="Gesamtstatus aus VPN-Erreichbarkeit und ChirpStack (zuletzt gesehen &lt; 5 min)">Status …</span>
     <span id="sub" class="text-muted small"></span>
     <a id="web" class="btn btn-sm btn-outline-primary" href="http://{{ ip }}/" target="_blank" rel="noopener"
        title="Öffnet die Weboberfläche des Gateways direkt – funktioniert nur, wenn dein Rechner im Gateway-VPN ist">Weboberfläche ↗</a>
@@ -116,6 +117,12 @@ function renderTiles() {
   const box = document.getElementById('tiles'); box.replaceChildren();
   const r = live || {}, cs = (stats && stats.chirpstack) || {}, vpn = (stats && stats.vpn) || {};
   const d = r.driveby;
+  const csOk = cs.last_seen && since(cs.last_seen) < 300, b = document.getElementById('onl');
+  const st = r.online === true && csOk ? ['online', 'success', 'per VPN erreichbar und meldet sich bei ChirpStack']
+    : r.online === true ? ['VPN ok, LNS fehlt', 'warning', 'per VPN erreichbar, aber seit über 5 min nicht bei ChirpStack']
+    : r.online === false && csOk ? ['nur LNS', 'warning', 'nicht per VPN erreichbar, meldet sich aber bei ChirpStack (Funk läuft)']
+    : r.online === false ? ['offline', 'danger', 'weder per VPN erreichbar noch bei ChirpStack aktiv'] : null;
+  if (st) { b.textContent = st[0]; b.className = 'badge text-bg-' + st[1]; b.title = st[2]; }
   box.append(
     tile('VPN', r.online === true ? 'erreichbar' : r.online === false ? 'nicht erreichbar' : '…',
          r.online === false ? (r.identity || '') : r.latency_ms != null ? `${r.latency_ms} ms Antwortzeit` : '', r.online ? 'ok' : r.online === false ? 'bad' : ''),
@@ -231,11 +238,12 @@ async function loadCompare() {
     const ch = r.changes || [];
     if (r.result === 'error' || r.result === 'offline') { box.textContent = r.detail || r.result; box.className = 'small bad'; return; }
     box.className = 'small';
-    box.append(el('div', ch.length || (r.flow && !r.flow.ok) ? `${ch.length} Abweichung(en) vom Standard` : 'Entspricht dem Standard ✓',
-                  'fw-semibold ' + (ch.length ? 'text-primary' : 'ok')));
-    const ab = document.getElementById('alignbtn'), dev = ch.length > 0 || !!(r.flow && !r.flow.ok);
+    const n = ch.length + (r.flow && !r.flow.ok ? 1 : 0), dev = n > 0;
+    box.append(el('div', dev ? `${n} Abweichung(en) vom Standard` : 'Entspricht dem Standard ✓',
+                  'fw-semibold ' + (dev ? 'text-primary' : 'ok')));
+    const ab = document.getElementById('alignbtn');
     ab.disabled = !dev; ab.className = 'btn btn-sm ' + (dev ? 'btn-warning' : 'btn-outline-secondary');
-    ab.title = dev ? `${ch.length} Abweichung(en) angleichen` : 'Gateway entspricht dem Standard, nichts anzugleichen';
+    ab.title = dev ? `${n} Abweichung(en) angleichen` : 'Gateway entspricht dem Standard, nichts anzugleichen';
     if (r.flow) box.append(el('div', `Drive-by-Schnittstelle: ${r.flow.current || '?'} → Soll ${r.flow.target || '?'} ${r.flow.ok ? '✓' : ''}`));
     ch.forEach(c => box.append(el('div', `${c.label}${c.lns ? ' [LNS]' : ''}: ` + Object.entries(c.fields).map(([k, v]) => `${k} ${fmtv(v[0])} → ${fmtv(v[1])}`).join(', '))));
   } catch (e) { box.textContent = e.message; }
