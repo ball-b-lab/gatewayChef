@@ -26,6 +26,9 @@ Das Skript:
 - gibt dem Gateway-Port **192.168.1.200/24 und 192.168.23.200/24**, ohne Default-Route und ohne DNS. So ist
   das Gateway unter beiden möglichen Werksadressen erreichbar, und der Internetverkehr läuft weiter über
   den anderen Port,
+- startet auf dem Gateway-Port einen **DHCP-Server** (`gatewaychef-dhcp@<port>`, dnsmasq, Bereich
+  192.168.1.100–150, ohne Route und DNS). Eingerichtete Gateways haben `eth0` auf DHCP und holen sich dort
+  eine Adresse, neue Gateways bleiben unter ihrer festen Werks-IP erreichbar,
 - richtet `gatewaychef.service` ein (Weboberfläche auf Port 5000). Bei jedem Start holt der Dienst `main`
   (`GATEWAYCHEF_REF` im Unit-File), Release heißt also Merge auf `main` und Neustart.
 
@@ -48,8 +51,10 @@ sudo -H -u gatewaychef gatewaychef setup                     # Dry-Run
 sudo -H -u gatewaychef gatewaychef setup --new --apply --client-id 10999 --iccid 8949... --sim-vendor-id 2
 ```
 
-Das Setup probiert die Adressen aus `GATEWAY_LAN_CANDIDATES` (Standard `192.168.1.1,192.168.23.150`) und
-nimmt die erste, die antwortet. Danach das Gateway abziehen und das nächste anstecken.
+Das Setup (und die Weboberfläche) sucht das Gateway automatisch (`utils/gateway_lan.py`): zuerst die neuesten
+DHCP-Leases der Station (`/var/lib/gatewaychef/dhcp-lan.leases`, je Station-Port `dhcp-gcp<N>.leases`), dann
+`GATEWAY_LAN_CANDIDATES` (Standard `192.168.1.1,192.168.23.150`). Genommen wird die erste Adresse, deren
+Node-RED `/device-info` antwortet. „Gateway Login“ und „Copy & Open“ zeigen dann auf diese Adresse. Danach das Gateway abziehen und das nächste anstecken.
 
 **Am Gerät zu prüfen:** welche Werksadresse der Ethernet-Port des UG65 hat und ob er per DHCP eine Adresse
 holt. Bisher lief alles über `192.168.1.1`. Mit einem VLAN-Switch für mehrere Gateways gleichzeitig wird
@@ -107,6 +112,8 @@ Wie die Flotte arbeitet, steht in `GATEWAY_SETUP_KONZEPT.md`, Abschnitt „Flott
 
 - `journalctl -u gatewaychef -f`: Log der Weboberfläche.
 - `ip addr show <gw-port>` muss `192.168.1.200` und `192.168.23.200` zeigen.
+- `cat /var/lib/gatewaychef/dhcp-lan.leases`: hat sich ein Gateway per DHCP eine Adresse geholt?
+  `journalctl -u gatewaychef-dhcp@<gw-port>` zeigt die DHCP-Anfragen.
 - `wg show`: Handshake zum VPN-Server vorhanden?
 - `GATEWAYCHEF_OFFLINE=1 gatewaychef ...`: startet ohne Code-Update.
 

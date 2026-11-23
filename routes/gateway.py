@@ -3,9 +3,10 @@ import traceback
 import requests
 import subprocess
 from flask import Blueprint
-from config import GATEWAY_URL, DEVICE_INFO_PATH, DEVICE_INFO_LORA_PATH, CELLULAR_STATUS_PATH
+from config import DEVICE_INFO_PATH, DEVICE_INFO_LORA_PATH, CELLULAR_STATUS_PATH
 from utils.helpers import calculate_eui
 from utils.response import ok, error
+from utils import gateway_lan
 
 bp = Blueprint('gateway', __name__)
 
@@ -23,7 +24,7 @@ def gateway_device_info():
     Reads device info from the gateway's Node-RED endpoint and derives EUI.
     """
     try:
-        url = f"{GATEWAY_URL}{DEVICE_INFO_PATH}"
+        url = f"{gateway_lan.base_url()}{DEVICE_INFO_PATH}"
         resp = requests.get(url, timeout=5)
 
         if resp.status_code != 200:
@@ -84,7 +85,7 @@ def gateway_device_info():
         # Try curl as fallback since requests can't connect
         print(f"[gateway/device-info] Trying curl fallback...", flush=True)
         try:
-            url = f"{GATEWAY_URL}{DEVICE_INFO_PATH}"
+            url = f"{gateway_lan.base_url()}{DEVICE_INFO_PATH}"
             # Use curl with -k to ignore self-signed SSL certificate
             result = subprocess.run(['curl', '-s', '-L', '-k', '-m', '5', url], 
                                   capture_output=True, text=True, timeout=10)
@@ -153,7 +154,7 @@ def gateway_device_info_lora():
     Reads LoRa packet forwarder info from the gateway's Node-RED endpoint.
     """
     try:
-        url = f"{GATEWAY_URL}{DEVICE_INFO_LORA_PATH}"
+        url = f"{gateway_lan.base_url()}{DEVICE_INFO_LORA_PATH}"
         resp = requests.get(url, timeout=5)
 
         if resp.status_code != 200:
@@ -183,7 +184,7 @@ def gateway_status_cellular():
     Reads cellular status from the gateway's /status/cellular endpoint.
     """
     try:
-        url = f"{GATEWAY_URL}{CELLULAR_STATUS_PATH}"
+        url = f"{gateway_lan.base_url()}{CELLULAR_STATUS_PATH}"
         resp = requests.get(url, timeout=5)
 
         if resp.status_code != 200:
@@ -203,3 +204,9 @@ def gateway_status_cellular():
     except Exception as e:
         traceback.print_exc()
         return error(f"Critical Error: {str(e)}", 500)
+
+
+@bp.route('/api/gateway/lan-host', methods=['GET'])
+def gateway_lan_host():
+    """Detected LAN address of the plugged-in gateway (DHCP lease or factory IP)."""
+    return ok({"host": gateway_lan.find_host(use_cache=True), "candidates": gateway_lan.candidates()})
