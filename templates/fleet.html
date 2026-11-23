@@ -159,7 +159,8 @@ const receiving = r => !!(r.driveby && r.driveby.receiving);
 function fwCell(r) {
   const td = el('td');
   if (r.firmware) {
-    td.textContent = r.firmware + (!r.profile_ok ? ' ⚠ kein Profil' : '');
+    td.textContent = r.firmware + (r.profile_ok || r.firmware_compat === 'compatible' ? '' : ' ⚠ Profil passt nicht');
+    if (!r.profile_ok && r.firmware_compat === 'compatible') td.title = 'nutzt Profil ' + (r.profile || '').replace(/^ug65-/, '') + ' (kompatibel)';
     if (r.deep_age != null) td.title = 'gelesen ' + ago(r.deep_age);
   } else if (r.online) {
     td.textContent = deepRunning ? 'wird gelesen …' : (r.cgi_error ? 'Login fehlgeschlagen' : '–');

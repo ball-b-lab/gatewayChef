@@ -48,7 +48,48 @@ def drive_by_summary(health):
         "app_last_poll": app.get("last_poll"),
         "app_client": app.get("client"),
         "app_polls": app.get("polls", 0),
+        "radio": health.get("radio"),  # flow >= 1.2.0: CRC error rate, RSSI/SNR, last 30 min
     }
+
+
+def _num(text):
+    """'-105dBm' -> -105.0, '20asu (-73dBm)' -> -73.0 (the value in brackets wins)."""
+    import re
+    m = re.search(r"\((-?\d+(?:\.\d+)?)", text or "") or re.search(r"-?\d+(?:\.\d+)?", text or "")
+    return float(m.group(1) if m.re.groups else m.group(0)) if m else None
+
+
+def gateway_health(client):
+    """Device status read over the gateway's own API (no flow needed). No IMSI/ICCID/IMEI/cell IDs."""
+    out = {}
+    summ = client.get("yruo_status", "summary")
+    sysv = next((e.get("value") or {} for e in summ if (e.get("type") or "").lower() == "system"), {})
+    if sysv:
+        out["system"] = {
+            "uptime_s": sysv.get("uptime"), "cpu_load": sysv.get("cpu_load"),
+            "memory_free": sysv.get("memory_free"), "memory_avail_percent": sysv.get("memory_avail_percent"),
+            "storage_free": sysv.get("emmc_free"), "storage_avail_percent": sysv.get("emmc_avail_percent"),
+            "local_time": sysv.get("local_time"),
+            "lns": [{"addr": d.get("serv_addr"), "connected": d.get("connected")}
+                    for d in ((sysv.get("packet_forwarder") or {}).get("destinations") or []) if d.get("serv_enabled")],
+        }
+    try:
+        cell = client._call("yruo_status", "get", [{"base": "yruo_celluar"}])
+        rows = (cell[0] if cell and isinstance(cell[0], dict) else {}).get("get") or []
+    except gc.GatewayConfigError:
+        rows = []
+    modem = next((e.get("value") or {} for e in rows if e.get("type") == "cellular_modem"), {})
+    net = next((e.get("value") or {} for e in rows if e.get("type") == "cellular_network"), {})
+    if modem:
+        out["cellular"] = {
+            "status": net.get("status"), "connected_for": net.get("time"),
+            "provider": modem.get("net_provider"), "net_type": modem.get("net_type"), "band": modem.get("band"),
+            "register": modem.get("register"), "sim": modem.get("cur_sim"),
+            "signal_dbm": _num(modem.get("signal")), "rsrp_dbm": _num(modem.get("rsrp")),
+            "rsrq_db": _num(modem.get("rsrq")), "sinr_db": _num(modem.get("sinr")),
+            "data_usage": modem.get("sim1_flow") if modem.get("cur_sim") != "SIM2" else modem.get("sim2_flow"),
+        }
+    return out
 
 
 def list_patches():
@@ -142,11 +183,17 @@ class Fleet:
             wifi = client.get("yruo_wifi", "yruo_wifi")
             row["firmware"] = client.firmware
             row["profile_ok"] = client.firmware in known_firmwares()
+            row["profile"] = gc.profile_for_firmware(client.firmware)
             if not row["profile_ok"]:
-                compat = gc.firmware_compat(client, gc.load_profile(gc.profile_for_firmware(client.firmware)))
+                # no exact profile: the newest one is used if the gateway's interface is compatible
+                compat = gc.firmware_compat(client, gc.load_profile(row["profile"]))
                 row["firmware_compat"] = compat["status"]
                 row["firmware_deltas"] = compat["deltas"]
             row["wifi_country"] = ((wifi[0] if wifi else {}).get("value") or {}).get("country_code")
+            try:
+                row["health"] = gateway_health(client)
+            except Exception as exc:  # extra info only, never fail the deep check because of it
+                row["health_error"] = str(exc)[:200]
         except gc.GatewayConfigError as exc:
             row["cgi_error"] = str(exc)
         try:

@@ -12,7 +12,7 @@
   .tile .k { font-size: .75rem; color: #6c757d; text-transform: uppercase; letter-spacing: .03em; }
   .tile .v { font-size: 1.15rem; font-weight: 600; }
   .tile .s { font-size: .8rem; color: #6c757d; }
-  .ok { color: #1a9a4b; } .bad { color: #c83232; } .muted { color: #6c757d; }
+  .ok { color: #1a9a4b; } .bad { color: #c83232; } .mid { color: #b07d00; } .muted { color: #6c757d; }
   .card-box { background: #fff; border: 1px solid #dee2e6; border-radius: .5rem; padding: .75rem; }
   .card-box h2 { font-size: 1rem; }
   svg text { font-size: 10px; fill: #6c757d; }
@@ -33,6 +33,8 @@
   <div id="err" class="alert alert-danger py-2 mt-2" style="display:none"></div>
 
   <div class="row g-2 my-2" id="tiles"></div>
+  <div class="small text-muted mb-1">Gerätezustand <span class="fw-normal">(live vom Gateway beim „Tief prüfen“; Funkqualität braucht Drive-by-Schnittstelle ≥ 1.2.0)</span></div>
+  <div class="row g-2 mb-2" id="tiles2"></div>
 
   <div class="row g-2">
     <div class="col-12 col-lg-8"><div class="card-box h-100">
@@ -43,7 +45,8 @@
           <button class="btn btn-outline-secondary" id="d7" onclick="loadStats(7)">7 Tage</button>
         </div>
       </div>
-      <div class="small text-muted mb-1"><span style="color:#3b7dd8">■</span> empfangen (Uplinks von Sensoren) · <span style="color:#e0a800">■</span> gesendet (Downlinks)</div>
+      <div class="small text-muted mb-1" id="chartinfo">Anzahl Funkpakete <b>pro Stunde</b>, die dieses Gateway an ChirpStack weitergereicht hat. Quelle: ChirpStack-Gateway-Statistik (das Gateway meldet sie alle 30 s).</div>
+      <div class="small text-muted mb-1"><span style="color:#3b7dd8">■</span> empfangen (Uplinks von Sensoren) · <span style="color:#e0a800">■</span> gesendet (Downlinks an Sensoren)</div>
       <div id="chart" class="small text-muted">lade …</div>
       <div id="freq" class="small mt-2"></div>
     </div></div>
@@ -54,13 +57,13 @@
       <button class="btn btn-sm btn-outline-primary" onclick="loadLive()">Tief prüfen</button>
       <button class="btn btn-sm btn-outline-secondary" onclick="act('compare')">Standard prüfen</button>
       <div class="fw-semibold small mt-1">Ändern</div>
-      <button class="btn btn-sm btn-warning" onclick="act('align', true)">An Standard angleichen</button><br>
+      <button id="alignbtn" class="btn btn-sm btn-outline-secondary" disabled onclick="act('align', true)" title="erst „Standard prüfen“">An Standard angleichen</button><br>
       <select id="flow" class="form-select form-select-sm d-inline-block" style="width:auto"></select>
       <button class="btn btn-sm btn-outline-secondary" onclick="act('nodered')">Drive-by-Schnittstelle prüfen</button>
       <button class="btn btn-sm btn-warning" onclick="act('nodered', true)">aktualisieren</button><br>
       <select id="firmware" class="form-select form-select-sm d-inline-block" style="width:auto"></select>
       <button class="btn btn-sm btn-outline-secondary" onclick="act('firmware')">Firmware prüfen</button>
-      <button class="btn btn-sm btn-danger" onclick="act('firmware', true)">aktualisieren</button>
+      <button id="fwbtn" class="btn btn-sm btn-danger" onclick="act('firmware', true)">aktualisieren</button>
       <div id="actres" class="small mt-2"></div>
     </div></div>
   </div>
@@ -118,13 +121,50 @@ function renderTiles() {
          vpn.error || `letzter Handshake · ↓ ${bytes(vpn.rx)} ↑ ${bytes(vpn.tx)}`, vpn.live ? 'ok' : ''),
     tile('ChirpStack', cs.error ? '–' : ago(since(cs.last_seen)), cs.error || 'zuletzt gesehen (LNS)',
          cs.last_seen && since(cs.last_seen) < 300 ? 'ok' : cs.last_seen ? 'bad' : ''),
-    tile('Firmware', r.firmware, r.firmware ? (r.profile_ok ? 'Profil vorhanden' : '⚠ kein Profil') : (r.cgi_error || 'Tief prüfen liest sie'),
-         r.firmware && !r.profile_ok ? 'bad' : ''),
+    tile('Firmware', r.firmware, r.firmware ? profileText(r) : (r.cgi_error || 'Tief prüfen liest sie'),
+         r.firmware && !r.profile_ok && r.firmware_compat !== 'compatible' ? 'bad' : ''),
     tile('Drive-by-Schnittstelle', r.flow ? (r.flow.version || '?') : (d && d.flow_version) || (r.online ? 'fehlt / alt' : '–'),
          r.flow ? (r.flow.up_to_date ? 'aktuell' : 'veraltet') + (r.flow.modified ? ', geändert' : '') : 'WLAN-Abholung der Daten',
          r.flow ? (r.flow.up_to_date ? 'ok' : 'bad') : ''),
     tile('Funkempfang', d ? (d.receiving ? 'empfängt' : 'kein Empfang') : '–',
          d ? `Funk ${ago(d.seconds_since_rxpk)} · ${d.rxpk} Pakete · Drive-by ${ago(d.app_seconds_since_poll)}` : '', d ? (d.receiving ? 'ok' : 'bad') : ''),
+  );
+}
+function cellQuality(c) {
+  if (!c) return ['–', '', ''];
+  const lte = /LTE|4G/i.test(c.net_type || '');
+  if (lte && c.rsrp_dbm != null) {
+    const good = c.rsrp_dbm > -95 && (c.sinr_db == null || c.sinr_db >= 10), bad = c.rsrp_dbm < -110 || (c.sinr_db != null && c.sinr_db < 0);
+    return [good ? 'gut' : bad ? 'schwach' : 'mittel', `RSRP ${c.rsrp_dbm} dBm · SINR ${c.sinr_db} dB · RSRQ ${c.rsrq_db} dB`, good ? 'ok' : bad ? 'bad' : 'mid'];
+  }
+  const v = c.signal_dbm;
+  if (v == null) return ['?', '', ''];
+  const lvl = v > -75 ? 'gut' : v < -95 ? 'schwach' : 'mittel';
+  return [lte ? lvl : `${lvl}, aber 2G/3G`, `Signal ${v} dBm${lte ? '' : ' · langsames Netz, kein LTE'}`, v > -75 && lte ? 'ok' : v < -95 ? 'bad' : 'mid'];
+}
+function uptime(s) {
+  if (s == null) return '–';
+  return s < 3600 ? `${Math.round(s / 60)} min` : s < 172800 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} Tage`;
+}
+function renderTiles2() {
+  const box = document.getElementById('tiles2'); box.replaceChildren();
+  const r = live || {}, h = r.health || {}, c = h.cellular, sy = h.system, rad = r.driveby && r.driveby.radio;
+  const [q, qs, qc] = cellQuality(c);
+  const lns = (sy && sy.lns) || [], cloud = lns.filter(x => !/^(127\.0\.0\.1|localhost)$/.test(x.addr));
+  const crc = rad && rad.crc_error_pct;
+  box.append(
+    tile('Mobilfunk', c ? (c.net_type || c.status) : '–', c ? [c.provider, c.band, c.register].filter(Boolean).join(' · ') : (r.health_error || 'Tief prüfen liest es'),
+         c && c.status === 'Connected' ? (/LTE|4G/i.test(c.net_type || '') ? 'ok' : 'mid') : c ? 'bad' : ''),
+    tile('Mobilfunk-Qualität', q, qs, qc),
+    tile('SIM-Datenverbrauch', c && c.data_usage ? (c.data_usage.match(/ALL:\s*([\d.]+ \w+)/) || [])[1] || c.data_usage : '–',
+         c && c.data_usage ? c.data_usage.replace(/\s+ALL:.*$/, '').replace(/\s{2,}/g, ' · ') + ' (Zähler des Modems)' : (c ? 'Firmware meldet es nicht' : '')),
+    tile('Cloud-LNS (Forwarder)', cloud.length ? (cloud.every(x => x.connected) ? 'verbunden' : 'getrennt') : '–',
+         cloud.length ? cloud.map(x => x.addr).join(', ') : (sy ? 'Firmware meldet es nicht' : ''), cloud.length ? (cloud.every(x => x.connected) ? 'ok' : 'bad') : ''),
+    tile('Laufzeit', sy ? uptime(sy.uptime_s) : '–', sy ? `seit letztem Neustart · CPU ${sy.cpu_load} · RAM frei ${sy.memory_avail_percent}` : '',
+         sy && sy.uptime_s < 3600 ? 'mid' : ''),
+    tile('Funkqualität (30 min)', crc != null ? `${crc} % CRC-Fehler` : '–',
+         rad ? `${rad.rx_total} Pakete · RSSI Ø ${rad.rssi_avg ?? '–'} dBm · SNR Ø ${rad.snr_avg ?? '–'} dB` : 'ab Drive-by-Schnittstelle 1.2.0',
+         crc == null ? '' : crc < 15 ? 'ok' : crc < 40 ? 'mid' : 'bad'),
   );
 }
 function renderHead() {
@@ -147,22 +187,24 @@ function chart(cs) {
   const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', '100%');
   const add = (tag, attrs, text) => { const e = document.createElementNS(ns, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; svg.append(e); return e; };
-  [0, .5, 1].forEach(f => { const v = Math.round(max * f); add('line', {x1: L, x2: W, y1: y(v), y2: y(v), stroke: '#eee'}); add('text', {x: 2, y: y(v) + 3}, v); });
+  [0, .5, 1].forEach(f => { const v = Math.round(max * f); add('line', {x1: L, x2: W, y1: y(v), y2: y(v), stroke: '#eee'}); add('text', {x: 2, y: y(v) + (f === 1 ? 12 : 3)}, v); });
   const hourly = cs.aggregation === 'HOUR';
+  document.getElementById('chartinfo').innerHTML = `Anzahl Funkpakete <b>pro ${hourly ? 'Stunde' : 'Tag'}</b>, die dieses Gateway an ChirpStack weitergereicht hat. Quelle: ChirpStack-Gateway-Statistik. Achse unten: ${hourly ? 'Uhrzeit (Beginn der Stunde), die letzte Säule ist die laufende Stunde und daher kürzer' : 'Tag'}.`;
+  add('text', {x: 2, y: 8, 'font-size': 9, fill: '#888'}, hourly ? 'Pakete/h' : 'Pakete/Tag');
   ts.forEach((t, i) => {
     const x = L + i * bw, d = new Date(t);
     const r = add('rect', {x: x + 1, y: y(rx[i] || 0), width: Math.max(1, bw * .55 - 1), height: (H - B) - y(rx[i] || 0), class: 'bar-rx'});
     add('rect', {x: x + bw * .55, y: y(tx[i] || 0), width: Math.max(1, bw * .35), height: (H - B) - y(tx[i] || 0), class: 'bar-tx'});
     const label = hourly ? d.toLocaleTimeString('de-DE', {hour: '2-digit'}) + ' Uhr' : d.toLocaleDateString('de-DE', {weekday: 'short', day: '2-digit', month: '2-digit'});
     const tip = document.createElementNS(ns, 'title'); tip.textContent = `${label}: ${rx[i] || 0} empfangen, ${tx[i] || 0} gesendet`; r.append(tip);
-    if (!hourly || i % 3 === 0) add('text', {x: x + bw / 2, y: H - 6, 'text-anchor': 'middle'}, hourly ? d.getHours() + 'h' : label);
+    if (!hourly || i % 3 === 0) add('text', {x: x + bw / 2, y: H - 6, 'text-anchor': 'middle'}, hourly ? d.getHours() + ' Uhr' : label);
   });
   box.replaceChildren(svg);
   const sum = a => a.reduce((s, v) => s + (v || 0), 0);
   const f = document.getElementById('freq'); f.replaceChildren();
-  f.append(el('span', `Summe: ${sum(rx)} empfangen, ${sum(tx)} gesendet. `, 'fw-semibold'));
+  f.append(el('div', `Gesamt im Zeitraum: ${sum(rx)} Pakete empfangen, ${sum(tx)} gesendet (Ø ${Math.round(sum(rx) / n)} pro ${hourly ? 'Stunde' : 'Tag'}).`, 'fw-semibold'));
   const fr = Object.entries(cs.rx_per_freq || {});
-  if (fr.length) f.append(el('span', 'Pro Frequenz: ' + fr.map(([k, v]) => `${(k / 1e6 || k)} MHz: ${v}`).join(' · '), 'text-muted'));
+  if (fr.length) f.append(el('div', 'Empfangen je Funkkanal (Pakete im Zeitraum): ' + fr.map(([k, v]) => `${(k / 1e6 || k)} MHz: ${v}`).join(' · '), 'text-muted'));
 }
 
 async function loadStats(days) {
@@ -176,7 +218,7 @@ async function loadStats(days) {
 async function loadLive() {
   try {
     const r = await api(`/api/fleet/status?ip=${IP}&deep=1`);
-    live = r[0] || {}; db = live; renderHead(); renderTiles();
+    live = r[0] || {}; db = live; renderHead(); renderTiles(); renderTiles2();
   } catch (e) { showErr(e.message); }
 }
 async function loadCompare() {
@@ -189,6 +231,9 @@ async function loadCompare() {
     box.className = 'small';
     box.append(el('div', ch.length || (r.flow && !r.flow.ok) ? `${ch.length} Abweichung(en) vom Standard` : 'Entspricht dem Standard ✓',
                   'fw-semibold ' + (ch.length ? 'text-primary' : 'ok')));
+    const ab = document.getElementById('alignbtn'), dev = ch.length > 0 || !!(r.flow && !r.flow.ok);
+    ab.disabled = !dev; ab.className = 'btn btn-sm ' + (dev ? 'btn-warning' : 'btn-outline-secondary');
+    ab.title = dev ? `${ch.length} Abweichung(en) angleichen` : 'Gateway entspricht dem Standard, nichts anzugleichen';
     if (r.flow) box.append(el('div', `Drive-by-Schnittstelle: ${r.flow.current || '?'} → Soll ${r.flow.target || '?'} ${r.flow.ok ? '✓' : ''}`));
     ch.forEach(c => box.append(el('div', `${c.label}${c.lns ? ' [LNS]' : ''}: ` + Object.entries(c.fields).map(([k, v]) => `${k} ${fmtv(v[0])} → ${fmtv(v[1])}`).join(', '))));
   } catch (e) { box.textContent = e.message; }
@@ -204,6 +249,13 @@ async function loadJobs() {
       box.append(el('div', `${new Date(j.started * 1000).toLocaleString('de-DE')} · ${j.label} · ${j.state}${j.detail ? ': ' + j.detail : ''}`, cls));
     });
   } catch (e) { box.textContent = e.message; }
+}
+function profileText(r) {
+  const p = (r.profile || '').replace(/^ug65-/, '');
+  if (r.profile_ok) return 'eigenes Profil';
+  if (r.firmware_compat === 'compatible') return `nutzt Profil ${p} (geprüft: kompatibel)`;
+  if (r.firmware_compat) return `⚠ Profil ${p} passt nicht: ${(r.firmware_deltas || []).length} Unterschiede`;
+  return '⚠ kein Profil';
 }
 function showErr(m) { const e = document.getElementById('err'); e.textContent = m; e.style.display = ''; }
 
@@ -231,7 +283,7 @@ async function act(kind, apply = false) {
     cat.flows.slice().reverse().forEach(v => { const o = el('option', 'Version ' + v); o.value = v; fs.append(o); });
     const fw = document.getElementById('firmware');
     cat.firmware_images.slice().reverse().forEach(i => { const o = el('option', `FW ${i.label}`); o.value = i.version; fw.append(o); });
-    if (!cat.firmware_images.length) fw.append(el('option', 'keine Firmware-Dateien'));
+    if (!cat.firmware_images.length) { fw.append(el('option', 'keine Firmware-Dateien')); document.getElementById('fwbtn').disabled = true; }
   } catch (e) { /* optional */ }
   renderTiles();
   // one login at a time: the gateway's web server stumbles over parallel sessions
