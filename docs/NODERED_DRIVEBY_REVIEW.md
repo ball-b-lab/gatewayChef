@@ -254,6 +254,5 @@ Getestet an JK_Test (60.0.0.50): Ziel 1 und 2 `connected 1`, `ackr 100`, Empfang
 `/lora/health` ONLINE (Cortex-ACK 6 s alt).
 Reihenfolge beim Ausrollen: erst Flow 1.1.1, dann der Patch.
 
-> **Stand 24.11.2026:** Standard für die LNS-Ziele ist wieder **driveby-udp-forward** (interner LNS, Cortex,
-> Node-RED 127.0.0.1:1702 als drittes Ziel) — in den Profilen, beim Einrichten und beim „Auf Standard bringen“.
-> `lns-nodered-first` bleibt als Patch, schreiben dürfen ihn nur Admins (`OIDC_ADMIN_GROUP`).
+> **Stand 24.11.2026:** Standard bleibt **Node-RED-UDP zuerst** (`lns-nodered-first`, Profile 60.0.0.49/.50, ab
+> Firmware 60.0.0.50). Darauf umstellen darf jeder; andere Reihenfolgen (z. B. `driveby-udp-forward`) nur Admins (`OIDC_ADMIN_GROUP`).

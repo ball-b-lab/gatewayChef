@@ -211,7 +211,8 @@ if APP_MODE != 'cloud_api':
     if APP_MODE == 'cloud' and os.getenv("ORDERS_WORKER", "1") == "1":
         # open fleet orders: run as soon as the gateway is online (services/orders.py)
         from services import fleet as _fl, orders as _orders
-        _orders.start_worker(_fl.from_env)
+        from routes.fleet import refresh_gateway as _refresh
+        _orders.start_worker(_fl.from_env, on_change=_refresh)
     app.register_blueprint(vpn_bp)
 
 

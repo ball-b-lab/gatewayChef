@@ -19,6 +19,48 @@ from services import roles
 from utils.response import error, ok
 
 bp = Blueprint("fleet", __name__)
+def _status(deep, only=None):
+    """Live status; remembers it (full list, or merged in per gateway) for ?cached=1."""
+    rows = _fleet().status(deep=deep, only=only)
+    # remember the last deep check (firmware, WLAN region, drive-by interface) and show it on quick checks
+    now = time.time()
+    for r in rows:
+        if deep and r.get("online"):
+            _LAST_DEEP[r["vpn_ip"]] = ({k: r[k] for k in _DEEP_KEYS if k in r}, now)
+        elif not deep and r["vpn_ip"] in _LAST_DEEP:
+            cached, at = _LAST_DEEP[r["vpn_ip"]]
+            for k, v in cached.items():
+                r.setdefault(k, v)
+            r["deep_age"] = int(now - at)
+    if not only:
+        _LAST_STATUS.update(rows=rows, at=now)
+        snaps.maybe_save(rows, deep)
+    elif _LAST_STATUS["rows"]:
+        fresh = {r["vpn_ip"]: r for r in rows}
+        _LAST_STATUS["rows"] = [fresh.get(r["vpn_ip"], r) for r in _LAST_STATUS["rows"]]
+    _save_cache()
+    return rows
+
+
+def refresh_gateway(ip):
+    """After any change on a gateway: read it again so the table shows the new state (background)."""
+    import threading
+
+    def run():
+        try:
+            _status(True, [ip])
+        except Exception:  # noqa: BLE001 - only a cache refresh
+            pass
+    if ip:
+        threading.Thread(target=run, name=f"refresh-{ip}", daemon=True).start()
+
+
+def _changed(ip, res):
+    if isinstance(res, dict) and res.get("result") not in ("would_change", "offline"):
+        refresh_gateway(ip)
+    return res
+
+
 _LAST_STATUS = {"rows": None, "at": 0.0}  # last full status (any check), served instantly with ?cached=1
 _LAST_DEEP = {}  # vpn_ip -> (fields, time) of the last successful deep check
 # kept on disk too: the station restarts on every auto-update and would otherwise start empty (slow first load)
@@ -115,23 +157,9 @@ def fleet_status():
         # instant answer from memory (the page then refreshes live); empty after an app restart
         return ok({"rows": _LAST_STATUS["rows"] or [], "age_s": int(time.time() - _LAST_STATUS["at"]) if _LAST_STATUS["rows"] else None})
     try:
-        rows = _fleet().status(deep=deep, only=only)
+        rows = _status(deep, only)
     except Exception as exc:  # inventory unreachable etc.
         return error(f"Status fehlgeschlagen: {exc}", 502)
-    # remember the last deep check (firmware, WLAN region, drive-by interface) and show it on quick checks
-    now = time.time()
-    for r in rows:
-        if deep and r.get("online"):
-            _LAST_DEEP[r["vpn_ip"]] = ({k: r[k] for k in _DEEP_KEYS if k in r}, now)
-        elif not deep and r["vpn_ip"] in _LAST_DEEP:
-            cached, at = _LAST_DEEP[r["vpn_ip"]]
-            for k, v in cached.items():
-                r.setdefault(k, v)
-            r["deep_age"] = int(now - at)
-    if not only:
-        _LAST_STATUS.update(rows=rows, at=now)
-        snaps.maybe_save(rows, deep)
-    _save_cache()
     return ok(rows)
 
 
@@ -166,7 +194,7 @@ def fleet_snapshot(snap_id):
 @bp.route("/api/fleet/catalog", methods=["GET"])
 def fleet_catalog():
     patches = [{"name": n, "description": p.get("description", ""), "risky": fl.patch_is_risky(p),
-                "admin_only": bool(fl.patch_is_risky(p) or fl.patch_touches_lns(p)),
+                "admin_only": fl.patch_admin_only(p),
                 "firmware": p.get("firmware")} for n, p in fl.list_patches().items()]
     bundles = nr.load_bundles()
     return ok({"patches": patches, "flows": sorted(bundles), "latest_flow": nr.latest_version(bundles),
@@ -184,12 +212,12 @@ def fleet_patch():
         patch = fl.load_patch(str(data.get("name") or ""))
     except (OSError, ValueError):
         return error("Patch nicht gefunden.", 404)
-    if bool(data.get("apply")) and (fl.patch_touches_lns(patch) or fl.patch_is_risky(patch)) and not roles.is_admin():
-        return error("LNS- und Netzeinstellungen dürfen nur Admins ändern (Standard: driveby-udp-forward).", 403)
+    if bool(data.get("apply")) and fl.patch_admin_only(patch) and not roles.is_admin():
+        return error("Diese LNS-/Netzeinstellung dürfen nur Admins schreiben. Den Standard (Node-RED-UDP zuerst) stellt „Auf Standard bringen“ für alle ein.", 403)
     try:
         ip, apply = data.get("vpn_ip"), bool(data.get("apply"))
         run = lambda: _fleet().patch(ip, patch, apply=apply, allow_risky=bool(data.get("allow_risky")))  # noqa: E731
-        return ok(jobs.tracked("patch", ip, f"Patch {patch.get('name')}", run) if apply else run())
+        return ok(_changed(ip, jobs.tracked("patch", ip, f"Patch {patch.get('name')}", run)) if apply else run())
     except _ERRORS as exc:
         return error(str(exc), 400)
 
@@ -200,7 +228,7 @@ def fleet_nodered():
     try:
         ip, apply = data.get("vpn_ip"), bool(data.get("apply"))
         run = lambda: _fleet().nodered_update(ip, data.get("version"), apply=apply)  # noqa: E731
-        return ok(jobs.tracked("nodered", ip, f"Node-RED {data.get('version') or 'neueste'}", run) if apply else run())
+        return ok(_changed(ip, jobs.tracked("nodered", ip, f"Node-RED {data.get('version') or 'neueste'}", run)) if apply else run())
     except _ERRORS as exc:
         return error(str(exc), 400)
 
@@ -211,7 +239,7 @@ def fleet_firmware():
     try:
         ip, version, apply = data.get("vpn_ip"), str(data.get("version") or ""), bool(data.get("apply"))
         run = lambda: _fleet().firmware_upgrade(ip, version, apply=apply, force=bool(data.get("force")))  # noqa: E731
-        return ok(jobs.tracked("firmware", ip, f"Firmware {version}", run) if apply else run())
+        return ok(_changed(ip, jobs.tracked("firmware", ip, f"Firmware {version}", run)) if apply else run())
     except _ERRORS as exc:
         return error(str(exc), 400)
 
@@ -264,8 +292,8 @@ def fleet_align():
     try:
         ip, apply = data.get("vpn_ip"), bool(data.get("apply"))
         admin = roles.is_admin()
-        run = lambda: fa.align(_fleet(), ip, apply=apply, force=bool(data.get("force")) and admin, lns=admin)  # noqa: E731
-        return ok(jobs.tracked("align", ip, "An Standard angleichen", run) if apply else run())
+        run = lambda: fa.align(_fleet(), ip, apply=apply, force=bool(data.get("force")) and admin)  # noqa: E731
+        return ok(_changed(ip, jobs.tracked("align", ip, "An Standard angleichen", run)) if apply else run())
     except _ERRORS as exc:
         return error(str(exc), 400)
 
@@ -358,6 +386,11 @@ def gw_rename():
         return error(str(exc), 400)
     except Exception as exc:
         return error(f"Umbenennen fehlgeschlagen: {exc}", 502)
+    if body.get("apply") is True and _LAST_STATUS["rows"]:
+        for row in _LAST_STATUS["rows"]:
+            if row.get("vpn_ip") == body.get("vpn_ip"):
+                row["gateway_name"] = out.get("new_name")
+        _save_cache()
     return ok(out)
 
 
