@@ -184,9 +184,9 @@ function portCard(row) {
     <label class="small d-block mb-2"><input type="checkbox" class="form-check-input me-1" ${st.new ? "checked" : ""}
       onchange="(formState[${p}] ||= {}).new = this.checked">neues Gateway (VPN-IP aus dem Pool)</label>
     <div class="d-flex gap-1">
-      <button class="btn btn-sm btn-outline-secondary" ${dis} onclick="start(${p}, 'dry')">Dry-Run</button>
-      <button class="btn btn-sm btn-primary" ${dis} onclick="start(${p}, 'apply')">Einrichten</button>
-      <button class="btn btn-sm btn-outline-secondary" ${dis} onclick="start(${p}, 'check')" title="nur Prüfungen, z. B. vor dem Versand">Prüfen</button>
+      <button class="btn btn-sm btn-outline-secondary" ${dis} onclick="start(${p}, 'dry', this)">Dry-Run</button>
+      <button class="btn btn-sm btn-primary" ${dis} onclick="start(${p}, 'apply', this)">Einrichten</button>
+      <button class="btn btn-sm btn-outline-secondary" ${dis} onclick="start(${p}, 'check', this)" title="nur Prüfungen, z. B. vor dem Versand">Prüfen</button>
     </div>
     ${job ? jobPart(job) : ""}</div>`;
 }
@@ -224,16 +224,29 @@ async function refresh() {
   if (openJob) loadLog(openJob, true);
 }
 
-async function start(port, mode) {
+const starting = new Set();   // ports with a start request on the way: no second click
+async function start(port, mode, btn) {
+  if (starting.has(port)) return;
   const o = Object.assign({}, formState[port] || {});
   if (!o.new && o.vpn_ip) { /* known gateway: keep its VPN IP */ } else delete o.vpn_ip;
   if (mode === "apply" && !confirm(`Port ${port} wirklich einrichten (schreibt aufs Gateway und in die DB)?`)) return;
-  const r = await fetch("/api/station/run", {method: "POST", headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({port, mode, options: o})});
-  const body = await r.json();
-  if (!r.ok) { alert((body.error && body.error.message) || "Fehler"); return; }
-  showLog(body.data.id);
-  refresh();
+  starting.add(port);
+  const box = btn && btn.parentElement, label = btn && btn.innerHTML;
+  if (box) box.querySelectorAll("button").forEach(b => b.disabled = true);
+  if (btn) btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>startet …';
+  try {
+    const r = await fetch("/api/station/run", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({port, mode, options: o})});
+    const body = await r.json();
+    if (!r.ok) { alert((body.error && body.error.message) || "Fehler"); return; }
+    if (btn) btn.innerHTML = "✓ gestartet – Protokoll unten";
+    showLog(body.data.id);
+  } catch (e) {
+    alert("Start fehlgeschlagen: " + e);
+  } finally {
+    starting.delete(port);
+    setTimeout(() => { if (btn && btn.isConnected) { btn.innerHTML = label; } refresh(); }, 1200);
+  }
 }
 
 async function loadLog(id, quiet) {
