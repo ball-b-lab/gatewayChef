@@ -72,10 +72,10 @@
       <button class="btn btn-sm btn-outline-secondary" onclick="act('compare')">Standard prüfen</button>
       <div class="fw-semibold small mt-1">Ändern</div>
       <button id="alignbtn" class="btn btn-sm btn-outline-secondary" disabled onclick="act('align', true)" title="erst „Standard prüfen“">An Standard angleichen</button><br>
-      <select id="flow" class="form-select form-select-sm d-inline-block" style="width:auto"></select>
+      <select id="flow" class="form-select form-select-sm d-inline-block" style="width:auto" onchange="updButtons()"></select>
       <button class="btn btn-sm btn-outline-secondary" onclick="act('nodered')">Drive-by-Schnittstelle prüfen</button>
-      <button class="btn btn-sm btn-warning" onclick="act('nodered', true)">aktualisieren</button><br>
-      <select id="firmware" class="form-select form-select-sm d-inline-block" style="width:auto"></select>
+      <button id="flowbtn" class="btn btn-sm btn-warning" onclick="act('nodered', true)">aktualisieren</button><br>
+      <select id="firmware" class="form-select form-select-sm d-inline-block" style="width:auto" onchange="updButtons()"></select>
       <button class="btn btn-sm btn-outline-secondary" onclick="act('firmware')">Firmware prüfen</button>
       <button id="fwbtn" class="btn btn-sm btn-danger" onclick="act('firmware', true)">aktualisieren</button>
       <div id="actres" class="small mt-2"></div>
@@ -124,6 +124,20 @@ function tile(k, v, s, cls) {
   t.append(el('div', k, 'k'), el('div', v ?? '–', 'v ' + (cls || '')), el('div', s || '', 's'));
   c.append(t); return c;
 }
+// "aktualisieren" only when the selected version differs from what the gateway has (after "Tief prüfen")
+function updButtons() {
+  const r = live || {}, cur = {flow: r.flow && !r.flow.modified ? r.flow.version : null, firmware: r.firmware};
+  [['flow', 'flowbtn', 'btn-warning'], ['firmware', 'fwbtn', 'btn-danger']].forEach(([sel, btn, cls]) => {
+    const s = document.getElementById(sel), b = document.getElementById(btn);
+    if (!s || !b || !s.options.length || !s.options[0].value) return;
+    [...s.options].forEach(o => { o.textContent = o.textContent.replace(' (installiert)', '') + (o.value === cur[sel] ? ' (installiert)' : ''); });
+    const same = cur[sel] && s.value === cur[sel];
+    b.disabled = !!same;
+    b.className = 'btn btn-sm ' + (same ? 'btn-outline-secondary' : cls);
+    b.textContent = same ? 'ist installiert' : 'aktualisieren';
+    b.title = same ? 'Diese Version läuft schon auf dem Gateway' : '';
+  });
+}
 function renderTiles() {
   const box = document.getElementById('tiles'); box.replaceChildren();
   const r = live || {}, cs = (stats && stats.chirpstack) || {}, vpn = (stats && stats.vpn) || {};
@@ -149,6 +163,7 @@ function renderTiles() {
     tile('Funkempfang', d ? (d.receiving ? 'empfängt' : 'kein Empfang') : '–',
          d ? `Funk ${ago(d.seconds_since_rxpk)} · ${d.rxpk} Pakete · Drive-by ${ago(d.app_seconds_since_poll)}` : '', d ? (d.receiving ? 'ok' : 'bad') : ''),
   );
+  updButtons();
 }
 function cellQuality(c) {
   if (!c) return ['–', '', ''];
