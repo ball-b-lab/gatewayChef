@@ -15,6 +15,10 @@ import os
 import time
 
 import requests
+import urllib3
+
+# gateways with newer firmware redirect to HTTPS with a self-signed certificate
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 LEASE_DIR = "/var/lib/gatewaychef"
 DEVICE_INFO_PATH = "/node-red/device-info"
@@ -60,12 +64,23 @@ def candidates(lease_path=None):
     return out
 
 
+def _tls(http):
+    """Self-signed HTTPS on newer firmware: no certificate check (only with real requests)."""
+    return {"verify": False} if http is requests or isinstance(http, requests.Session) else {}
+
+
 def web_answers(host, http=requests, timeout=2):
     """Factory UG65 (no Node-RED flow yet): its web UI answers on http://<host>/."""
     try:
-        resp = http.get(f"http://{host}/", timeout=timeout)
-        return resp.status_code == 200 and "milesight" in resp.text.lower()
-    except requests.RequestException:
+        # newer firmware redirects to HTTPS with a self-signed certificate
+        resp = http.get(f"http://{host}/", timeout=timeout, **_tls(http))
+        if resp.status_code != 200:
+            return False
+        if any(k in resp.text.lower() for k in ("milesight", "ursalink", "ug65", "ug67")):
+            return True
+        # page without a brand word: assume it is a gateway and try to log in and read a value
+        return bool(_tls(http)) and cgi_login(host) is not None
+    except (requests.RequestException, ValueError):
         return False
 
 
@@ -108,7 +123,7 @@ def cgi_identity(host, client_factory=None):
 
 def answers(host, http=requests, timeout=2):
     try:
-        return http.get(f"http://{host}{DEVICE_INFO_PATH}", timeout=timeout).status_code == 200
+        return http.get(f"http://{host}{DEVICE_INFO_PATH}", timeout=timeout, **_tls(http)).status_code == 200
     except requests.RequestException:
         return False
 
