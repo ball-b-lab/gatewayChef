@@ -17,6 +17,7 @@ from services import nodered as nr
 from utils.response import error, ok
 
 bp = Blueprint("fleet", __name__)
+_LAST_STATUS = {"rows": None, "at": 0.0}  # last full status (any check), served instantly with ?cached=1
 _LAST_DEEP = {}  # vpn_ip -> (fields, time) of the last successful deep check (this process)
 _DEEP_KEYS = ("firmware", "profile_ok", "profile", "firmware_compat", "firmware_deltas", "wifi_country", "flow", "health")
 _ERRORS = (fl.FleetError, gc.GatewayConfigError, nr.NodeRedError, fw.FirmwareError)
@@ -64,6 +65,9 @@ def gateway_stats(ip):
 def fleet_status():
     deep = request.args.get("deep") in ("1", "true")
     only = [ip for ip in (request.args.get("ip") or "").split(",") if ip] or None
+    if request.args.get("cached") in ("1", "true"):
+        # instant answer from memory (the page then refreshes live); empty after an app restart
+        return ok({"rows": _LAST_STATUS["rows"] or [], "age_s": int(time.time() - _LAST_STATUS["at"]) if _LAST_STATUS["rows"] else None})
     try:
         rows = _fleet().status(deep=deep, only=only)
     except Exception as exc:  # inventory unreachable etc.
@@ -79,6 +83,7 @@ def fleet_status():
                 r.setdefault(k, v)
             r["deep_age"] = int(now - at)
     if not only:
+        _LAST_STATUS.update(rows=rows, at=now)
         snaps.maybe_save(rows, deep)
     return ok(rows)
 
