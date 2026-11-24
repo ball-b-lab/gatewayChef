@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Timer job (every 10 min): new commit on origin/main -> restart the UI; gatewaychef-run.sh pulls on start.
+# Compares with the commit the UI was started with (running-commit, written by gatewaychef-run.sh),
+# not with HEAD: HEAD alone says nothing about what code is running.
+set -euo pipefail
+HOME_DIR=${GATEWAYCHEF_HOME:-/opt/gatewaychef}
+APP=$HOME_DIR/app
+g() { sudo -u gatewaychef git -C "$APP" "$@"; }
+g fetch --quiet origin main || exit 0
+want=$(g rev-parse origin/main)
+running=$(cat "$HOME_DIR/running-commit" 2>/dev/null || true)
+[[ "$running" == "$want" ]] && exit 0
+# Do not interrupt a running setup / fleet update -> next try in 10 min
+pgrep -f "gateway_setup.py|fleet.py" >/dev/null && exit 0
+logger -t gatewaychef-autoupdate "laeuft ${running:0:7}, main ist ${want:0:7}: Neustart"
+systemctl restart gatewaychef
