@@ -54,7 +54,7 @@
         </div>
       </div>
       <div class="small text-muted mb-1" id="chartinfo">Anzahl Funkpakete <b>pro Stunde</b>, die dieses Gateway an ChirpStack weitergereicht hat. Quelle: ChirpStack-Gateway-Statistik (das Gateway meldet sie alle 30 s).</div>
-      <div class="small text-muted mb-1"><span style="color:#5cb85c">■</span> online (Gateway meldet sich) · <span style="color:#f1d0d0">■</span> keine Meldung · <span style="color:#c83232">┆</span> Neustart · <span style="color:#3b7dd8">■</span> empfangen (Uplinks von Sensoren) · <span style="color:#e0a800">■</span> gesendet (Downlinks an Sensoren)</div>
+      <div class="small text-muted mb-1"><span style="color:#5cb85c">■</span> online · <span style="color:#e0a800">■</span> lief, aber ohne Verbindung · <span style="color:#f1d0d0">■</span> lief nicht / keine Daten · <span style="color:#c83232">┆</span> Neustart · <span style="color:#3b7dd8">■</span> empfangen (Uplinks von Sensoren) · <span style="color:#e0a800">■</span> gesendet (Downlinks an Sensoren)</div>
       <div id="chart" class="small text-muted">lade …</div>
       <div id="freq" class="small mt-2"></div>
     </div></div>
@@ -243,6 +243,11 @@ function chart(cs, rp) {
       if (x2 > x1) add('rect', {x: x1, y: 5, width: Math.max(1, x2 - x1), height: 10, fill: '#5cb85c'})
         .append(Object.assign(document.createElementNS(ns, 'title'), {textContent: `online ${new Date(a).toLocaleString('de-DE')} – ${new Date(b).toLocaleString('de-DE')}`}));
     });
+    (rp.no_connection || []).forEach(([a, b]) => {
+      const x1 = tx_(Math.max(Date.parse(a), t0)), x2 = tx_(Math.min(Date.parse(b), tEnd));
+      if (x2 > x1) add('rect', {x: x1, y: 5, width: Math.max(1, x2 - x1), height: 10, fill: '#e0a800'})
+        .append(Object.assign(document.createElementNS(ns, 'title'), {textContent: `lief, aber ohne Verbindung (Daten kamen später) ${new Date(a).toLocaleString('de-DE')} – ${new Date(b).toLocaleString('de-DE')}`}));
+    });
     rp.boots.map(Date.parse).filter(inR).forEach(t => {
       add('line', {x1: tx_(t), x2: tx_(t), y1: 2, y2: H - B, stroke: '#c83232', 'stroke-dasharray': '3 2'});
       add('text', {x: tx_(t) + 2, y: 26, 'font-size': 9, fill: '#c83232'}, 'Neustart')
@@ -257,7 +262,7 @@ function chart(cs, rp) {
   if (rp && rp.points && rp.points.length) {
     const lr = rp.last_report ? (Date.now() - Date.parse(rp.last_report)) / 1000 : null;
     f.append(el('div', `Gateway-Meldungen: ${rp.points.length} im Zeitraum · online ${rp.online_pct ?? '–'} % · ${rp.boots.length} Neustart(s) · zuletzt gemeldet ${ago(lr)}`,
-                'fw-semibold ' + (lr != null && lr < 180 ? 'ok' : 'bad')));
+                'fw-semibold ' + (lr != null && lr < 900 ? 'ok' : 'bad')));
   }
   f.append(el('div', `Gesamt im Zeitraum: ${sum(rx)} Pakete empfangen, ${sum(tx)} gesendet (Ø ${Math.round(sum(rx) / n)} pro ${hourly ? 'Stunde' : 'Tag'}).`, 'fw-semibold'));
   const fr = Object.entries(cs.rx_per_freq || {});

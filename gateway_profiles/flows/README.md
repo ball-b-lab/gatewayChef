@@ -26,7 +26,8 @@ Erzeugen vom Referenzgerät: `python scripts/fleet.py nodered-export --host <ip>
 - `1.3.1` (23.11.2026): `/node-red/device-info` trägt MAC und SSID pro Anfrage in `msg` statt im
   Flow-Kontext. Vorher bekam bei zwei gleichzeitigen Anfragen eine davon MAC `00:00:00:00:00:00`
   (EUI `000000FFFE000000`). Sonst unverändert zu 1.3.0.
-- `1.4.0` (24.11.2026): **Push an die Cloud.** 90 s nach dem Start von Node-RED eine Meldung `start`, danach jede
-  Minute `beat` an `{{gw_report_url}}` (`POST /api/gw/report`, Header `X-GW-Report-Token: {{gw_report_token}}`):
+- `1.4.0` (24.11.2026): **Push an die Cloud, gepuffert.** Jede Minute eine Probe in den lokalen Puffer
+  (Flow-Kontext, max. 24 h, geht bei Neustart von Node-RED verloren). Gesendet wird 90 s nach dem Start und dann alle
+  10 min als `{samples: [...]}` (je Probe Zeit `ts` in ms) an `{{gw_report_url}}`; nicht Gesendetes bleibt im Puffer (`POST /api/gw/report`, Header `X-GW-Report-Token: {{gw_report_token}}`):
   EUI, VPN-IP (wg0), Flow-Version, Uptime (`/proc/uptime`), Funk der letzten 5 min (CRC %, SF, nicht gesendete
   Downlinks), Anzahl gehörter Sensoren. Wird nur angeboten, wenn `GW_REPORT_TOKEN` gesetzt ist.

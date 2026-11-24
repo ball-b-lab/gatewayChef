@@ -1,8 +1,10 @@
 """
 Gateways push their state to the cloud (flow >= 1.4.0) instead of only being polled over the VPN.
 
-The flow sends a report when Node-RED starts ("start") and then every few minutes ("beat") to
-POST /api/gw/report (header X-GW-Report-Token = GW_REPORT_TOKEN). A gateway reboot is recognised by
+The flow takes a sample every minute and keeps it locally; when Node-RED starts and then every
+10 minutes it sends the buffered samples to POST /api/gw/report (header X-GW-Report-Token =
+GW_REPORT_TOKEN) as {"samples": [...]}, each with its own time "ts" (ms). Samples that could not be
+sent stay in the buffer and arrive later: delivered late = the gateway ran but had no connection. A gateway reboot is recognised by
 its uptime: smaller than in the previous report, or a start report with uptime < BOOT_UPTIME_MAX.
 Stored in gw_reports (app database, cloud only). No secrets are accepted or stored.
 """
@@ -13,9 +15,11 @@ from datetime import datetime, timedelta, timezone
 from db.connection import get_db_connection
 
 BOOT_UPTIME_MAX = 600          # s: a "start" this soon after boot is a reboot, later a Node-RED restart
-ONLINE_GAP = 3 * 60            # s without report = offline (flow reports every minute)
+ONLINE_GAP = 3 * 60            # s without sample = gateway not running (one sample per minute)
+LATE_S = 15 * 60               # sample delivered later than this = no connection at that time
+MAX_SAMPLES = 2000
 KEEP_DAYS = 90
-_FIELDS = ("eui", "vpn_ip", "flow_version", "uptime_s", "rx_total", "rx_ok", "crc_error_pct", "rxpk",
+_FIELDS = ("ts", "eui", "vpn_ip", "flow_version", "uptime_s", "rx_total", "rx_ok", "crc_error_pct", "rxpk",
            "seconds_since_rxpk", "sensors", "tx_failed", "sf")
 _DDL = """
 CREATE TABLE IF NOT EXISTS gw_reports (
@@ -54,7 +58,7 @@ def clean(payload):
         raise ReportError("vpn_ip ungueltig")
     if not (eui or ip):
         raise ReportError("eui oder vpn_ip fehlt")
-    for k in ("uptime_s", "rx_total", "rx_ok", "rxpk", "seconds_since_rxpk", "sensors", "tx_failed"):
+    for k in ("ts", "uptime_s", "rx_total", "rx_ok", "rxpk", "seconds_since_rxpk", "sensors", "tx_failed"):
         if k in data:
             try:
                 data[k] = int(float(data[k]))
@@ -84,23 +88,45 @@ def is_boot(kind, uptime, prev_uptime):
     return kind == "start" and uptime < BOOT_UPTIME_MAX
 
 
+def _sample_time(ts, now):
+    """Sample time from the gateway clock (ms); now if missing or implausible."""
+    if ts is None:
+        return now
+    t = ts / 1000.0
+    return t if now - 3 * 86400 < t < now + 300 else now
+
+
 def store(payload, connect=None, now=None):
-    kind, data = clean(payload)
+    """One report or {"samples": [...]} (buffered, flow >= 1.4.0). Returns counts and reboots."""
+    now = now or time.time()
+    samples = payload.get("samples") if isinstance(payload, dict) and "samples" in payload else [payload]
+    if not isinstance(samples, list) or not samples or len(samples) > MAX_SAMPLES:
+        raise ReportError(f"samples: 1..{MAX_SAMPLES} Eintraege erwartet")
+    cleaned = sorted((clean(x) for x in samples), key=lambda kd: kd[1].get("ts") or 0)
     conn = _conn(connect)
+    boots = 0
     try:
         with conn.cursor() as cur:
-            key, val = ("eui", data["eui"]) if data["eui"] else ("vpn_ip", data["vpn_ip"])
+            first = cleaned[0][1]
+            key, val = ("eui", first["eui"]) if first["eui"] else ("vpn_ip", first["vpn_ip"])
             cur.execute(f"SELECT uptime_s FROM gw_reports WHERE {key} = %s ORDER BY received_at DESC LIMIT 1", (val,))
-            prev = cur.fetchone()
-            boot = is_boot(kind, data.get("uptime_s"), prev[0] if prev else None)
-            cur.execute("INSERT INTO gw_reports (eui, vpn_ip, kind, boot, uptime_s, data) VALUES (%s,%s,%s,%s,%s,%s)",
-                        (data["eui"], data["vpn_ip"], kind, boot, data.get("uptime_s"), json.dumps(data)))
-            now = now or time.time()
+            row = cur.fetchone()
+            prev = row[0] if row else None
+            for kind, data in cleaned:
+                t = _sample_time(data.pop("ts", None), now)
+                data["delay_s"] = int(now - t)
+                boot = is_boot(kind, data.get("uptime_s"), prev)
+                boots += boot
+                cur.execute("INSERT INTO gw_reports (received_at, eui, vpn_ip, kind, boot, uptime_s, data) "
+                            "VALUES (to_timestamp(%s),%s,%s,%s,%s,%s,%s)",
+                            (t, data["eui"], data["vpn_ip"], kind, boot, data.get("uptime_s"), json.dumps(data)))
+                if data.get("uptime_s") is not None:
+                    prev = data["uptime_s"]
             if now - _state["pruned"] > 6 * 3600:
                 cur.execute("DELETE FROM gw_reports WHERE received_at < now() - %s::interval", (f"{KEEP_DAYS} days",))
                 _state["pruned"] = now
         conn.commit()
-        return {"kind": kind, "boot": boot}
+        return {"stored": len(cleaned), "boots": boots}
     finally:
         conn.close()
 
@@ -118,7 +144,8 @@ def timeline(vpn_ip, days=7, connect=None):
         conn.close()
     return [{"t": t.isoformat(), "kind": k, "boot": b, "uptime_s": u,
              "rx": (d or {}).get("rx_total"), "crc_error_pct": (d or {}).get("crc_error_pct"),
-             "sensors": (d or {}).get("sensors"), "flow_version": (d or {}).get("flow_version")}
+             "sensors": (d or {}).get("sensors"), "flow_version": (d or {}).get("flow_version"),
+             "late": ((d or {}).get("delay_s") or 0) > LATE_S}
             for t, k, b, u, d in rows]
 
 
@@ -137,10 +164,22 @@ def summarize_timeline(points, days=7, now=None):
             cur = [t, t]
     if cur:
         online.append(cur)
+    nocon, cur2 = [], None   # gateway ran, but its samples arrived late = no connection
+    for p, t in zip(points, times):
+        if p.get("late"):
+            if cur2 and (t - cur2[1]).total_seconds() <= ONLINE_GAP:
+                cur2[1] = t
+            else:
+                if cur2:
+                    nocon.append(cur2)
+                cur2 = [t, t]
+    if cur2:
+        nocon.append(cur2)
     up = sum((min(b + timedelta(seconds=ONLINE_GAP / 2), now) - a).total_seconds() for a, b in online)
     return {
         "online": [[a.isoformat(), min(b + timedelta(seconds=ONLINE_GAP / 2), now).isoformat()] for a, b in online],
         "boots": [p["t"] for p in points if p["boot"]],
+        "no_connection": [[a.isoformat(), (b + timedelta(seconds=60)).isoformat()] for a, b in nocon],
         "last_report": points[-1]["t"] if points else None,
         "online_pct": round(min(100.0, up / (now - start).total_seconds() * 100), 1) if points else None,
     }

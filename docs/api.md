@@ -242,12 +242,13 @@ App-Datenbank, also nur in der Cloud; ohne DB wird nichts gespeichert und die Pr
 Gateways melden sich selbst, statt nur über das VPN abgefragt zu werden.
 
 - `POST /api/gw/report` (ohne Anmeldung, Header `X-GW-Report-Token` = `GW_REPORT_TOKEN`): Body
-  `{kind: start|beat, eui, vpn_ip, flow_version, uptime_s, rx_total, rx_ok, crc_error_pct, tx_failed, rxpk,
+  `{samples: [...]}` (gepufferte Minuten-Proben, je mit `ts` in ms; max. 2000) oder eine einzelne Probe
+  `{kind: start|beat, ts, eui, vpn_ip, flow_version, uptime_s, rx_total, rx_ok, crc_error_pct, tx_failed, rxpk,
   seconds_since_rxpk, sensors, sf}`. Unbekannte Felder werden verworfen. Gespeichert in `gw_reports`
   (90 Tage, `migrations/004_gw_reports.sql`). Neustart = Uptime kleiner als in der letzten Meldung oder
   `start` mit Uptime < 10 min (sonst war es nur ein Neustart von Node-RED).
 - `GET /api/fleet/gateway/<ip>/reports?days=1|7` → `{points, online: [[von, bis]], boots, last_report, online_pct}`
-  (länger als 3 min keine Meldung = offline; das Gateway meldet jede Minute). Die Gateway-Seite zeigt das als Band über den Funkpaketen.
+  (länger als 3 min keine Probe = Gateway lief nicht; Probe mehr als 15 min verspätet angekommen = lief, aber ohne Verbindung → `no_connection`). Die Gateway-Seite zeigt das als Band über den Funkpaketen.
 - `GET /api/fleet/reports/last` → `{vpn_ip: {t, uptime_s, flow_version}}`, Spalte „gemeldet“ in der Flotte.
 
 Konfiguration (Coolify): `GW_REPORT_TOKEN` (zufälliger Wert), optional `GW_REPORT_URL`
