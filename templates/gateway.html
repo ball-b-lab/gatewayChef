@@ -36,7 +36,7 @@
   <div id="err" class="alert alert-danger py-2 mt-2" style="display:none"></div>
 
   <div class="row g-2 my-2" id="tiles"></div>
-  <div class="small text-muted mb-1">Gerätezustand <span class="fw-normal">(live vom Gateway beim „Tief prüfen“; Funk- und Downlink-Werte brauchen Drive-by-Schnittstelle ≥ 1.2.0 bzw. 1.3.0)</span></div>
+  <div class="small text-muted mb-1">Gerätezustand <span class="fw-normal">(live vom Gateway beim Öffnen und bei „Vom Gateway neu lesen“; Funk- und Downlink-Werte brauchen Drive-by-Schnittstelle ≥ 1.2.0 bzw. 1.3.0)</span></div>
   <div class="row g-2 mb-2" id="tiles2"></div>
   <div class="card mb-2" id="sensbox" style="display:none"><div class="card-body py-2">
     <div class="small text-muted mb-1">Gehörte Sensoren (letzte 24 h, aus der Drive-by-Schnittstelle ≥ 1.3.0) <span id="sfdist" class="ms-2"></span></div>
@@ -58,6 +58,7 @@
       <div class="small text-muted mb-1" id="chartinfo">Anzahl Funkpakete <b>pro Stunde</b>, die dieses Gateway an ChirpStack weitergereicht hat. Quelle: ChirpStack-Gateway-Statistik (das Gateway meldet sie alle 30 s).</div>
       <div class="small text-muted mb-1"><span style="color:#5cb85c">■</span> online · <span style="color:#e0a800">■</span> lief, aber ohne Verbindung · <span style="color:#f1d0d0">■</span> lief nicht / keine Daten · <span style="color:#c83232">┆</span> Neustart · <span style="color:#3b7dd8">■</span> empfangen (Uplinks von Sensoren) · <span style="color:#e0a800">■</span> gesendet (Downlinks an Sensoren)</div>
       <div id="chart" class="small text-muted">lade …</div>
+      <div id="legend" class="small text-muted mt-1"></div>
       <div id="freq" class="small mt-2"></div>
     </div></div>
     <div class="col-12 col-lg-4"><div class="card-box h-100 actions">
@@ -69,11 +70,10 @@
         <button class="btn btn-sm btn-outline-secondary" onclick="renamePlan()">prüfen</button>
       </div>
       <div id="renameout" class="small mb-2"></div>
-      <div class="fw-semibold small">Prüfen</div>
-      <button class="btn btn-sm btn-outline-primary" onclick="loadLive()">Tief prüfen</button>
-      <button class="btn btn-sm btn-outline-secondary" onclick="act('compare')">Standard prüfen</button>
-      <div class="fw-semibold small mt-1">Ändern</div>
-      <button id="alignbtn" class="btn btn-sm btn-outline-secondary" disabled onclick="act('align', true)" title="erst „Standard prüfen“">An Standard angleichen</button><br>
+      <div class="fw-semibold small">Neu einlesen</div>
+      <button class="btn btn-sm btn-outline-primary" onclick="loadLive(); loadCompare()" title="Meldet sich am Gateway an und liest Firmware, WLAN-Region, Drive-by-Schnittstelle und Soll-Ist neu (dauert ein paar Sekunden). Ändert nichts.">Vom Gateway neu lesen</button>
+      <div class="fw-semibold small mt-2">Ändern</div>
+      <div class="small text-muted">Abweichungen vom Standard behebst du direkt im Kasten <b>Soll-Ist</b> unten.</div>
       <select id="flow" class="form-select form-select-sm d-inline-block" style="width:auto" onchange="updButtons()"></select>
       <button class="btn btn-sm btn-outline-secondary" onclick="act('nodered')">Drive-by-Schnittstelle prüfen</button>
       <button id="flowbtn" class="btn btn-sm btn-warning" onclick="act('nodered', true)">aktualisieren</button><br>
@@ -86,7 +86,8 @@
 
   <div class="row g-2 mt-0">
     <div class="col-12 col-lg-6"><div class="card-box h-100">
-      <h2>Soll-Ist gegen unseren Standard</h2>
+      <h2>Soll-Ist gegen unseren Standard <button class="btn btn-sm btn-link p-0 ms-2" onclick="loadCompare()">neu prüfen</button></h2>
+      <div class="small text-muted mb-1">Vergleicht die Einstellungen auf dem Gateway mit unserem Standard (Profil zur Firmware, LNS driveby-udp-forward, neueste Drive-by-Schnittstelle). Zu jeder Abweichung steht die Lösung.</div>
       <div id="compare" class="small text-muted">lade …</div>
     </div></div>
     <div class="col-12 col-lg-6"><div class="card-box h-100">
@@ -98,7 +99,7 @@
 
 <script>
 const IP = {{ ip|tojson }};
-let live = null, stats = null, db = null, reports = null;
+let live = null, stats = null, db = null, reports = null, CAT = {};
 
 async function api(path, body) {
   const opt = body ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)} : {};
@@ -126,7 +127,7 @@ function tile(k, v, s, cls) {
   t.append(el('div', k, 'k'), el('div', v ?? '–', 'v ' + (cls || '')), el('div', s || '', 's'));
   c.append(t); return c;
 }
-// "aktualisieren" only when the selected version differs from what the gateway has (after "Tief prüfen")
+// "aktualisieren" only when the selected version differs from what the gateway has (after reading live)
 function updButtons() {
   const r = live || {}, cur = {flow: r.flow && !r.flow.modified ? r.flow.version : null, firmware: r.firmware};
   [['flow', 'flowbtn', 'btn-warning'], ['firmware', 'fwbtn', 'btn-danger']].forEach(([sel, btn, cls]) => {
@@ -157,7 +158,7 @@ function renderTiles() {
          vpn.error || `letzter Handshake · ↓ ${bytes(vpn.rx)} ↑ ${bytes(vpn.tx)}`, vpn.live ? 'ok' : ''),
     tile('ChirpStack', cs.error ? '–' : ago(since(cs.last_seen)), cs.error || 'zuletzt gesehen (LNS)',
          cs.last_seen && since(cs.last_seen) < 300 ? 'ok' : cs.last_seen ? 'bad' : ''),
-    tile('Firmware', r.firmware, r.firmware ? profileText(r) : (r.cgi_error || 'Tief prüfen liest sie'),
+    tile('Firmware', r.firmware, r.firmware ? profileText(r) : (r.cgi_error || 'wird gelesen …'),
          r.firmware && !r.profile_ok && r.firmware_compat !== 'compatible' ? 'bad' : ''),
     tile('Drive-by-Schnittstelle', r.flow ? (r.flow.version || '?') : (d && d.flow_version) || (r.online ? 'fehlt / alt' : '–'),
          r.flow ? (r.flow.up_to_date ? 'aktuell' : 'veraltet') + (r.flow.modified ? ', geändert' : '') : 'WLAN-Abholung der Daten',
@@ -190,7 +191,7 @@ function renderTiles2() {
   const lns = (sy && sy.lns) || [], cloud = lns.filter(x => !/^(127\.0\.0\.1|localhost)$/.test(x.addr));
   const crc = rad && rad.crc_error_pct;
   box.append(
-    tile('Mobilfunk', c ? (c.net_type || c.status) : '–', c ? [c.provider, c.band, c.register].filter(Boolean).join(' · ') : (r.health_error || 'Tief prüfen liest es'),
+    tile('Mobilfunk', c ? (c.net_type || c.status) : '–', c ? [c.provider, c.band, c.register].filter(Boolean).join(' · ') : (r.health_error || 'wird gelesen …'),
          c && c.status === 'Connected' ? (/LTE|4G/i.test(c.net_type || '') ? 'ok' : 'mid') : c ? 'bad' : ''),
     tile('Mobilfunk-Qualität', q, qs, qc),
     tile('SIM-Datenverbrauch', c && c.data_usage ? (c.data_usage.match(/ALL:\s*([\d.]+ \w+)/) || [])[1] || c.data_usage : '–',
@@ -238,7 +239,7 @@ function chart(cs, rp) {
   const ts = cs.rx.timestamps.length ? cs.rx.timestamps : cs.tx.timestamps;
   const rx = cs.rx.values, tx = cs.tx.values;
   if (!ts.length) { box.textContent = 'Keine Daten im Zeitraum.'; return; }
-  const W = 760, H = 214, L = 34, B = 22, T = 30, n = ts.length, bw = (W - L) / n;
+  const W = 760, H = 230, L = 34, B = 22, T = 46, n = ts.length, bw = (W - L) / n;
   const max = Math.max(1, ...rx, ...tx);
   const y = v => (H - B) - (v / max) * (H - B - T);
   const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
@@ -247,7 +248,7 @@ function chart(cs, rp) {
   [0, .5, 1].forEach(f => { const v = Math.round(max * f); add('line', {x1: L, x2: W, y1: y(v), y2: y(v), stroke: '#eee'}); add('text', {x: 2, y: y(v) + (f === 1 ? 12 : 3)}, v); });
   const hourly = cs.aggregation === 'HOUR';
   document.getElementById('chartinfo').innerHTML = `Anzahl Funkpakete <b>pro ${hourly ? 'Stunde' : 'Tag'}</b>, die dieses Gateway an ChirpStack weitergereicht hat. Quelle: ChirpStack-Gateway-Statistik. Achse unten: ${hourly ? 'Uhrzeit (Beginn der Stunde), die letzte Säule ist die laufende Stunde und daher kürzer' : 'Tag'}.`;
-  add('text', {x: 2, y: 8, 'font-size': 9, fill: '#888'}, hourly ? 'Pakete/h' : 'Pakete/Tag');
+  add('text', {x: 2, y: 44, 'font-size': 9, fill: '#888'}, hourly ? 'Pakete/h' : 'Pakete/Tag');
   ts.forEach((t, i) => {
     const x = L + i * bw, d = new Date(t);
     const r = add('rect', {x: x + 1, y: y(rx[i] || 0), width: Math.max(1, bw * .55 - 1), height: (H - B) - y(rx[i] || 0), class: 'bar-rx'});
@@ -256,30 +257,9 @@ function chart(cs, rp) {
     const tip = document.createElementNS(ns, 'title'); tip.textContent = `${label}: ${rx[i] || 0} empfangen, ${tx[i] || 0} gesendet`; r.append(tip);
     if (!hourly || i % 3 === 0) add('text', {x: x + bw / 2, y: H - 6, 'text-anchor': 'middle'}, hourly ? d.getHours() + ' Uhr' : label);
   });
-  // top band: online (reports from the gateway, flow >= 1.4.0) and reboots, on the same time axis
-  const t0 = Date.parse(ts[0]), step = n > 1 ? Date.parse(ts[1]) - t0 : 3600e3, tEnd = t0 + step * n;
-  const tx_ = t => L + (t - t0) / step * bw, inR = t => t >= t0 && t <= tEnd;
-  add('text', {x: 2, y: 13, 'font-size': 9, fill: '#888'}, 'online');
-  if (rp && rp.points && rp.points.length) {
-    add('rect', {x: L, y: 5, width: W - L, height: 10, fill: '#f1d0d0'}).append(Object.assign(document.createElementNS(ns, 'title'), {textContent: 'keine Meldung vom Gateway'}));
-    rp.online.forEach(([a, b]) => {
-      const x1 = tx_(Math.max(Date.parse(a), t0)), x2 = tx_(Math.min(Date.parse(b), tEnd));
-      if (x2 > x1) add('rect', {x: x1, y: 5, width: Math.max(1, x2 - x1), height: 10, fill: '#5cb85c'})
-        .append(Object.assign(document.createElementNS(ns, 'title'), {textContent: `online ${new Date(a).toLocaleString('de-DE')} – ${new Date(b).toLocaleString('de-DE')}`}));
-    });
-    (rp.no_connection || []).forEach(([a, b]) => {
-      const x1 = tx_(Math.max(Date.parse(a), t0)), x2 = tx_(Math.min(Date.parse(b), tEnd));
-      if (x2 > x1) add('rect', {x: x1, y: 5, width: Math.max(1, x2 - x1), height: 10, fill: '#e0a800'})
-        .append(Object.assign(document.createElementNS(ns, 'title'), {textContent: `lief, aber ohne Verbindung (Daten kamen später) ${new Date(a).toLocaleString('de-DE')} – ${new Date(b).toLocaleString('de-DE')}`}));
-    });
-    rp.boots.map(Date.parse).filter(inR).forEach(t => {
-      add('line', {x1: tx_(t), x2: tx_(t), y1: 2, y2: H - B, stroke: '#c83232', 'stroke-dasharray': '3 2'});
-      add('text', {x: tx_(t) + 2, y: 26, 'font-size': 9, fill: '#c83232'}, 'Neustart')
-        .append(Object.assign(document.createElementNS(ns, 'title'), {textContent: 'Neustart ' + new Date(t).toLocaleString('de-DE')}));
-    });
-  } else {
-    add('text', {x: L + 4, y: 14, 'font-size': 9, fill: '#aaa'}, rp && rp.error ? rp.error : 'keine Meldungen (Gateway meldet sich ab Drive-by-Schnittstelle 1.4.0)');
-  }
+  // top lane: state of the gateway from its own reports (flow >= 1.4.0), same time axis
+  const t0 = Date.parse(ts[0]), step = n > 1 ? Date.parse(ts[1]) - t0 : 3600e3, tEnd = Math.min(t0 + step * n, Date.now());
+  stateLane(add, ns, t => L + (t - t0) / step * bw, t0, tEnd, rp, L, W, H - B);
   box.replaceChildren(svg);
   const sum = a => a.reduce((s, v) => s + (v || 0), 0);
   const f = document.getElementById('freq'); f.replaceChildren();
@@ -293,9 +273,48 @@ function chart(cs, rp) {
   if (fr.length) f.append(el('div', 'Empfangen je Funkkanal (Pakete im Zeitraum): ' + fr.map(([k, v]) => `${(k / 1e6 || k)} MHz: ${v}`).join(' · '), 'text-muted'));
 }
 
+// Gateway state lane above the packet chart. Colours are only used here (bars are blue/yellow):
+const ST = {on: ['#2e9d4f', 'an und verbunden (meldet sich jede Minute)'],
+            noinet: ['#8e5bd0', 'an, aber ohne Internet (Meldungen kamen später nach)'],
+            off: ['#d9534f', 'aus oder nicht erreichbar (keine Meldung)'],
+            pending: ['#c9ced4', 'noch nicht gemeldet (Gateway sendet gesammelt alle 10 min)'],
+            none: ['#eef0f2', 'keine Daten (vor Drive-by-Schnittstelle 1.4.0)']};
+function stateLane(add, ns, x, t0, tEnd, rp, L, W, bottom) {
+  const Y = 6, Hh = 14;
+  const tip = (e, t) => e.append(Object.assign(document.createElementNS(ns, 'title'), {textContent: t}));
+  const fmt = t => new Date(t).toLocaleString('de-DE', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
+  const seg = (a, b, k) => { a = Math.max(a, t0); b = Math.min(b, tEnd); if (b <= a) return;
+    tip(add('rect', {x: x(a), y: Y, width: Math.max(1, x(b) - x(a)), height: Hh, fill: ST[k][0]}), `${ST[k][1]}: ${fmt(a)} – ${fmt(b)}`); };
+  add('text', {x: 2, y: Y + 11, 'font-size': 9, fill: '#555'}, 'Gateway');
+  add('line', {x1: 0, x2: W, y1: Y + Hh + 8, y2: Y + Hh + 8, stroke: '#ddd'});
+  if (!rp || rp.error || !rp.points || !rp.points.length) {
+    seg(t0, tEnd, 'none');
+    add('text', {x: L + 6, y: Y + 11, 'font-size': 9, fill: '#777'}, rp && rp.error ? rp.error : 'keine Meldungen im Zeitraum (meldet sich ab Drive-by-Schnittstelle 1.4.0)');
+    return;
+  }
+  const first = Date.parse(rp.first_report || rp.points[0].t);
+  seg(t0, first, 'none');
+  seg(first, tEnd, 'off');
+  rp.online.forEach(([a, b]) => seg(Date.parse(a), Date.parse(b), 'on'));
+  (rp.no_connection || []).forEach(([a, b]) => seg(Date.parse(a), Date.parse(b), 'noinet'));
+  if (rp.pending) seg(Date.parse(rp.pending[0]), Date.parse(rp.pending[1]), 'pending');
+  (rp.boots || []).map(Date.parse).filter(t => t >= t0 && t <= tEnd).forEach(t => {
+    add('line', {x1: x(t), x2: x(t), y1: Y - 3, y2: bottom, stroke: '#222', 'stroke-width': 1.5, 'stroke-dasharray': '4 3'});
+    tip(add('text', {x: x(t) + 3, y: Y + Hh + 18, 'font-size': 9, fill: '#222'}, '↻ Neustart'), 'Neustart ' + fmt(t));
+  });
+}
+function legend() {
+  const box = document.getElementById('legend'); if (!box) return; box.replaceChildren();
+  Object.values(ST).concat([['#3b7dd8', 'Funkpakete empfangen'], ['#e0a800', 'Funkpakete gesendet (Downlink)']]).forEach(([c, t]) => {
+    const s = el('span', null, 'me-3 text-nowrap'); const sw = el('span'); sw.style.cssText = `display:inline-block;width:12px;height:10px;margin-right:4px;background:${c};border:1px solid #bbb`;
+    s.append(sw, document.createTextNode(t)); box.append(s);
+  });
+  const s = el('span', '┆ ↻ Neustart', 'text-nowrap'); box.append(s);
+}
+
 function shortChart(rp, minutes) {
   const box = document.getElementById('chart');
-  const W = 760, H = 214, L = 34, B = 22, T = 30, tEnd = Date.now(), t0 = tEnd - minutes * 60e3;
+  const W = 760, H = 230, L = 34, B = 22, T = 46, tEnd = Date.now(), t0 = tEnd - minutes * 60e3;
   const x = t => L + (t - t0) / (tEnd - t0) * (W - L);
   const pts = (rp.points || []).map(p => ({...p, ms: Date.parse(p.t)})).filter(p => p.ms >= t0);
   const max = Math.max(1, ...pts.map(p => p.rx || 0));
@@ -305,26 +324,16 @@ function shortChart(rp, minutes) {
   const tip = (e, t) => e.append(Object.assign(document.createElementNS(ns, 'title'), {textContent: t}));
   const add = (tag, attrs, text) => { const e = document.createElementNS(ns, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; svg.append(e); return e; };
   [0, .5, 1].forEach(f => { const v = Math.round(max * f); add('line', {x1: L, x2: W, y1: y(v), y2: y(v), stroke: '#eee'}); add('text', {x: 2, y: y(v) + (f === 1 ? 12 : 3)}, v); });
-  add('text', {x: 2, y: 13, 'font-size': 9, fill: '#888'}, 'online');
-  add('text', {x: 2, y: 24, 'font-size': 9, fill: '#888'}, 'Pakete');
+  add('text', {x: 2, y: 44, 'font-size': 9, fill: '#888'}, 'Pakete');
   const stepMin = minutes > 60 ? 15 : 5;
   for (let t = Math.ceil(t0 / (stepMin * 60e3)) * stepMin * 60e3; t <= tEnd; t += stepMin * 60e3) {
     add('line', {x1: x(t), x2: x(t), y1: T, y2: H - B, stroke: '#f3f3f3'});
     add('text', {x: x(t), y: H - 6, 'text-anchor': 'middle'}, new Date(t).toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}));
   }
-  add('rect', {x: L, y: 5, width: W - L, height: 10, fill: '#f1d0d0'});
-  const band = (list, fill, label) => (list || []).forEach(([a, b]) => {
-    const x1 = x(Math.max(Date.parse(a), t0)), x2 = x(Math.min(Date.parse(b), tEnd));
-    if (x2 > x1) tip(add('rect', {x: x1, y: 5, width: Math.max(1, x2 - x1), height: 10, fill}), `${label} ${new Date(a).toLocaleTimeString('de-DE')} – ${new Date(b).toLocaleTimeString('de-DE')}`);
-  });
-  band(rp.online, '#5cb85c', 'online'); band(rp.no_connection, '#e0a800', 'lief, aber ohne Verbindung');
+  stateLane(add, ns, x, t0, tEnd, rp, L, W, H - B);
   const bw = Math.max(2, (W - L) / minutes * 0.7);
   pts.forEach(p => tip(add('rect', {x: x(p.ms) - bw, y: y(p.rx || 0), width: bw, height: (H - B) - y(p.rx || 0), class: 'bar-rx'}),
     `${new Date(p.ms).toLocaleTimeString('de-DE')}: ${p.rx ?? 0} Pakete · ${p.sensors ?? '–'} Sensoren · CRC ${p.crc_error_pct ?? '–'} %`));
-  (rp.boots || []).map(Date.parse).filter(t => t >= t0).forEach(t => {
-    add('line', {x1: x(t), x2: x(t), y1: 2, y2: H - B, stroke: '#c83232', 'stroke-dasharray': '3 2'});
-    add('text', {x: x(t) + 2, y: 26, 'font-size': 9, fill: '#c83232'}, 'Neustart');
-  });
   if (!pts.length) add('text', {x: L + 4, y: 60, 'font-size': 11, fill: '#aaa'}, 'keine Meldungen in diesem Zeitraum');
   box.replaceChildren(svg);
   document.getElementById('chartinfo').innerHTML = `Letzte ${minutes} Minuten aus den Meldungen des Gateways selbst (eine pro Minute, ab Flow 1.4.0). Säulen: <b>Funkpakete je Meldung</b>. Meldungen kommen gepuffert alle 10 Minuten, die letzten Minuten können daher noch fehlen.`;
@@ -379,23 +388,51 @@ async function loadLive() {
     live = r[0] || {}; db = live; renderHead(); renderTiles(); renderTiles2();
   } catch (e) { showErr(e.message); }
 }
+async function order(action, what) {
+  if (!confirm(`Auftrag „${what}“ für ${IP} anlegen? Er läuft automatisch, sobald das Gateway online und stabil ist.`)) return;
+  try { const r = await api('/api/fleet/orders', {ips: [IP], action});
+        alert(r.created ? 'Auftrag angelegt. Stand siehe Flottenseite → Aufträge.' : 'Dieser Auftrag ist schon offen.'); }
+  catch (e) { alert('Fehler: ' + e.message); }
+}
+function fix(box, problem, solution, buttons) {
+  const d = el('div', null, 'border rounded p-2 mb-1');
+  d.append(el('div', problem, 'fw-semibold'));
+  d.append(el('div', 'Lösung: ' + solution, 'text-muted'));
+  if (buttons.length) { const b = el('div', null, 'mt-1 d-flex gap-1 flex-wrap');
+    buttons.forEach(([t, cls, fn, title]) => { const x = el('button', t, 'btn btn-sm ' + cls); x.onclick = fn; if (title) x.title = title; b.append(x); }); d.append(b); }
+  box.append(d);
+}
 async function loadCompare() {
   const box = document.getElementById('compare');
+  box.className = 'small text-muted'; box.textContent = 'prüfe …';
   try {
     const r = (await api('/api/fleet/compare?ip=' + IP))[0];
-    box.replaceChildren();
-    const ch = r.changes || [];
-    if (r.result === 'error' || r.result === 'offline') { box.textContent = r.detail || r.result; box.className = 'small bad'; return; }
-    box.className = 'small';
-    const n = ch.length + (r.flow && !r.flow.ok ? 1 : 0), dev = n > 0;
-    box.append(el('div', dev ? `${n} Abweichung(en) vom Standard` : 'Entspricht dem Standard ✓',
-                  'fw-semibold ' + (dev ? 'text-primary' : 'ok')));
-    const ab = document.getElementById('alignbtn');
-    ab.disabled = !dev; ab.className = 'btn btn-sm ' + (dev ? 'btn-warning' : 'btn-outline-secondary');
-    ab.title = dev ? `${n} Abweichung(en) angleichen` : 'Gateway entspricht dem Standard, nichts anzugleichen';
-    if (r.flow) box.append(el('div', `Drive-by-Schnittstelle: ${r.flow.current || '?'} → Soll ${r.flow.target || '?'} ${r.flow.ok ? '✓' : ''}`));
-    ch.forEach(c => box.append(el('div', `${c.label}${c.lns ? ' [LNS]' : ''}: ` + Object.entries(c.fields).map(([k, v]) => `${k} ${fmtv(v[0])} → ${fmtv(v[1])}`).join(', '))));
-  } catch (e) { box.textContent = e.message; }
+    box.replaceChildren(); box.className = 'small';
+    if (r.result === 'error' || r.result === 'offline') {
+      box.append(el('div', 'Nicht prüfbar: ' + (r.detail || r.result), 'bad'));
+      if (CAT.orders) box.append(el('div', 'Du kannst trotzdem Aufträge anlegen, sie laufen, sobald das Gateway wieder online ist:', 'text-muted mt-1'));
+      if (CAT.orders) fix(box, 'Gateway gerade nicht erreichbar', 'Auftrag anlegen', [['Auf Standard bringen, sobald online', 'btn-outline-primary', () => order('align', 'Auf Standard bringen')]]);
+      return;
+    }
+    if (r.result === 'blocked') { fix(box, r.detail, 'erst die Firmware auf eine freigegebene Version bringen (oben „Firmware … aktualisieren“).', []); return; }
+    const ch = r.changes || [], plain = ch.filter(c => !c.lns), lns = ch.filter(c => c.lns);
+    const flowBad = r.flow && !r.flow.ok;
+    const n = ch.length + (flowBad ? 1 : 0);
+    box.append(el('div', n ? `${n} Abweichung(en) vom Standard` : 'Entspricht dem Standard ✓', 'fw-semibold mb-1 ' + (n ? 'text-primary' : 'ok')));
+    const later = (action, what) => CAT.orders ? [['als Auftrag (sobald online)', 'btn-outline-primary', () => order(action, what), 'läuft automatisch, sobald das Gateway online und stabil ist']] : [];
+    if (flowBad) fix(box, `Drive-by-Schnittstelle ${r.flow.current || 'fehlt'} statt ${r.flow.target}`,
+      `auf ${r.flow.target} aktualisieren (mit Rückbau bei Fehler).`,
+      [['jetzt aktualisieren', 'btn-warning', () => { document.getElementById('flow').value = r.flow.target; act('nodered', true); }]].concat(later('flow', 'Drive-by-Schnittstelle aktualisieren')));
+    if (plain.length) fix(box, plain.map(c => `${c.label}: ` + Object.entries(c.fields).map(([k, v]) => `${k} ${fmtv(v[0])} → ${fmtv(v[1])}`).join(', ')).join(' · '),
+      'auf Standard bringen: schreibt nur diese Werte, liest sie zurück und prüft die Erreichbarkeit. Läuft nur, wenn das Gateway stabil erreichbar ist.',
+      [['jetzt angleichen', 'btn-warning', () => act('align', true)]].concat(later('align', 'Auf Standard bringen')));
+    if (lns.length) fix(box, 'LNS / Packet Forwarder: ' + lns.map(c => Object.entries(c.fields).map(([k, v]) => `${k} ${fmtv(v[0])} → ${fmtv(v[1])}`).join(', ')).join(' · '),
+      CAT.admin ? 'auf Standard driveby-udp-forward umstellen. Läuft zuletzt und allein; klappt der Datenweg danach nicht, wird automatisch zurückgebaut.'
+                : 'nur ein Admin darf das LNS umstellen (Standard: driveby-udp-forward). Bitte Bescheid geben.',
+      CAT.admin ? [['jetzt angleichen (Admin)', 'btn-warning', () => act('align', true)]].concat(later('align', 'Auf Standard bringen')) : []);
+    if (r.firmware_ok === false) fix(box, `Firmware ${r.firmware}, neueste freigegebene ${r.firmware_newest}`,
+      `oben bei „Firmware“ ${r.firmware_newest} wählen und aktualisieren (bis zu 20 Minuten, Gateway startet neu). Firmware läuft nie automatisch.`, []);
+  } catch (e) { box.className = 'small bad'; box.textContent = e.message; }
 }
 async function loadJobs() {
   const box = document.getElementById('jobs');
@@ -437,7 +474,7 @@ async function act(kind, apply = false) {
 
 (async () => {
   try {
-    const cat = await api('/api/fleet/catalog');
+    const cat = await api('/api/fleet/catalog'); CAT = cat;
     const fs = document.getElementById('flow');
     cat.flows.slice().reverse().forEach(v => { const o = el('option', 'Version ' + v); o.value = v; fs.append(o); });
     const fw = document.getElementById('firmware');
@@ -446,7 +483,7 @@ async function act(kind, apply = false) {
   } catch (e) { /* optional */ }
   renderTiles();
   // one login at a time: the gateway's web server stumbles over parallel sessions
-  loadStats(1); loadJobs();
+  legend(); loadStats(1); loadJobs();
   await loadLive(); await loadCompare();
 })();
 </script>

@@ -274,3 +274,21 @@ Bedienung: Gateway-Seite, Feld „Name / Kunde“.
 
 Öffentlich (ohne Anmeldung, CORS offen), nur lesend: Schnittstellenvertrag Gateway-Flow ↔ Drive-by-App.
 `driveby-health.schema.json` (JSON-Schema) und `DRIVEBY_INTERFACE.md`. `/api/interface/` listet die Dateien.
+
+## Aufträge: `GET/POST /api/fleet/orders`, `DELETE /api/fleet/orders/<id>` (nur Cloud)
+
+Ein Auftrag = eine Aktion für ein Gateway, die automatisch läuft, sobald das Gateway online und stabil ist
+(Dienst `services/orders.py`, prüft alle `ORDER_INTERVAL` s = 120 und sofort, wenn sich ein Gateway per
+`/api/gw/report` meldet). Tabelle `fleet_orders` (legt sich selbst an).
+
+- `POST {ips: [...], action}` mit `action` = `align` (auf Standard bringen) · `flow` (neueste Drive-by-Schnittstelle) ·
+  `patch:<name>` (z. B. `patch:wifi-country-de`). Firmware gibt es nicht als Auftrag.
+- Stände: `open` (wartet: offline oder nicht stabil) → `running` → `done` / `failed`; `cancelled` per DELETE (nur offene).
+- LNS-Ziele ändert ein Auftrag nur, wenn ein Admin ihn angelegt hat.
+
+## Rollen
+
+Admin = Authentik-Gruppe `OIDC_ADMIN_GROUP` (Standard `gatewaychef-admin`). Nur Admins dürfen LNS-/Packet-Forwarder-Ziele
+und riskante Patches schreiben (`/api/fleet/patch` → 403, `/api/fleet/align` lässt das LNS sonst unverändert).
+Standard für die LNS-Ziele ist **driveby-udp-forward** (interner LNS, Cortex, Node-RED 127.0.0.1:1702 als drittes Ziel).
+Station (Linux-Laptop): kein Admin, außer `STATION_ADMIN=1`. `GET /api/fleet/catalog` liefert `admin` und `orders`.

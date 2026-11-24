@@ -371,6 +371,8 @@ Coolify-Env (Secrets nie ins Repo):
 | `OIDC_ISSUER` | `https://authentik.app.ball-b.de/application/o/gatewaychef/` |
 | `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | aus dem Authentik-Provider „GatewayChef" |
 | `OIDC_ALLOWED_GROUP` | `gatewaychef` (nur diese Gruppe kommt hinein) |
+| `OIDC_ADMIN_GROUP` | `gatewaychef-admin` (Standard): darf LNS-Ziele und riskante Patches ändern; alle anderen nicht |
+| `ORDER_INTERVAL` / `ORDERS_WORKER` | Aufträge: Prüfabstand in s (120) / `0` schaltet den Auftragsdienst ab |
 | `FLASK_SECRET_KEY` | zufällig, ≥ 32 Zeichen |
 | `FLASK_DEBUG` | wird außerhalb `local` ignoriert (immer aus) |
 

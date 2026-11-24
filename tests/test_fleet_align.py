@@ -1,3 +1,4 @@
+import os
 import unittest
 from unittest import mock
 
@@ -131,14 +132,32 @@ class AlignTest(unittest.TestCase):
         self.assertEqual(res["result"], "changed", res)
         verify.assert_called_once()
 
-    def test_old_firmware_keeps_legacy_lns_order(self):
+    def test_standard_lns_is_driveby_udp_forward(self):
         prof = {"firmware": "60.0.0.50", "sections": [
             {"core": "yruo_loragw", "base": "general_conf", "index": 0, "value": {"servs": [{"id": 0, "serv_addr": "127.0.0.1"}]}}]}
-        old = fa._standard(prof, "60.0.0.48-r2")["sections"][0]["value"]["servs"]
-        self.assertEqual(old[0]["serv_type"], "ursalink")
-        new = fa._standard(prof, "60.0.0.50")["sections"][0]["value"]["servs"]
-        self.assertEqual(new[0]["serv_addr"], "127.0.0.1")
+        for fwv in ("60.0.0.48-r2", "60.0.0.50"):
+            servs = fa._standard(prof, fwv)["sections"][0]["value"]["servs"]
+            self.assertEqual([x["serv_addr"] for x in servs], ["localhost", "ball-b-cs.cortex-media.de", "127.0.0.1"])
         self.assertEqual(prof["sections"][0]["value"]["servs"][0]["serv_addr"], "127.0.0.1")  # profile untouched
+
+    def test_profiles_use_standard_lns(self):
+        import glob, json
+        for path in glob.glob(os.path.join(os.path.dirname(__file__), "..", "gateway_profiles", "ug65-*.json")):
+            for sec in json.load(open(path))["sections"]:
+                if sec["core"] == "yruo_loragw" and "servs" in sec["value"]:
+                    self.assertEqual(sec["value"]["servs"], fa.LEGACY_SERVS, path)
+
+    def test_without_admin_lns_is_not_written(self):
+        f = FakeFleet()
+        with mock.patch.object(fa, "compare", return_value=_cmp([LNS, WIFI])), \
+                mock.patch.object(fa, "_left", return_value=[]):
+            res = fa.align(f, GW["vpn_ip"], apply=True, lns=False)
+        self.assertEqual(res["result"], "changed", res)
+        self.assertNotIn("yruo_loragw", [e[1] for e in f.log if e[0] == "set"])
+        with mock.patch.object(fa, "compare", return_value=_cmp([LNS])):
+            res = fa.align(FakeFleet(), GW["vpn_ip"], apply=True, lns=False)
+        self.assertEqual(res["result"], "skipped")
+        self.assertTrue(res["needs_admin"])
 
     def test_dry_run_writes_nothing(self):
         f = FakeFleet()

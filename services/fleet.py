@@ -109,6 +109,11 @@ def load_patch(name):
     return patch
 
 
+def patch_touches_lns(patch):
+    """LNS / packet forwarder targets: only admins may change them (standard: driveby-udp-forward)."""
+    return any((s["core"], s["base"]) == ("yruo_loragw", "general_conf") for s in patch["sections"])
+
+
 def patch_is_risky(patch):
     return sorted({s["core"] for s in patch["sections"]} & RISKY_CORES)
 

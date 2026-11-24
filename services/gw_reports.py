@@ -16,6 +16,7 @@ from db.connection import get_db_connection
 
 BOOT_UPTIME_MAX = 600          # s: a "start" this soon after boot is a reboot, later a Node-RED restart
 ONLINE_GAP = 3 * 60            # s without sample = gateway not running (one sample per minute)
+SEND_EVERY = 10 * 60          # s: the flow sends its buffer this often
 LATE_S = 15 * 60               # sample delivered later than this = no connection at that time
 MAX_SAMPLES = 2000
 KEEP_DAYS = 90
@@ -181,6 +182,10 @@ def summarize_timeline(points, days=7, now=None):
         "boots": [p["t"] for p in points if p["boot"]],
         "no_connection": [[a.isoformat(), (b + timedelta(seconds=60)).isoformat()] for a, b in nocon],
         "last_report": points[-1]["t"] if points else None,
+        "first_report": points[0]["t"] if points else None,
+        # samples arrive buffered every 10 min: right after the last one is "not reported yet", not offline
+        "pending": ([online[-1][1].isoformat(), now.isoformat()]
+                    if online and (now - online[-1][1]).total_seconds() < SEND_EVERY + ONLINE_GAP else None),
         "online_pct": round(min(100.0, up / (now - start).total_seconds() * 100), 1) if points else None,
     }
 
