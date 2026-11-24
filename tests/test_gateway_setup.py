@@ -205,6 +205,17 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(net.status, FAIL)
         self.assertIn("anderes Geraet", str(net.checks))
 
+    def test_dry_run_new_gateway_network_is_pending_not_failed(self):
+        class NoFlow:
+            def get(self, url, **kw):
+                raise OSError("no flow yet")
+        inv = MemInventory({VPN: _row(eui=EUI, serial_number="SN", sim_iccid="1", gateway_name="n")})
+        p = _pipeline(inv, [])
+        p.http = NoFlow()
+        net = p.step_network(Gateway(vpn_ip=VPN, eui=EUI), apply=False)
+        self.assertEqual(net.status, WOULD_CHANGE)
+        self.assertEqual(p.step_network(Gateway(vpn_ip=VPN, eui=EUI), apply=True).status, FAIL)
+
     def test_vpn_down_fails_and_blocks_deployed(self):
         inv = MemInventory({VPN: _row(eui=EUI, serial_number="SN", sim_iccid="1", gateway_name="n")})
         results = _pipeline(inv, [], http=FakeHttp(vpn_up=False)).run(Gateway(), apply=True)
