@@ -8,6 +8,7 @@ import time
 import requests
 
 from services.setup.model import normalize_eui
+from utils.gateway_lan import _tls
 
 
 def zero_mac(info):
@@ -19,7 +20,7 @@ def zero_mac(info):
 
 def device_info(host, timeout=5, http=requests, tries=4, sleep=time.sleep):
     for attempt in range(tries):
-        resp = http.get(f"http://{host}/node-red/device-info", timeout=timeout)
+        resp = http.get(f"http://{host}/node-red/device-info", timeout=timeout, **_tls(http))
         resp.raise_for_status()
         info = resp.json()
         if not zero_mac(info) or attempt == tries - 1:
@@ -29,7 +30,7 @@ def device_info(host, timeout=5, http=requests, tries=4, sleep=time.sleep):
 
 
 def lora_info(host, timeout=5, http=requests):
-    resp = http.get(f"http://{host}/node-red/device-info-lora", timeout=timeout)
+    resp = http.get(f"http://{host}/node-red/device-info-lora", timeout=timeout, **_tls(http))
     resp.raise_for_status()
     return resp.json()
 
@@ -87,7 +88,7 @@ def check_vpn_reachable(vpn_ip, expected_eui, proxy_url="", proxy_token="", wait
                     return True, f"ueber VPN erreichbar (Cloud-Proxy, Gateway antwortet {message[-3:]})"
                 last = message[:120] or f"Proxy HTTP {resp.status_code}"
             else:
-                resp = http.get(f"http://{vpn_ip}/node-red/device-info", timeout=5)
+                resp = http.get(f"http://{vpn_ip}/node-red/device-info", timeout=5, **_tls(http))
                 eui = normalize_eui(((resp.json() or {}).get("device") or {}).get("eui"))
                 if eui == normalize_eui(expected_eui):
                     return True, f"ueber VPN erreichbar, EUI bestaetigt (Versuch {attempt + 1})"
@@ -103,7 +104,7 @@ def check_vpn_reachable(vpn_ip, expected_eui, proxy_url="", proxy_token="", wait
 def check_lora_health(host, timeout=5, http=requests):
     """Node-RED health flow on the gateway (own view of the LNS link)."""
     try:
-        resp = http.get(f"http://{host}/node-red/lora/health", timeout=timeout)
+        resp = http.get(f"http://{host}/node-red/lora/health", timeout=timeout, **_tls(http))
         data = resp.json()
     except (requests.RequestException, ValueError) as exc:
         return False, f"Health-Endpunkt nicht lesbar ({type(exc).__name__})"
@@ -130,7 +131,7 @@ def _kind(item):
 def _driveby_health(host, http, timeout=5):
     """Flow >= 1.1.0 (UDP source) exposes /node-red/driveby/health; None for older flows."""
     try:
-        resp = http.get(f"http://{host}/node-red/driveby/health", timeout=timeout)
+        resp = http.get(f"http://{host}/node-red/driveby/health", timeout=timeout, **_tls(http))
         data = resp.json()
     except (requests.RequestException, ValueError):
         return None

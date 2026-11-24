@@ -309,6 +309,8 @@ class Pipeline:
             lora = checks.lora_info(self.host, http=self.http)
         except Exception as exc:  # noqa: BLE001
             r.status, r.detail = FAIL, f"Gateway antwortet nicht: {exc}"
+            if not apply:   # dry run: VPN and flow only exist after the setup
+                r.status, r.detail = WOULD_CHANGE, "wird nach dem Einrichten geprueft (Flow/VPN noch nicht eingerichtet)"
             return r
         wg_ok, wg_info = checks.check_wireguard_up(info, gw.vpn_ip)
         r.checks.append(("WireGuard-Tunnel am Gateway", wg_ok, wg_info))
@@ -327,6 +329,8 @@ class Pipeline:
         r.checks.append(("Drive-by-Datenweg (Log -> Node-RED)", db_ok, db_info))
         if not (wg_ok and vpn_ok and lns_ok) or db_ok is False:
             r.status = FAIL
+            if not apply and not wg_ok:   # dry run, tunnel not set up yet: checked after the setup
+                r.status, r.detail = WOULD_CHANGE, "wird nach dem Einrichten geprueft"
         elif not (cell_ok and health_ok and db_ok):
             r.status = WARN
         return r
