@@ -38,6 +38,7 @@
 <div class="container-fluid py-3">
   <div class="d-flex align-items-baseline gap-3 mb-2 flex-wrap">
     <h1 class="h4 mb-0">Einrichtungsstation</h1>
+    <span id="buildinfo" class="badge text-bg-light border fw-normal" title="Code-Stand">Stand …</span>
     <span id="summary" class="text-muted small"></span>
     <span class="ms-auto"></span>
     <a href="/fleet" class="small">Flotte · Fernwartung</a>
@@ -292,5 +293,6 @@ loadCred();
 refresh();
 setInterval(refresh, 3000);
 </script>
+<script src="/static/js/buildinfo.js"></script>
 </body>
 </html>

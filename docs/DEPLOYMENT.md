@@ -396,3 +396,9 @@ Löschen: `DELETE /api/fleet/firmware/images/<version>`. Beides nur mit Authenti
 - Nur in der gepackten Windows-App (`sys.frozen`) oder mit `LEGACY_UI_HOME=true` bleibt `/` die alte Seite,
   weil sie dort noch produktiv genutzt wird.
 - Lokal mit Debug-Reloader öffnet sich der Browser nur noch beim ersten Start, nicht bei jedem Neuladen.
+
+## Code-Stand oben auf jeder Seite
+
+Jede Seite zeigt oben „Stand <commit> · <zeit>“ (`/api/version`). Station/Mac: Commit und Commit-Zeit aus git.
+Cloud (Docker): der Build schreibt `.build_commit` (Build-Arg `SOURCE_COMMIT`, setzt Coolify) und `.build_time`;
+ohne `SOURCE_COMMIT` steht dort nur die Build-Zeit. Im Tooltip steht zusätzlich, wann die App gestartet ist.

@@ -51,3 +51,9 @@ auf `main` und danach ein Neustart auf der Station. Für einen festen Stand `GAT
 Unit-File setzen.
 
 - 24.11.2026: alte Einrichtungsseite unter `/einrichtung`; `/` → `/fleet` (außer Windows-App, siehe DEPLOYMENT.md).
+
+## Code-Stand oben auf jeder Seite
+
+Jede Seite zeigt oben „Stand <commit> · <zeit>“ (`/api/version`). Station/Mac: Commit und Commit-Zeit aus git.
+Cloud (Docker): der Build schreibt `.build_commit` (Build-Arg `SOURCE_COMMIT`, setzt Coolify) und `.build_time`;
+ohne `SOURCE_COMMIT` steht dort nur die Build-Zeit. Im Tooltip steht zusätzlich, wann die App gestartet ist.

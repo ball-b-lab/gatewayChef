@@ -5,6 +5,7 @@ import os
 import sys
 import subprocess
 import requests
+from datetime import datetime, timezone
 from pathlib import Path
 from flask import Flask, redirect, render_template
 from werkzeug.exceptions import HTTPException
@@ -56,14 +57,40 @@ def _git_sha_fallback():
     except Exception:
         return ""
 
+_STARTED = time.time()
+
+
+def _read_stamp(name):
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), name), encoding="utf-8") as fh:
+            return fh.read().strip()
+    except OSError:
+        return ""
+
+
+def _git(*args):
+    try:
+        return subprocess.check_output(["git", *args], stderr=subprocess.DEVNULL, text=True,
+                                       cwd=os.path.dirname(os.path.abspath(__file__))).strip()
+    except Exception:
+        return ""
+
+
 def _version_payload():
-    build_sha = os.getenv("APP_BUILD_SHA", "").strip() or _git_sha_fallback()
+    """Which code runs here: commit and its time (git checkout: station/Mac) or the docker build stamp
+    (cloud), plus when this process started. Shown at the top of every page."""
+    sha = _git("rev-parse", "--short", "HEAD") or _read_stamp(".build_commit")[:7] \
+        or os.getenv("SOURCE_COMMIT", "")[:7] or os.getenv("APP_BUILD_SHA", "").strip()
+    commit_time = _git("log", "-1", "--format=%cI")
+    build_time = commit_time or _read_stamp(".build_time") or os.getenv("APP_BUILD_TIME", "").strip()
     return {
         "service": "gatewaychef",
         "app_mode": APP_MODE,
-        "build_sha": build_sha or "unknown",
+        "build_sha": sha or "unknown",
         "build_tag": os.getenv("APP_BUILD_TAG", "").strip() or "unknown",
-        "build_time": os.getenv("APP_BUILD_TIME", "").strip() or "unknown",
+        "build_time": build_time or "unknown",
+        "build_time_kind": "commit" if commit_time else "build" if build_time else None,
+        "started": datetime.fromtimestamp(_STARTED, timezone.utc).isoformat(),
     }
 
 
