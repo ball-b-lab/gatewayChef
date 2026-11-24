@@ -23,6 +23,22 @@ _DEEP_KEYS = ("firmware", "profile_ok", "profile", "firmware_compat", "firmware_
 _ERRORS = (fl.FleetError, gc.GatewayConfigError, nr.NodeRedError, fw.FirmwareError)
 
 
+def _cloud_read():
+    """Station/Mac without own database: read snapshots and gateway reports from the cloud app
+    (DB_API_PROVIDER_URL + X-API-Token). Returns a Flask response or None (= answer locally)."""
+    from config import APP_MODE, API_SERVICE_TOKEN, DATABASE_URL, DB_API_PROVIDER_URL, DB_HOST
+    if APP_MODE != "local" or not DB_API_PROVIDER_URL or DB_HOST or DATABASE_URL:
+        return None
+    import requests
+    from flask import Response
+    try:
+        up = requests.get(DB_API_PROVIDER_URL + request.path, params=request.args,
+                          headers={"X-API-Token": API_SERVICE_TOKEN} if API_SERVICE_TOKEN else {}, timeout=20)
+    except requests.RequestException as exc:
+        return error(f"Cloud nicht erreichbar: {type(exc).__name__}", 502)
+    return Response(up.content, status=up.status_code, content_type=up.headers.get("Content-Type", "application/json"))
+
+
 def _fleet():
     return fl.from_env()
 
@@ -95,6 +111,9 @@ def fleet_history_page():
 
 @bp.route("/api/fleet/snapshots", methods=["GET"])
 def fleet_snapshots():
+    proxied = _cloud_read()
+    if proxied is not None:
+        return proxied
     try:
         return ok(snaps.list_snapshots())
     except Exception as exc:
@@ -103,6 +122,9 @@ def fleet_snapshots():
 
 @bp.route("/api/fleet/snapshots/<int:snap_id>", methods=["GET"])
 def fleet_snapshot(snap_id):
+    proxied = _cloud_read()
+    if proxied is not None:
+        return proxied
     try:
         snap = snaps.get_snapshot(snap_id)
     except Exception as exc:
@@ -230,6 +252,9 @@ def gw_report():
 
 @bp.route("/api/fleet/gateway/<ip>/reports", methods=["GET"])
 def gw_report_timeline(ip):
+    proxied = _cloud_read()
+    if proxied is not None:
+        return proxied
     days = 7 if request.args.get("days") == "7" else 1
     try:
         points = gw_reports.timeline(ip, days)
@@ -240,6 +265,9 @@ def gw_report_timeline(ip):
 
 @bp.route("/api/fleet/reports/last", methods=["GET"])
 def gw_reports_last():
+    proxied = _cloud_read()
+    if proxied is not None:
+        return proxied
     try:
         return ok(gw_reports.last_reports())
     except Exception as exc:

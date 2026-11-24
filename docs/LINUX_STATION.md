@@ -36,7 +36,7 @@ Das Skript:
 
 Danach:
 1. `/etc/gatewaychef/env` ausfüllen: Cloud-API (`DB_API_PROVIDER_URL`, `API_SERVICE_TOKEN`),
-   `GATEWAY_PASSWORD`, `GATEWAY_WIFI_KEY`, `FIRMWARE_DIR` (z. B. `/opt/gatewaychef/firmware`), Milesight und Webservice. `VPN_SERVER_PUBLIC_KEY` bleibt leer,
+   `GATEWAY_PASSWORD`, `GATEWAY_WIFI_KEY`, `GW_REPORT_TOKEN` (gleicher Wert wie in Coolify, sonst bietet die Station Flow ≥ 1.4.0 nicht an), `FIRMWARE_DIR` (z. B. `/opt/gatewaychef/firmware`), Milesight und Webservice. `VPN_SERVER_PUBLIC_KEY` bleibt leer,
    den liefert die Cloud.
 2. **VPN für die Flotte:** Die Station ist ein Workstation-Peer im Bereich `172.30.100.0/24`, also nicht im
    Gateway-Pool. Die Konfiguration nach `/etc/wireguard/ballb.conf` legen, mit
@@ -153,3 +153,6 @@ Ab Flow 1.1.0 zeigt die Flottenseite pro Gateway zusätzlich:
 - **dbmonitor zuletzt:** wann die Drive-by-App zuletzt `/status` abgeholt hat (Tooltip: Zeit, Client-IP, Anzahl Abrufe). Fett grün bei < 5 min.
 
 Die Häkchen-Option „alle 30 s“ lädt den Schnellstatus automatisch neu. Kommandozeile: `gatewaychef fleet status` und `gatewaychef fleet driveby`.
+
+**Flottenstände und Gateway-Meldungen** liegen in der Datenbank der Cloud-App. Die Station hat keine eigene und
+liest sie über `DB_API_PROVIDER_URL` mit `API_SERVICE_TOKEN` aus der Cloud.
