@@ -47,14 +47,14 @@
   <div class="row g-2">
     <div class="col-12 col-lg-8"><div class="card-box h-100">
       <div class="d-flex align-items-baseline gap-2">
-        <h2 class="mb-0">Funkpakete (ChirpStack)</h2>
+        <h2 class="mb-0">Verlauf: Online, Neustarts, Funkpakete</h2>
         <div class="btn-group btn-group-sm ms-auto">
           <button class="btn btn-outline-secondary active" id="d1" onclick="loadStats(1)">24 Stunden</button>
           <button class="btn btn-outline-secondary" id="d7" onclick="loadStats(7)">7 Tage</button>
         </div>
       </div>
       <div class="small text-muted mb-1" id="chartinfo">Anzahl Funkpakete <b>pro Stunde</b>, die dieses Gateway an ChirpStack weitergereicht hat. Quelle: ChirpStack-Gateway-Statistik (das Gateway meldet sie alle 30 s).</div>
-      <div class="small text-muted mb-1"><span style="color:#3b7dd8">■</span> empfangen (Uplinks von Sensoren) · <span style="color:#e0a800">■</span> gesendet (Downlinks an Sensoren)</div>
+      <div class="small text-muted mb-1"><span style="color:#5cb85c">■</span> online (Gateway meldet sich) · <span style="color:#f1d0d0">■</span> keine Meldung · <span style="color:#c83232">┆</span> Neustart · <span style="color:#3b7dd8">■</span> empfangen (Uplinks von Sensoren) · <span style="color:#e0a800">■</span> gesendet (Downlinks an Sensoren)</div>
       <div id="chart" class="small text-muted">lade …</div>
       <div id="freq" class="small mt-2"></div>
     </div></div>
@@ -90,7 +90,7 @@
 
 <script>
 const IP = {{ ip|tojson }};
-let live = null, stats = null, db = null;
+let live = null, stats = null, db = null, reports = null;
 
 async function api(path, body) {
   const opt = body ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)} : {};
@@ -208,15 +208,15 @@ function renderHead() {
     g.status_overall, live && live.wifi_country && 'WLAN-Region ' + live.wifi_country].filter(Boolean).join(' · ');
 }
 
-function chart(cs) {
+function chart(cs, rp) {
   const box = document.getElementById('chart');
   if (cs.error) { box.textContent = cs.error; return; }
   const ts = cs.rx.timestamps.length ? cs.rx.timestamps : cs.tx.timestamps;
   const rx = cs.rx.values, tx = cs.tx.values;
   if (!ts.length) { box.textContent = 'Keine Daten im Zeitraum.'; return; }
-  const W = 760, H = 190, L = 34, B = 22, n = ts.length, bw = (W - L) / n;
+  const W = 760, H = 214, L = 34, B = 22, T = 30, n = ts.length, bw = (W - L) / n;
   const max = Math.max(1, ...rx, ...tx);
-  const y = v => (H - B) - (v / max) * (H - B - 8);
+  const y = v => (H - B) - (v / max) * (H - B - T);
   const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', '100%');
   const add = (tag, attrs, text) => { const e = document.createElementNS(ns, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; svg.append(e); return e; };
@@ -232,9 +232,33 @@ function chart(cs) {
     const tip = document.createElementNS(ns, 'title'); tip.textContent = `${label}: ${rx[i] || 0} empfangen, ${tx[i] || 0} gesendet`; r.append(tip);
     if (!hourly || i % 3 === 0) add('text', {x: x + bw / 2, y: H - 6, 'text-anchor': 'middle'}, hourly ? d.getHours() + ' Uhr' : label);
   });
+  // top band: online (reports from the gateway, flow >= 1.4.0) and reboots, on the same time axis
+  const t0 = Date.parse(ts[0]), step = n > 1 ? Date.parse(ts[1]) - t0 : 3600e3, tEnd = t0 + step * n;
+  const tx_ = t => L + (t - t0) / step * bw, inR = t => t >= t0 && t <= tEnd;
+  add('text', {x: 2, y: 13, 'font-size': 9, fill: '#888'}, 'online');
+  if (rp && rp.points && rp.points.length) {
+    add('rect', {x: L, y: 5, width: W - L, height: 10, fill: '#f1d0d0'}).append(Object.assign(document.createElementNS(ns, 'title'), {textContent: 'keine Meldung vom Gateway'}));
+    rp.online.forEach(([a, b]) => {
+      const x1 = tx_(Math.max(Date.parse(a), t0)), x2 = tx_(Math.min(Date.parse(b), tEnd));
+      if (x2 > x1) add('rect', {x: x1, y: 5, width: Math.max(1, x2 - x1), height: 10, fill: '#5cb85c'})
+        .append(Object.assign(document.createElementNS(ns, 'title'), {textContent: `online ${new Date(a).toLocaleString('de-DE')} – ${new Date(b).toLocaleString('de-DE')}`}));
+    });
+    rp.boots.map(Date.parse).filter(inR).forEach(t => {
+      add('line', {x1: tx_(t), x2: tx_(t), y1: 2, y2: H - B, stroke: '#c83232', 'stroke-dasharray': '3 2'});
+      add('text', {x: tx_(t) + 2, y: 26, 'font-size': 9, fill: '#c83232'}, 'Neustart')
+        .append(Object.assign(document.createElementNS(ns, 'title'), {textContent: 'Neustart ' + new Date(t).toLocaleString('de-DE')}));
+    });
+  } else {
+    add('text', {x: L + 4, y: 14, 'font-size': 9, fill: '#aaa'}, rp && rp.error ? rp.error : 'keine Meldungen (Gateway meldet sich ab Drive-by-Schnittstelle 1.4.0)');
+  }
   box.replaceChildren(svg);
   const sum = a => a.reduce((s, v) => s + (v || 0), 0);
   const f = document.getElementById('freq'); f.replaceChildren();
+  if (rp && rp.points && rp.points.length) {
+    const lr = rp.last_report ? (Date.now() - Date.parse(rp.last_report)) / 1000 : null;
+    f.append(el('div', `Gateway-Meldungen: ${rp.points.length} im Zeitraum · online ${rp.online_pct ?? '–'} % · ${rp.boots.length} Neustart(s) · zuletzt gemeldet ${ago(lr)}`,
+                'fw-semibold ' + (lr != null && lr < 180 ? 'ok' : 'bad')));
+  }
   f.append(el('div', `Gesamt im Zeitraum: ${sum(rx)} Pakete empfangen, ${sum(tx)} gesendet (Ø ${Math.round(sum(rx) / n)} pro ${hourly ? 'Stunde' : 'Tag'}).`, 'fw-semibold'));
   const fr = Object.entries(cs.rx_per_freq || {});
   if (fr.length) f.append(el('div', 'Empfangen je Funkkanal (Pakete im Zeitraum): ' + fr.map(([k, v]) => `${(k / 1e6 || k)} MHz: ${v}`).join(' · '), 'text-muted'));
@@ -244,8 +268,10 @@ async function loadStats(days) {
   document.getElementById('d1').classList.toggle('active', days === 1);
   document.getElementById('d7').classList.toggle('active', days === 7);
   try {
-    stats = await api(`/api/fleet/gateway/${IP}/stats?days=${days}`);
-    chart(stats.chirpstack); renderHead(); renderTiles();
+    const [st, rp] = await Promise.all([api(`/api/fleet/gateway/${IP}/stats?days=${days}`),
+      api(`/api/fleet/gateway/${IP}/reports?days=${days}`).catch(e => ({error: e.message}))]);
+    stats = st; reports = rp;
+    chart(stats.chirpstack, rp); renderHead(); renderTiles();
   } catch (e) { document.getElementById('chart').textContent = e.message; }
 }
 async function loadLive() {
