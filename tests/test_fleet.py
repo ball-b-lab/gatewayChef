@@ -113,6 +113,17 @@ class HealthHttp(Http):
 
 
 class FleetTest(unittest.TestCase):
+    def test_gateway_without_flow_is_online_via_web_login(self):
+        class NoFlow(Http):
+            def get(self, url, timeout=None):
+                return Resp({}, status=404)
+        f, _ = _fleet(http=NoFlow())
+        ok, detail, _ = f.identity(GW)
+        self.assertTrue(ok)
+        self.assertIn("ohne Drive-by-Flow", detail)
+        f, _ = _fleet(http=Http(up=False))
+        self.assertFalse(f.identity(GW)[0])
+
     def test_status_shows_driveby_and_app_poll(self):
         f, _ = _fleet(http=HealthHttp())
         d = f.status()[0]["driveby"]

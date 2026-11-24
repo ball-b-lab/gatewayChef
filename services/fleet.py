@@ -166,7 +166,14 @@ class Fleet:
         t0 = time.monotonic()
         try:
             info = checks.device_info(gw["vpn_ip"], timeout=self.timeout, http=self.http)
-        except (requests.RequestException, ValueError) as exc:
+        except (requests.HTTPError, ValueError) as exc:
+            # the gateway answers, but without our Node-RED flow (new gateway): web login counts as online
+            try:
+                self._login(gw["vpn_ip"])
+            except Exception:  # noqa: BLE001
+                return False, f"keine Antwort ({type(exc).__name__})", None
+            return True, "Weboberflaeche (noch ohne Drive-by-Flow)", int((time.monotonic() - t0) * 1000)
+        except requests.RequestException as exc:
             return False, f"keine Antwort ({type(exc).__name__})", None
         ms = int((time.monotonic() - t0) * 1000)
         eui = normalize_eui(((info.get("device") or {}).get("eui")))
