@@ -1385,9 +1385,9 @@
   "id": "aa14000000000001",
   "type": "comment",
   "z": "4212a3100b918a98",
-  "name": "Cloud-Meldung (Push, ab 1.4.0): Start + jede Minute",
+  "name": "Cloud-Meldung (ab 1.4.0): jede Minute puffern, beim Start + alle 10 min senden",
   "info": "",
-  "x": 330,
+  "x": 380,
   "y": 1840,
   "wires": []
  },
@@ -1395,7 +1395,7 @@
   "id": "aa14000000000002",
   "type": "inject",
   "z": "4212a3100b918a98",
-  "name": "Start-Meldung",
+  "name": "Start",
   "props": [
    {
     "p": "topic",
@@ -1407,7 +1407,7 @@
   "once": true,
   "onceDelay": "90",
   "topic": "start",
-  "x": 180,
+  "x": 150,
   "y": 1880,
   "wires": [
    [
@@ -1419,7 +1419,7 @@
   "id": "aa14000000000003",
   "type": "inject",
   "z": "4212a3100b918a98",
-  "name": "Lebenszeichen 1 min",
+  "name": "jede Minute",
   "props": [
    {
     "p": "topic",
@@ -1431,7 +1431,7 @@
   "once": false,
   "onceDelay": "",
   "topic": "beat",
-  "x": 190,
+  "x": 160,
   "y": 1920,
   "wires": [
    [
@@ -1451,7 +1451,7 @@
   "winHide": false,
   "oldrc": false,
   "name": "Uptime + VPN-IP",
-  "x": 420,
+  "x": 380,
   "y": 1900,
   "wires": [
    [
@@ -1465,16 +1465,60 @@
   "id": "aa14000000000005",
   "type": "function",
   "z": "4212a3100b918a98",
-  "name": "Cloud-Meldung bauen",
-  "func": "// Push to the GatewayChef cloud (flow >= 1.4.0): \"start\" once after Node-RED starts, then \"beat\" every minute.\n// Exec output: line 1 /proc/uptime, then ifconfig wg0 (\"inet addr:172.30.x.y\").\nconst out = String(msg.payload || \"\");\nconst up = parseFloat(out.split(/\\s+/)[0]);\nconst ipm = /inet addr:(172\\.30\\.\\d+\\.\\d+)/.exec(out);\nconst now = Date.now();\nconst w = (flow.get(\"statWindow\") || []).filter(x => now - x.ts < 5 * 60 * 1000);\nconst sig = (flow.get(\"sigWindow\") || []).filter(x => now - x.ts < 5 * 60 * 1000);\nconst sum = k => w.reduce((a, x) => a + (x[k] || 0), 0);\nconst rxnb = sum(\"rxnb\"), rxok = sum(\"rxok\");\nconst st = flow.get(\"udpStats\") || { rxpk: 0 };\nconst last = flow.get(\"lastRxpk\");\nconst sf = sig.reduce((a, x) => { if (x.sf) a[\"SF\" + x.sf] = (a[\"SF\" + x.sf] || 0) + 1; return a; }, {});\nmsg.payload = {\n    kind: msg.topic === \"start\" ? \"start\" : \"beat\",\n    eui: flow.get(\"gatewayEuiUdp\") || null,\n    vpn_ip: ipm ? ipm[1] : null,\n    flow_version: global.get(\"flowVersion\") || null,\n    uptime_s: isNaN(up) ? null : Math.round(up),\n    rx_total: rxnb, rx_ok: rxok,\n    crc_error_pct: rxnb ? Math.round((rxnb - rxok) / rxnb * 1000) / 10 : null,\n    tx_failed: Math.max(0, sum(\"dwnb\") - sum(\"txnb\")),\n    rxpk: st.rxpk,\n    seconds_since_rxpk: last ? Math.round((now - last) / 1000) : null,\n    sensors: Object.keys(flow.get(\"devices\") || {}).length,\n    sf: sf\n};\nif (!msg.payload.eui && !msg.payload.vpn_ip) { node.status({ fill: \"yellow\", shape: \"ring\", text: \"noch keine EUI/VPN-IP\" }); return null; }\nmsg.method = \"POST\";\nmsg.headers = { \"Content-Type\": \"application/json\", \"X-GW-Report-Token\": \"{{gw_report_token}}\" };\nnode.status({ fill: \"blue\", shape: \"dot\", text: msg.payload.kind + \" \" + new Date(now).toISOString().slice(11, 16) });\nreturn msg;",
+  "name": "Probe puffern",
+  "func": "// Every minute: one sample into the local buffer (flow context \"reportBuf\", max 24 h).\n// Exec output: line 1 /proc/uptime, then ifconfig wg0 (\"inet addr:172.30.x.y\").\nconst out = String(msg.payload || \"\");\nconst up = parseFloat(out.split(/\\s+/)[0]);\nconst ipm = /inet addr:(172\\.30\\.\\d+\\.\\d+)/.exec(out);\nconst now = Date.now();\nconst w = (flow.get(\"statWindow\") || []).filter(x => now - x.ts < 60 * 1000 + 5000);\nconst sig = (flow.get(\"sigWindow\") || []).filter(x => now - x.ts < 60 * 1000 + 5000);\nconst sum = k => w.reduce((a, x) => a + (x[k] || 0), 0);\nconst rxnb = sum(\"rxnb\"), rxok = sum(\"rxok\");\nconst last = flow.get(\"lastRxpk\");\nconst s = {\n    ts: now, kind: msg.topic === \"start\" ? \"start\" : \"beat\",\n    eui: flow.get(\"gatewayEuiUdp\") || null,\n    vpn_ip: ipm ? ipm[1] : null,\n    flow_version: global.get(\"flowVersion\") || null,\n    uptime_s: isNaN(up) ? null : Math.round(up),\n    rx_total: rxnb, rx_ok: rxok,\n    crc_error_pct: rxnb ? Math.round((rxnb - rxok) / rxnb * 1000) / 10 : null,\n    tx_failed: Math.max(0, sum(\"dwnb\") - sum(\"txnb\")),\n    rxpk: (flow.get(\"udpStats\") || {}).rxpk || 0,\n    seconds_since_rxpk: last ? Math.round((now - last) / 1000) : null,\n    sensors: Object.keys(flow.get(\"devices\") || {}).length,\n    sf: sig.reduce((a, x) => { if (x.sf) a[\"SF\" + x.sf] = (a[\"SF\" + x.sf] || 0) + 1; return a; }, {})\n};\nif (!s.eui && !s.vpn_ip) { node.status({ fill: \"yellow\", shape: \"ring\", text: \"noch keine EUI/VPN-IP\" }); return null; }\nconst buf = (flow.get(\"reportBuf\") || []).filter(x => now - x.ts < 24 * 3600 * 1000);\nbuf.push(s);\nflow.set(\"reportBuf\", buf.slice(-1440));\nnode.status({ fill: \"blue\", shape: \"dot\", text: `${buf.length} im Puffer` });\n// start sample: send right away (reboot shows up immediately), otherwise every 10 min (separate inject)\nreturn s.kind === \"start\" ? { topic: \"send\" } : null;",
   "outputs": 1,
   "timeout": 0,
   "noerr": 0,
   "initialize": "",
   "finalize": "",
   "libs": [],
-  "x": 640,
+  "x": 590,
   "y": 1900,
+  "wires": [
+   [
+    "aa14000000000009"
+   ]
+  ]
+ },
+ {
+  "id": "aa14000000000008",
+  "type": "inject",
+  "z": "4212a3100b918a98",
+  "name": "alle 10 min senden",
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   }
+  ],
+  "repeat": "600",
+  "crontab": "",
+  "once": false,
+  "onceDelay": "",
+  "topic": "send",
+  "x": 180,
+  "y": 1960,
+  "wires": [
+   [
+    "aa14000000000009"
+   ]
+  ]
+ },
+ {
+  "id": "aa14000000000009",
+  "type": "function",
+  "z": "4212a3100b918a98",
+  "name": "Puffer senden",
+  "func": "// Send the buffer (start, then every 10 min). Up to 500 samples per request; the rest next time.\nconst buf = flow.get(\"reportBuf\") || [];\nif (!buf.length) return null;\nconst part = buf.slice(0, 500);\nmsg.sent = part.map(x => x.ts);\nmsg.payload = { samples: part };\nmsg.method = \"POST\";\nmsg.headers = { \"Content-Type\": \"application/json\", \"X-GW-Report-Token\": \"{{gw_report_token}}\" };\nreturn msg;",
+  "outputs": 1,
+  "timeout": 0,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 790,
+  "y": 1940,
   "wires": [
    [
     "aa14000000000006"
@@ -1491,14 +1535,14 @@
   "paytoqs": "ignore",
   "url": "{{gw_report_url}}",
   "tls": "",
-  "persist": true,
+  "persist": false,
   "proxy": "",
   "insecureHTTPParser": false,
   "authType": "",
   "senderr": false,
   "headers": [],
-  "x": 870,
-  "y": 1900,
+  "x": 1000,
+  "y": 1940,
   "wires": [
    [
     "aa14000000000007"
@@ -1510,15 +1554,15 @@
   "type": "function",
   "z": "4212a3100b918a98",
   "name": "Antwort",
-  "func": "node.status({ fill: msg.statusCode === 200 ? \"green\" : \"red\", shape: \"dot\", text: \"HTTP \" + msg.statusCode + \" \" + new Date().toISOString().slice(11, 16) });\nreturn null;",
+  "func": "// 200: drop the sent samples from the buffer; otherwise keep them (sent again next time).\nif (msg.statusCode === 200) {\n    const sent = new Set(msg.sent || []);\n    const buf = (flow.get(\"reportBuf\") || []).filter(x => !sent.has(x.ts));\n    flow.set(\"reportBuf\", buf);\n    flow.set(\"reportLastOk\", Date.now());\n    node.status({ fill: \"green\", shape: \"dot\", text: `${sent.size} gesendet ${new Date().toISOString().slice(11, 16)}` });\n} else {\n    node.status({ fill: \"red\", shape: \"dot\", text: `HTTP ${msg.statusCode || \"Fehler\"}, ${(flow.get(\"reportBuf\") || []).length} im Puffer` });\n}\nreturn null;",
   "outputs": 1,
   "timeout": 0,
   "noerr": 0,
   "initialize": "",
   "finalize": "",
   "libs": [],
-  "x": 1060,
-  "y": 1900,
+  "x": 1190,
+  "y": 1940,
   "wires": [
    []
   ]

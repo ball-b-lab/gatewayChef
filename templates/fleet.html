@@ -118,7 +118,7 @@
         <th data-k="fw">Firmware</th><th data-k="wifi">WLAN-Region</th><th data-k="flow">Drive-by-Schnittstelle</th>
         <th data-k="rx" title="Packet Forwarder → Drive-by-Schnittstelle: letzte Statusmeldung / letztes Funkpaket">Funkempfang</th>
         <th data-k="poll" title="Wann hat die Drive-by-App (dbmonitor) zuletzt Daten per WLAN abgeholt?">Drive-by zuletzt</th>
-        <th data-k="rep" title="Wann hat sich das Gateway zuletzt selbst bei der Cloud gemeldet (ab Drive-by-Schnittstelle 1.4.0, jede Minute)?">gemeldet</th>
+        <th data-k="rep" title="Wann hat sich das Gateway zuletzt selbst bei der Cloud gemeldet (ab Drive-by-Schnittstelle 1.4.0; Proben jede Minute, gesendet alle 10 min)?">gemeldet</th>
         <th data-k="result">Ergebnis</th>
       </tr></thead>
       <tbody id="rows"><tr><td colspan="13" class="text-muted p-3">Lade …</td></tr></tbody>
@@ -291,7 +291,7 @@ function toggleAuto(on) { clearInterval(autoTimer); autoTimer = on ? setInterval
 function reportCell(r) {
   const p = reports[r.vpn_ip];
   if (!p) return el('td', '–', 'text-muted');
-  const s = Math.round((Date.now() - Date.parse(p.t)) / 1000), td = el('td', ago(s), s < 180 ? 'text-success' : 'text-danger');
+  const s = Math.round((Date.now() - Date.parse(p.t)) / 1000), td = el('td', ago(s), s < 900 ? 'text-success' : 'text-danger');
   td.title = `zuletzt ${new Date(p.t).toLocaleString('de-DE')} · Flow ${p.flow_version || '?'}`;
   return td;
 }
