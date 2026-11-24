@@ -388,14 +388,21 @@ class Pipeline:
                 self.on_step(result)
             return result
 
+        fw_pending = False
         if not only_check:
             from services.setup.firmware_step import step_firmware
             fw_result = step_firmware(self, apply)
             if fw_result and add(fw_result).failed:
                 return self.results
+            # dry run: the firmware step would raise the firmware first, the real run then uses its profile
+            fw_pending = bool(fw_result and fw_result.status == WOULD_CHANGE)
         pre, info = self.step_preflight(gw, apply)
-        if add(pre).failed and not (force_firmware and pre.checks and all(
-                ok is not False for label, ok, _ in pre.checks if label not in ("Firmware freigegeben", "  Delta"))):
+        only_fw = pre.checks and all(ok is not False for label, ok, _ in pre.checks
+                                     if label not in ("Firmware freigegeben", "  Delta"))
+        if pre.failed and fw_pending and only_fw:
+            pre.status = WOULD_CHANGE
+            pre.detail = "Profil passt erst nach dem Firmware-Update (läuft beim Einrichten zuerst)"
+        if add(pre).failed and not ((force_firmware or fw_pending) and only_fw):
             return self.results
         try:
             if add(self.step_identity(gw, info, apply and not only_check, allocate_new)).failed:

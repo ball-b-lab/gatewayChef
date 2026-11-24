@@ -19,6 +19,7 @@
   <div class="d-flex align-items-baseline gap-3 mb-2 flex-wrap">
     <a href="/fleet" class="small">← Flotte</a>
     <h1 class="h4 mb-0">Flottenstände</h1>
+    <span id="buildinfo" class="badge text-bg-light border fw-normal" title="Code-Stand">Stand …</span>
     <span class="text-muted small">Gespeichert nach jeder Prüfung der ganzen Flotte: immer nach „Details aller Gateways lesen“, sonst höchstens alle 30 min.</span>
     <span class="ms-auto"></span>
     {% if cloud %}<a href="/auth/logout" class="small">Abmelden</a>{% endif %}
@@ -127,5 +128,6 @@ function csv() {
 
 loadList();
 </script>
+<script src="/static/js/buildinfo.js"></script>
 </body>
 </html>

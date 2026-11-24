@@ -14,6 +14,10 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY . /app
 
+# build stamp for the page header (Coolify passes SOURCE_COMMIT as build arg)
+ARG SOURCE_COMMIT=""
+RUN echo "${SOURCE_COMMIT}" > /app/.build_commit && date -u +%Y-%m-%dT%H:%M:%SZ > /app/.build_time
+
 RUN chmod +x /app/scripts/migrate.py
 
 EXPOSE 5000

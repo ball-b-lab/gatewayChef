@@ -25,6 +25,7 @@
   <div class="d-flex align-items-baseline gap-3 mb-1 flex-wrap">
     <a href="/fleet" class="small">← Flotte</a>
     <h1 class="h4 mb-0" id="title">Gateway {{ ip }}</h1>
+    <span id="buildinfo" class="badge text-bg-light border fw-normal" title="Code-Stand">Stand …</span>
     <span id="onl" class="badge text-bg-secondary" title="Gesamtstatus aus VPN-Erreichbarkeit und ChirpStack (zuletzt gesehen &lt; 5 min)">Status …</span>
     <span id="sub" class="text-muted small"></span>
     <a id="web" class="btn btn-sm btn-outline-primary" href="http://{{ ip }}/" target="_blank" rel="noopener"
@@ -486,5 +487,6 @@ async function act(kind, apply = false) {
   await loadLive(); await loadCompare();
 })();
 </script>
+<script src="/static/js/buildinfo.js"></script>
 </body>
 </html>
