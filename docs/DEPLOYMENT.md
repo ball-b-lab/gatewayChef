@@ -385,3 +385,12 @@ dazu `FIRMWARE_UPLOAD_TYPE`/`FIRMWARE_UPLOAD_FILE` wie lokal. Images lädt man i
 „4 · Firmware → Firmware-Dateien verwalten“ hoch (`POST /api/fleet/firmware/images`, multipart `file`,
 Name muss die Version enthalten; wird zu `<version>[-rN].bin` normalisiert, SHA-256 in der Antwort).
 Löschen: `DELETE /api/fleet/firmware/images/<version>`. Beides nur mit Authentik-Login.
+
+## Startseite und alte Einrichtungsseite (ab 24.11.2026)
+
+- `/` leitet weiter: Cloud → `/fleet`, Linux-Station mit Ports → `/station`, sonst → `/fleet`.
+- Die alte Einzel-Einrichtung (`templates/index.html`) liegt unter **`/einrichtung`**. Sie läuft weiter, wird
+  aber nicht mehr ausgebaut.
+- Nur in der gepackten Windows-App (`sys.frozen`) oder mit `LEGACY_UI_HOME=true` bleibt `/` die alte Seite,
+  weil sie dort noch produktiv genutzt wird.
+- Lokal mit Debug-Reloader öffnet sich der Browser nur noch beim ersten Start, nicht bei jedem Neuladen.

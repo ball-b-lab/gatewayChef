@@ -239,3 +239,19 @@ def gw_reports_last():
         return ok(gw_reports.last_reports())
     except Exception as exc:
         return error(f"Meldungen nicht lesbar: {exc}", 502)
+
+
+@bp.route("/api/fleet/rename", methods=["POST"])
+def gw_rename():
+    """Body {vpn_ip, name, apply}: plan (default) or write DB + ChirpStack; webservice is reported."""
+    from services import rename
+    body = request.get_json(silent=True) or {}
+    try:
+        r = rename.Renamer()
+        out = r.apply(body.get("vpn_ip"), body.get("name")) if body.get("apply") is True else \
+            r.plan(body.get("vpn_ip"), body.get("name"))
+    except rename.RenameError as exc:
+        return error(str(exc), 400)
+    except Exception as exc:
+        return error(f"Umbenennen fehlgeschlagen: {exc}", 502)
+    return ok(out)

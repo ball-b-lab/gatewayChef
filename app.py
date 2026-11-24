@@ -134,8 +134,26 @@ def handle_exception(e):
         return error("Internal Server Error", 500)
 
 
+def _legacy_home():
+    """The old single-gateway setup page stays the start page only in the packaged Windows app (still in use)."""
+    return getattr(sys, "frozen", False) or os.getenv("LEGACY_UI_HOME", "").lower() == "true"
+
+
 @app.route('/')
 def index():
+    if APP_MODE == 'cloud_api':
+        return {"ok": True, "service": "gatewaychef-cloud-api", "mode": APP_MODE}
+    if APP_MODE == 'cloud':
+        return redirect('/fleet')
+    from services.station import load_ports
+    if load_ports():
+        return redirect('/station')
+    return redirect('/einrichtung' if _legacy_home() else '/fleet')
+
+
+@app.route('/einrichtung')
+def legacy_setup():
+    """Old single-gateway setup UI (index.html). Kept running, no longer extended."""
     if APP_MODE == 'cloud_api':
         return {"ok": True, "service": "gatewaychef-cloud-api", "mode": APP_MODE}
     if APP_MODE == 'cloud':
@@ -196,7 +214,7 @@ if APP_MODE != 'cloud_api':
 def open_browser():
     """Opens the default web browser to the app URL."""
     time.sleep(1.5)
-    webbrowser.open(f"http://localhost:{PORT}")
+    webbrowser.open(f"http://localhost:{PORT}/")
 
 
 if __name__ == '__main__':
@@ -214,7 +232,8 @@ if __name__ == '__main__':
     _run_db_proxy_preflight()
 
     open_browser_enabled = os.getenv("OPEN_BROWSER", "true").lower() == "true"
-    if open_browser_enabled:
+    # with the debug reloader every code change restarts the child process: open the browser only once
+    if open_browser_enabled and not os.environ.get("WERKZEUG_RUN_MAIN"):
         threading.Thread(target=open_browser).start()
 
     debug_enabled = os.getenv("FLASK_DEBUG", "true").lower() == "true" and APP_MODE == "local"
