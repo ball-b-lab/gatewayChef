@@ -44,6 +44,14 @@ Danach:
    `systemctl enable --now wg-quick@ballb`.
 3. `systemctl restart gatewaychef`
 
+## Auto-Update
+
+`gatewaychef-autoupdate.timer` laeuft alle 10 min: `git fetch origin main`, und wenn `origin/main` nicht der
+Commit ist, mit dem die UI gestartet wurde (`/opt/gatewaychef/running-commit`), wird `gatewaychef` neu
+gestartet; `gatewaychef-run.sh` zieht beim UI-Start den Stand. Laeuft gerade eine Einrichtung oder ein
+Flotten-Update, wartet der Neustart auf den naechsten Lauf. Nur der UI-Start aktualisiert den Code;
+CLI-Laeufe (`probe`, `setup`, `fleet`) nutzen den ausgecheckten Stand. Log: `journalctl -t gatewaychef-autoupdate`.
+
 ## Ein Gateway einrichten (ohne Switch)
 
 Gateway an den Gateway-Port stecken und warten, bis es hochgefahren ist (rund 2 Minuten). Dann:

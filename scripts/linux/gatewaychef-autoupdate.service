@@ -1,0 +1,5 @@
+[Unit]
+Description=GatewayChef: neuen Stand von main holen
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/gatewaychef-autoupdate

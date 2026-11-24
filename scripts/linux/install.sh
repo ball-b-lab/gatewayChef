@@ -101,6 +101,12 @@ systemctl daemon-reload
 systemctl enable gatewaychef-ports >/dev/null
 systemctl restart gatewaychef-ports || echo "!! Ports: /etc/gatewaychef/ports pruefen, dann systemctl restart gatewaychef-ports"
 systemctl enable --now gatewaychef >/dev/null
+# Auto-update: every 10 min, restart the UI when origin/main moved past the running commit
+install -m 755 -o root -g root "$HOME_DIR/app/scripts/linux/gatewaychef-autoupdate" /usr/local/sbin/gatewaychef-autoupdate
+install -m 644 "$HOME_DIR/app/scripts/linux/gatewaychef-autoupdate.service" /etc/systemd/system/gatewaychef-autoupdate.service
+install -m 644 "$HOME_DIR/app/scripts/linux/gatewaychef-autoupdate.timer" /etc/systemd/system/gatewaychef-autoupdate.timer
+systemctl daemon-reload
+systemctl enable --now gatewaychef-autoupdate.timer >/dev/null
 
 echo
 echo "Fertig. Weboberflaeche: http://$(hostname -I | awk '{print $1}'):5000  (Flotte: /fleet)"

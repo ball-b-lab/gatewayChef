@@ -1,0 +1,7 @@
+[Unit]
+Description=GatewayChef Auto-Update alle 10 min
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=10min
+[Install]
+WantedBy=timers.target

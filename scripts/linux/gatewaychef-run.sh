@@ -13,7 +13,10 @@ export GATEWAYCHEF_ENV_FILE="${GATEWAYCHEF_ENV_FILE:-/etc/gatewaychef/env}"
 export OPEN_BROWSER=false FLASK_DEBUG=false
 export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
 
-if [[ "${GATEWAYCHEF_OFFLINE:-0}" != "1" ]]; then
+# Only the web UI updates the code. CLI runs (probe/setup/fleet, started by the UI) use the checked-out
+# state; if they reset HEAD themselves, the UI keeps running old code and gatewaychef-autoupdate
+# (compares the running commit with origin/main) would never see a difference.
+if [[ "${1:-ui}" == "ui" && "${GATEWAYCHEF_OFFLINE:-0}" != "1" ]]; then
   if git -C "$APP_DIR" fetch --quiet --tags origin; then
     if git -C "$APP_DIR" rev-parse --verify --quiet "refs/tags/$REF" >/dev/null; then target="$REF"; else target="origin/$REF"; fi
     git -C "$APP_DIR" reset --quiet --hard "$target"
@@ -22,6 +25,7 @@ if [[ "${GATEWAYCHEF_OFFLINE:-0}" != "1" ]]; then
   fi
 fi
 echo "== GatewayChef $(git -C "$APP_DIR" describe --tags --always) =="
+[[ "${1:-ui}" == "ui" ]] && git -C "$APP_DIR" rev-parse HEAD > "$APP_DIR/../running-commit" || true
 cd "$APP_DIR"
 run() { exec uv run --quiet --python 3.12 --no-project --with-requirements requirements.txt python "$@"; }
 case "${1:-ui}" in
