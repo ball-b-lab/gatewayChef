@@ -9,6 +9,8 @@
 <style>
   body { background: #f6f7f9; }
   td, th { white-space: nowrap; vertical-align: middle; }
+  th.nm { resize: horizontal; overflow: hidden; min-width: 5rem; }
+  td.nm { max-width: var(--namew, 22rem); overflow: hidden; text-overflow: ellipsis; }
   td.result { white-space: normal; min-width: 260px; font-size: .85rem; }
   .dot { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; }
   .on { background: #1a9a4b; } .off { background: #c83232; } .unk { background: #aaa; }
@@ -113,7 +115,7 @@
     <table class="table table-sm table-hover mb-0">
       <thead class="table-light"><tr>
         <th><input type="checkbox" id="all" title="alle angezeigten markieren" onchange="toggleAll(this.checked)"></th>
-        <th data-k="online" title="sortieren">●</th><th data-k="ip">VPN-IP</th><th data-k="name">Name</th><th data-k="eui">EUI</th>
+        <th data-k="online" title="sortieren">●</th><th data-k="ip">VPN-IP</th><th data-k="name" class="nm" title="sortieren · Breite: rechte untere Ecke ziehen">Name</th><th data-k="eui">EUI</th>
         <th data-k="db" title="DEPLOYED = im Einsatz · IN_PROGRESS = Einrichtung begonnen, nicht abgeschlossen">DB-Status</th><th data-k="ms">ms</th>
         <th data-k="fw">Firmware</th><th data-k="wifi">WLAN-Region</th><th data-k="flow">Drive-by-Schnittstelle</th>
         <th data-k="rx" title="Packet Forwarder → Drive-by-Schnittstelle: letzte Statusmeldung / letztes Funkpaket">Funkempfang</th>
@@ -260,7 +262,7 @@ function render() {
     const c0 = el('td'); c0.append(cb); tr.append(c0);
     const dot = el('span', null, 'dot ' + (r.online === true ? 'on' : r.online === false ? 'off' : 'unk'));
     const c1 = el('td'); c1.append(dot); c1.title = r.identity || ''; tr.append(c1);
-    const name = el('td'); const a = el('a', r.gateway_name || '(ohne Name)', 'gw'); a.href = '/fleet/gw/' + r.vpn_ip; a.title = 'Einzelsicht mit Statistik'; name.append(a);
+    const name = el('td', null, 'nm'); const a = el('a', r.gateway_name || '(ohne Name)', 'gw'); name.title = r.gateway_name || ''; a.href = '/fleet/gw/' + r.vpn_ip; a.title = 'Einzelsicht mit Statistik'; name.append(a);
     const ipTd = el('td', null, 'font-monospace');
     if (r.online) { const w = el('a', r.vpn_ip); w.href = 'http://' + r.vpn_ip + '/'; w.target = '_blank'; w.rel = 'noopener';
       w.title = 'Weboberfläche des Gateways öffnen (nur mit VPN auf deinem Rechner)'; ipTd.append(w, ' ↗'); }
@@ -298,10 +300,33 @@ function reportCell(r) {
 async function loadReports() {
   try { reports = await api('/api/fleet/reports/last'); render(); } catch (e) { reports = {}; }
 }
+// name column width: drag the header corner; remembered per browser
+(function () {
+  const th = document.querySelector('th.nm'), root = document.documentElement;
+  try { const w = localStorage.getItem('fleetNameW'); if (w) { th.style.width = w; root.style.setProperty('--namew', w); } } catch (e) {}
+  let dragging = false;   // only a user drag on the header changes the width (not the table filling up)
+  th.addEventListener('mousedown', () => { dragging = true; });
+  document.addEventListener('mouseup', () => { dragging = false; });
+  new ResizeObserver(() => {
+    if (!dragging) return;
+    const w = th.getBoundingClientRect().width + 'px';
+    root.style.setProperty('--namew', w);
+    try { localStorage.setItem('fleetNameW', w); } catch (e) {}
+  }).observe(th);
+})();
+async function loadCached() {
+  try {
+    const c = await api('/api/fleet/status?cached=1');
+    if (c.rows && c.rows.length && !rows.length) {
+      rows = c.rows; render();
+      document.getElementById('summary').textContent = `zwischengespeichert, Stand vor ${ago(c.age_s)} · prüfe live …`;
+    }
+  } catch (e) { /* live load follows anyway */ }
+}
 async function load(deep, keepResults) {
   loadReports();
   const sum = document.getElementById('summary');
-  sum.textContent = deep ? 'lese Firmware und Schnittstelle je Gateway …' : 'prüfe …';
+  sum.textContent = (rows.length ? 'zeige letzten Stand · ' : '') + (deep ? 'lese Firmware und Schnittstelle je Gateway …' : 'prüfe …');
   deepRunning = deep;
   try { rows = await api('/api/fleet/status' + (deep ? '?deep=1' : '')); if (!keepResults) results = {}; }
   catch (e) { sum.textContent = 'Fehler: ' + e.message; deepRunning = false; return; }
@@ -383,6 +408,7 @@ async function loadCatalog() {
 (async () => {
   {% if cloud %}fetch('/auth/me').then(r => r.json()).then(r => { if (r.data) document.getElementById('user').textContent = r.data.name || r.data.email; }).catch(() => {});{% endif %}
   await loadCatalog();
+  await loadCached();
   await load(false);
   // firmware etc. need a login per gateway: read once in the background unless already known
   if (rows.some(r => r.online && !r.firmware)) load(true, true);

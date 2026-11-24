@@ -265,3 +265,6 @@ Webservice (WS1): Die API kann Gateways nur suchen und anlegen (GET/POST `/api/v
 Vorschau zeigt den aktuellen Eintrag und Kunden; Name und Kunde müssen dort von Hand umgestellt werden.
 Der Kunde steckt im Namen (`<x.y> <Kunden-Nr.> - <Kundenname>`), ein Kundenwechsel wird in der Vorschau gemeldet.
 Bedienung: Gateway-Seite, Feld „Name / Kunde“.
+
+`GET /api/fleet/status?cached=1` antwortet sofort mit dem letzten vollständigen Stand aus dem Speicher der App
+(`{rows, age_s}`; leer nach einem Neustart der App). Die Flottenseite zeigt den zuerst und prüft dann live nach.
