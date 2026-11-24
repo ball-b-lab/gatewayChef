@@ -81,7 +81,12 @@ def render_secrets(text, secrets):
 def default_secrets():
     from services.gateway_config import encrypt_login_password
     pw = os.getenv("GATEWAY_PASSWORD", "")
-    return {"gateway_login_password_enc": encrypt_login_password(pw)} if pw else {}
+    out = {"gateway_login_password_enc": encrypt_login_password(pw)} if pw else {}
+    # flow >= 1.4.0 pushes to the cloud; without a token that bundle is simply not offered
+    if os.getenv("GW_REPORT_TOKEN"):
+        out["gw_report_token"] = os.getenv("GW_REPORT_TOKEN")
+        out["gw_report_url"] = os.getenv("GW_REPORT_URL", "https://gatewaychef.app.ball-b.de/api/gw/report")
+    return out
 
 
 def load_bundles(flow_dir=FLOW_DIR, secrets=None):

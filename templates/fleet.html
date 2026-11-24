@@ -118,6 +118,7 @@
         <th data-k="fw">Firmware</th><th data-k="wifi">WLAN-Region</th><th data-k="flow">Drive-by-Schnittstelle</th>
         <th data-k="rx" title="Packet Forwarder → Drive-by-Schnittstelle: letzte Statusmeldung / letztes Funkpaket">Funkempfang</th>
         <th data-k="poll" title="Wann hat die Drive-by-App (dbmonitor) zuletzt Daten per WLAN abgeholt?">Drive-by zuletzt</th>
+        <th data-k="rep" title="Wann hat sich das Gateway zuletzt selbst bei der Cloud gemeldet (ab Drive-by-Schnittstelle 1.4.0, jede Minute)?">gemeldet</th>
         <th data-k="result">Ergebnis</th>
       </tr></thead>
       <tbody id="rows"><tr><td colspan="13" class="text-muted p-3">Lade …</td></tr></tbody>
@@ -126,7 +127,7 @@
 </div>
 
 <script>
-let rows = [], results = {}, selected = new Set(), stateFilter = '', deepRunning = false;
+let rows = [], reports = {}, results = {}, selected = new Set(), stateFilter = '', deepRunning = false;
 let sortKey = 'online', sortDir = 1;
 const ipNum = ip => (ip || '').split('.').reduce((a, b) => a * 256 + +b, 0);
 const SORT = {
@@ -134,6 +135,7 @@ const SORT = {
   eui: r => r.eui || '', db: r => r.status_overall || '', ms: r => r.latency_ms ?? 1e9, fw: r => r.firmware || '~',
   wifi: r => r.wifi_country || '~', flow: r => flowText(r) || '~', rx: r => r.driveby ? (r.driveby.receiving ? 0 : 1) : 2,
   poll: r => r.driveby && r.driveby.app_seconds_since_poll != null ? r.driveby.app_seconds_since_poll : 1e12,
+  rep: r => reports[r.vpn_ip] ? -Date.parse(reports[r.vpn_ip].t) : 1e15,
   result: r => results[r.vpn_ip] ? results[r.vpn_ip].text : '~',
 };
 // full-text: every value of the row (incl. nested drive-by/flow data) plus shown texts and last action result
@@ -265,14 +267,14 @@ function render() {
     else ipTd.textContent = r.vpn_ip;
     tr.append(ipTd, name, el('td', r.eui || '', 'font-monospace small'),
               el('td', r.status_overall || '', 'small'), el('td', r.latency_ms ?? ''),
-              fwCell(r), el('td', r.wifi_country || ''), el('td', flowText(r)), receiveCell(r), appCell(r));
+              fwCell(r), el('td', r.wifi_country || ''), el('td', flowText(r)), receiveCell(r), appCell(r), reportCell(r));
     const res = results[r.vpn_ip];
     const c = el('td', res ? res.text : (r.online === false ? r.identity : (r.cgi_error || r.flow_error || '')), 'result');
     if (res) c.classList.add(res.cls);
     tr.append(c);
     body.append(tr);
   }
-  if (!shown.length) { const tr = el('tr'); const td = el('td', 'Keine Gateways für diesen Filter.', 'text-muted p-3'); td.colSpan = 13; tr.append(td); body.append(tr); }
+  if (!shown.length) { const tr = el('tr'); const td = el('td', 'Keine Gateways für diesen Filter.', 'text-muted p-3'); td.colSpan = 14; tr.append(td); body.append(tr); }
   renderChips(); selInfo();
 }
 function selInfo() { document.getElementById('selInfo').textContent = selected.size ? `${selected.size} markiert` : 'Aktionen gelten für markierte Zeilen'; }
@@ -286,7 +288,18 @@ document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
 let autoTimer = null;
 function toggleAuto(on) { clearInterval(autoTimer); autoTimer = on ? setInterval(() => load(false, true), 30000) : null; }
 
+function reportCell(r) {
+  const p = reports[r.vpn_ip];
+  if (!p) return el('td', '–', 'text-muted');
+  const s = Math.round((Date.now() - Date.parse(p.t)) / 1000), td = el('td', ago(s), s < 180 ? 'text-success' : 'text-danger');
+  td.title = `zuletzt ${new Date(p.t).toLocaleString('de-DE')} · Flow ${p.flow_version || '?'}`;
+  return td;
+}
+async function loadReports() {
+  try { reports = await api('/api/fleet/reports/last'); render(); } catch (e) { reports = {}; }
+}
 async function load(deep, keepResults) {
+  loadReports();
   const sum = document.getElementById('summary');
   sum.textContent = deep ? 'lese Firmware und Schnittstelle je Gateway …' : 'prüfe …';
   deepRunning = deep;

@@ -10,6 +10,7 @@ from flask import Blueprint, render_template, request
 from services import firmware as fw
 from services import fleet as fl
 from services import fleet_snapshots as snaps
+from services import gw_reports
 from services import gateway_config as gc
 from services import jobs
 from services import nodered as nr
@@ -204,3 +205,37 @@ def fleet_align():
         return ok(jobs.tracked("align", ip, "An Standard angleichen", run) if apply else run())
     except _ERRORS as exc:
         return error(str(exc), 400)
+
+
+@bp.route("/api/gw/report", methods=["POST"])
+def gw_report():
+    """Push from the gateway flow (>= 1.4.0). Public path, checked with X-GW-Report-Token."""
+    import hmac
+    expected = os.getenv("GW_REPORT_TOKEN", "")
+    got = request.headers.get("X-GW-Report-Token", "")
+    if not expected or not got or not hmac.compare_digest(got, expected):
+        return error("Token fehlt oder falsch", 401)
+    try:
+        return ok(gw_reports.store(request.get_json(silent=True)))
+    except gw_reports.ReportError as exc:
+        return error(str(exc), 400)
+    except Exception as exc:  # DB down etc.
+        return error(f"nicht gespeichert: {type(exc).__name__}", 503)
+
+
+@bp.route("/api/fleet/gateway/<ip>/reports", methods=["GET"])
+def gw_report_timeline(ip):
+    days = 7 if request.args.get("days") == "7" else 1
+    try:
+        points = gw_reports.timeline(ip, days)
+    except Exception as exc:
+        return error(f"Meldungen nicht lesbar: {exc}", 502)
+    return ok(dict(gw_reports.summarize_timeline(points, days), points=points, days=days))
+
+
+@bp.route("/api/fleet/reports/last", methods=["GET"])
+def gw_reports_last():
+    try:
+        return ok(gw_reports.last_reports())
+    except Exception as exc:
+        return error(f"Meldungen nicht lesbar: {exc}", 502)

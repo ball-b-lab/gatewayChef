@@ -19,7 +19,7 @@ from flask import Blueprint, current_app, g, jsonify, redirect, request, session
 
 bp = Blueprint("oidc", __name__)
 
-PUBLIC = ("/auth/", "/api/version", "/healthz", "/static/")
+PUBLIC = ("/auth/", "/api/version", "/healthz", "/static/", "/api/gw/report")  # report: own token check
 MACHINE = ("/api/db/", "/api/network/")
 
 
