@@ -76,7 +76,8 @@ def step_firmware(pipeline, apply, images=None, fleet_factory=None):
     fleet = (fleet_factory or (lambda inv: fl.from_env(reachable_wait=120, gateway_password=password)))(None)
     fleet.inventory = _LanInventory(pipeline.host, eui, [vpn_ip])  # VPN as fallback (update over WLAN)
     try:
-        res = fl.firmware_upgrade(fleet, fleet.inventory.row, target, apply=True, images=images)
+        # on the bench, not yet in the field: the field stability gate (LNS, cellular) does not apply
+        res = fl.firmware_upgrade(fleet, fleet.inventory.row, target, apply=True, images=images, force=True)
     except Exception as exc:  # noqa: BLE001
         r.status, r.detail = FAIL, f"{plan}: {exc}"
         return r
