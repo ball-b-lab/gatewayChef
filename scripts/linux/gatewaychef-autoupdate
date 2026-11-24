@@ -14,3 +14,6 @@ running=$(cat "$HOME_DIR/running-commit" 2>/dev/null || true)
 pgrep -f "gateway_setup.py|fleet.py" >/dev/null && exit 0
 logger -t gatewaychef-autoupdate "laeuft ${running:0:7}, main ist ${want:0:7}: Neustart"
 systemctl restart gatewaychef
+# run.sh writes it too on UI start; set here as well so an older run.sh cannot cause a restart loop
+echo "$want" > "$HOME_DIR/running-commit"
+chown gatewaychef: "$HOME_DIR/running-commit"
