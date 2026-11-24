@@ -142,6 +142,9 @@ def profile_for_firmware(firmware, model="ug65"):
     profiles = known_profiles(model)
     if firmware in profiles:
         return profiles[firmware]
+    base = (firmware or "").split("-")[0]     # 60.0.0.49-r4 -> profile 60.0.0.49 (still checked for compatibility)
+    if base in profiles:
+        return profiles[base]
     if not profiles:
         raise GatewayConfigError("Kein Gateway-Profil vorhanden.")
     return profiles[max(profiles, key=_version_key)]

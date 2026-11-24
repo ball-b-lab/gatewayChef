@@ -120,7 +120,8 @@ def upload(client, host, image, timeout=1800, http=None):
     t0 = time.monotonic()
     with open(image["path"], "rb") as fh:
         try:
-            resp = http.post(f"http://{host}/cgi-bin/file-import", timeout=timeout,
+            scheme = "https" if str(getattr(client, "url", "")).startswith("https://") else "http"   # HTTPS-only firmware
+            resp = http.post(f"{scheme}://{host}/cgi-bin/file-import", timeout=timeout,
                              data={"sessionid": session_id(client), "size": str(image["size"]),
                                    "filename": f"type={ftype}&file={ffile}"},
                              files={"file": (os.path.basename(image["path"]), fh, "application/octet-stream")})

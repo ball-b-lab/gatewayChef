@@ -29,3 +29,10 @@ class OrderActionTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProfileRevisionTest(unittest.TestCase):
+    def test_revision_uses_base_profile(self):
+        from services import gateway_config as gc
+        self.assertEqual(gc.profile_for_firmware("60.0.0.49-r4"), "ug65-60.0.0.49")
+        self.assertEqual(gc.profile_for_firmware("60.0.0.50"), "ug65-60.0.0.50")
