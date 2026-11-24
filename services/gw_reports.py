@@ -138,7 +138,7 @@ def timeline(vpn_ip, days=7, connect=None):
         with conn.cursor() as cur:
             cur.execute("SELECT received_at, kind, boot, uptime_s, data FROM gw_reports "
                         "WHERE vpn_ip = %s AND received_at > now() - %s::interval ORDER BY received_at",
-                        (vpn_ip, f"{int(days)} days"))
+                        (vpn_ip, f"{int(float(days) * 86400)} seconds"))
             rows = cur.fetchall()
     finally:
         conn.close()
