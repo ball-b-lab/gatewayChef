@@ -255,7 +255,7 @@ def gw_report_timeline(ip):
     proxied = _cloud_read()
     if proxied is not None:
         return proxied
-    days = 7 if request.args.get("days") == "7" else 1
+    days = {"7": 7, "0.5h": 0.5 / 24, "2h": 2 / 24}.get(request.args.get("days"), 1)
     try:
         points = gw_reports.timeline(ip, days)
     except Exception as exc:

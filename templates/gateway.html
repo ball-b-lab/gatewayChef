@@ -49,6 +49,8 @@
       <div class="d-flex align-items-baseline gap-2">
         <h2 class="mb-0">Verlauf: Online, Neustarts, Funkpakete</h2>
         <div class="btn-group btn-group-sm ms-auto">
+          <button class="btn btn-outline-secondary" id="d0.5h" onclick="loadStats('0.5h')">30 Minuten</button>
+          <button class="btn btn-outline-secondary" id="d2h" onclick="loadStats('2h')">2 Stunden</button>
           <button class="btn btn-outline-secondary active" id="d1" onclick="loadStats(1)">24 Stunden</button>
           <button class="btn btn-outline-secondary" id="d7" onclick="loadStats(7)">7 Tage</button>
         </div>
@@ -291,6 +293,47 @@ function chart(cs, rp) {
   if (fr.length) f.append(el('div', 'Empfangen je Funkkanal (Pakete im Zeitraum): ' + fr.map(([k, v]) => `${(k / 1e6 || k)} MHz: ${v}`).join(' · '), 'text-muted'));
 }
 
+function shortChart(rp, minutes) {
+  const box = document.getElementById('chart');
+  const W = 760, H = 214, L = 34, B = 22, T = 30, tEnd = Date.now(), t0 = tEnd - minutes * 60e3;
+  const x = t => L + (t - t0) / (tEnd - t0) * (W - L);
+  const pts = (rp.points || []).map(p => ({...p, ms: Date.parse(p.t)})).filter(p => p.ms >= t0);
+  const max = Math.max(1, ...pts.map(p => p.rx || 0));
+  const y = v => (H - B) - (v / max) * (H - B - T);
+  const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', '100%');
+  const tip = (e, t) => e.append(Object.assign(document.createElementNS(ns, 'title'), {textContent: t}));
+  const add = (tag, attrs, text) => { const e = document.createElementNS(ns, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; svg.append(e); return e; };
+  [0, .5, 1].forEach(f => { const v = Math.round(max * f); add('line', {x1: L, x2: W, y1: y(v), y2: y(v), stroke: '#eee'}); add('text', {x: 2, y: y(v) + (f === 1 ? 12 : 3)}, v); });
+  add('text', {x: 2, y: 13, 'font-size': 9, fill: '#888'}, 'online');
+  add('text', {x: 2, y: 24, 'font-size': 9, fill: '#888'}, 'Pakete');
+  const stepMin = minutes > 60 ? 15 : 5;
+  for (let t = Math.ceil(t0 / (stepMin * 60e3)) * stepMin * 60e3; t <= tEnd; t += stepMin * 60e3) {
+    add('line', {x1: x(t), x2: x(t), y1: T, y2: H - B, stroke: '#f3f3f3'});
+    add('text', {x: x(t), y: H - 6, 'text-anchor': 'middle'}, new Date(t).toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}));
+  }
+  add('rect', {x: L, y: 5, width: W - L, height: 10, fill: '#f1d0d0'});
+  const band = (list, fill, label) => (list || []).forEach(([a, b]) => {
+    const x1 = x(Math.max(Date.parse(a), t0)), x2 = x(Math.min(Date.parse(b), tEnd));
+    if (x2 > x1) tip(add('rect', {x: x1, y: 5, width: Math.max(1, x2 - x1), height: 10, fill}), `${label} ${new Date(a).toLocaleTimeString('de-DE')} – ${new Date(b).toLocaleTimeString('de-DE')}`);
+  });
+  band(rp.online, '#5cb85c', 'online'); band(rp.no_connection, '#e0a800', 'lief, aber ohne Verbindung');
+  const bw = Math.max(2, (W - L) / minutes * 0.7);
+  pts.forEach(p => tip(add('rect', {x: x(p.ms) - bw, y: y(p.rx || 0), width: bw, height: (H - B) - y(p.rx || 0), class: 'bar-rx'}),
+    `${new Date(p.ms).toLocaleTimeString('de-DE')}: ${p.rx ?? 0} Pakete · ${p.sensors ?? '–'} Sensoren · CRC ${p.crc_error_pct ?? '–'} %`));
+  (rp.boots || []).map(Date.parse).filter(t => t >= t0).forEach(t => {
+    add('line', {x1: x(t), x2: x(t), y1: 2, y2: H - B, stroke: '#c83232', 'stroke-dasharray': '3 2'});
+    add('text', {x: x(t) + 2, y: 26, 'font-size': 9, fill: '#c83232'}, 'Neustart');
+  });
+  if (!pts.length) add('text', {x: L + 4, y: 60, 'font-size': 11, fill: '#aaa'}, 'keine Meldungen in diesem Zeitraum');
+  box.replaceChildren(svg);
+  document.getElementById('chartinfo').innerHTML = `Letzte ${minutes} Minuten aus den Meldungen des Gateways selbst (eine pro Minute, ab Flow 1.4.0). Säulen: <b>Funkpakete je Meldung</b>. Meldungen kommen gepuffert alle 10 Minuten, die letzten Minuten können daher noch fehlen.`;
+  const f = document.getElementById('freq'); f.replaceChildren();
+  const lr = rp.last_report ? (Date.now() - Date.parse(rp.last_report)) / 1000 : null;
+  f.append(el('div', `${pts.length} Meldungen im Zeitraum · ${pts.reduce((s, p) => s + (p.rx || 0), 0)} Funkpakete · ${(rp.boots || []).length} Neustart(s) · zuletzt gemeldet ${ago(lr)}`,
+              'fw-semibold ' + (lr != null && lr < 900 ? 'ok' : 'bad')));
+}
+
 const RN = {same: ['unverändert', 'text-muted'], change: ['wird geändert', 'text-primary'], done: ['geändert ✓', 'ok'],
             manual: ['von Hand ändern', 'mid'], missing: ['nicht angelegt', 'mid'], skip: ['übersprungen', 'text-muted'], error: ['Fehler', 'bad']};
 function renderRename(p, applied) {
@@ -317,8 +360,12 @@ async function renamePlan() {
   catch (e) { box.textContent = e.message; box.className = 'small mb-2 bad'; }
 }
 async function loadStats(days) {
-  document.getElementById('d1').classList.toggle('active', days === 1);
-  document.getElementById('d7').classList.toggle('active', days === 7);
+  ['0.5h', '2h', 1, 7].forEach(d => document.getElementById('d' + d).classList.toggle('active', days === d));
+  if (typeof days === 'string') {   // short range: only the gateway's own minute reports, ChirpStack has hourly values
+    try { reports = await api(`/api/fleet/gateway/${IP}/reports?days=${days}`); shortChart(reports, days === '2h' ? 120 : 30); }
+    catch (e) { document.getElementById('chart').textContent = e.message; }
+    return;
+  }
   try {
     const [st, rp] = await Promise.all([api(`/api/fleet/gateway/${IP}/stats?days=${days}`),
       api(`/api/fleet/gateway/${IP}/reports?days=${days}`).catch(e => ({error: e.message}))]);
