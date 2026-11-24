@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flottenstände</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="icon" type="image/png" href="/static/icon/IconGatewayChef.png">
+<style>
+  body { background: #f6f7f9; }
+  td, th { white-space: nowrap; vertical-align: middle; }
+  tr.snap { cursor: pointer; } tr.snap.sel { background: #e7f1ff; }
+  .ok { color: #1a9a4b; } .bad { color: #c83232; } .mid { color: #b07d00; }
+  .box { background: #fff; border: 1px solid #dee2e6; border-radius: .5rem; padding: .6rem .75rem; }
+</style>
+</head>
+<body>
+<div class="container-fluid py-3" style="max-width: 1400px">
+  <div class="d-flex align-items-baseline gap-3 mb-2 flex-wrap">
+    <a href="/fleet" class="small">← Flotte</a>
+    <h1 class="h4 mb-0">Flottenstände</h1>
+    <span class="text-muted small">Gespeichert nach jeder Prüfung der ganzen Flotte: immer nach „Tief prüfen“, sonst höchstens alle 30 min.</span>
+    <span class="ms-auto"></span>
+    {% if cloud %}<a href="/auth/logout" class="small">Abmelden</a>{% endif %}
+  </div>
+  <div id="err" class="alert alert-danger py-2" style="display:none"></div>
+  <div class="row g-3">
+    <div class="col-lg-5"><div class="box">
+      <div class="small text-muted mb-1">Verlauf (neuester oben, Klick zeigt den Stand)</div>
+      <div style="max-height: 75vh; overflow: auto">
+        <table class="table table-sm small mb-0"><thead class="table-light"><tr>
+          <th>Zeitpunkt</th><th>Art</th><th>Gateways</th><th>online</th><th>offline</th><th>empfängt</th><th>LTE</th><th>Flow</th>
+        </tr></thead><tbody id="list"><tr><td colspan="8" class="text-muted">lade …</td></tr></tbody></table>
+      </div>
+    </div></div>
+    <div class="col-lg-7"><div class="box">
+      <div class="d-flex gap-2 align-items-baseline flex-wrap mb-1">
+        <div class="small text-muted" id="head">Stand auswählen</div>
+        <span class="ms-auto"></span>
+        <input id="q" class="form-control form-control-sm" style="width:14rem" placeholder="Suche" oninput="renderRows()">
+        <button class="btn btn-sm btn-outline-secondary" onclick="csv()" id="csvbtn" disabled>CSV</button>
+      </div>
+      <div id="sum" class="small mb-2"></div>
+      <div style="max-height: 70vh; overflow: auto">
+        <table class="table table-sm small mb-0"><thead class="table-light"><tr>
+          <th>●</th><th>VPN-IP</th><th>Name</th><th>DB</th><th>ms</th><th>Firmware</th><th>Flow</th><th>Funk</th><th>Netz</th><th>Signal</th><th>CRC %</th><th>Sensoren</th>
+        </tr></thead><tbody id="rows"></tbody></table>
+      </div>
+    </div></div>
+  </div>
+</div>
+<script>
+const el = (t, txt, cls) => { const e = document.createElement(t); if (txt != null) e.textContent = txt; if (cls) e.className = cls; return e; };
+async function api(path) {
+  const res = await fetch(path);
+  if (res.status === 401) { location.href = '/auth/login?next=' + encodeURIComponent(location.pathname); throw new Error('nicht angemeldet'); }
+  const json = await res.json().catch(() => ({ok: false, error: {message: 'HTTP ' + res.status}}));
+  if (!json.ok) throw new Error((json.error && json.error.message) || ('HTTP ' + res.status));
+  return json.data;
+}
+const fmt = iso => new Date(iso).toLocaleString('de-DE', {dateStyle: 'short', timeStyle: 'short'});
+const counts = o => Object.entries(o || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}: ${v}`).join(' · ');
+const ipNum = ip => (ip || '').split('.').reduce((a, x) => a * 256 + (+x || 0), 0);
+let snap = null;
+
+function showErr(e) { const b = document.getElementById('err'); b.textContent = e.message || e; b.style.display = ''; }
+
+async function loadList() {
+  try {
+    const list = await api('/api/fleet/snapshots'), tb = document.getElementById('list');
+    tb.replaceChildren();
+    if (!list.length) { const tr = el('tr'); tr.append(el('td', 'Noch kein Stand gespeichert. Auf der Flottenseite einmal prüfen.', 'text-muted')); tb.append(tr); return; }
+    list.forEach((s, i) => {
+      const m = s.summary || {}, tr = el('tr', null, 'snap');
+      tr.dataset.id = s.id;
+      [fmt(s.taken_at), s.deep ? 'tief' : 'schnell', m.total, m.online, m.offline, m.receiving, m.lte, counts(m.flow)]
+        .forEach((v, j) => tr.append(el('td', v ?? '–', j === 3 ? 'ok' : j === 4 && m.offline ? 'bad' : '')));
+      tr.onclick = () => open(s.id);
+      tb.append(tr);
+    });
+    open(list[0].id);
+  } catch (e) { showErr(e); }
+}
+
+async function open(id) {
+  try {
+    snap = await api('/api/fleet/snapshots/' + id);
+    document.querySelectorAll('tr.snap').forEach(tr => tr.classList.toggle('sel', +tr.dataset.id === id));
+    const m = snap.summary || {};
+    document.getElementById('head').textContent = `Stand vom ${fmt(snap.taken_at)} (${snap.deep ? 'tiefe Prüfung' : 'schnelle Prüfung, Firmware/Flow aus der letzten tiefen'})`;
+    document.getElementById('sum').textContent =
+      `${m.total} Gateways · ${m.online} online · ${m.offline} offline · ${m.receiving} empfangen Funk · ${m.lte} in LTE` +
+      (counts(m.firmware) ? ` · Firmware ${counts(m.firmware)}` : '') + (counts(m.flow) ? ` · Flow ${counts(m.flow)}` : '');
+    document.getElementById('csvbtn').disabled = false;
+    renderRows();
+  } catch (e) { showErr(e); }
+}
+
+function visible() {
+  const q = document.getElementById('q').value.toLowerCase();
+  return (snap ? snap.rows : []).filter(r => !q || Object.values(r).join(' ').toLowerCase().includes(q))
+    .sort((a, b) => (a.online === true ? 0 : a.online == null ? 1 : 2) - (b.online === true ? 0 : b.online == null ? 1 : 2) || ipNum(a.vpn_ip) - ipNum(b.vpn_ip));
+}
+
+function renderRows() {
+  const tb = document.getElementById('rows'); tb.replaceChildren();
+  visible().forEach(r => {
+    const tr = el('tr');
+    tr.append(el('td', r.online === true ? '●' : r.online === false ? '●' : '○', r.online === true ? 'ok' : r.online === false ? 'bad' : 'text-muted'));
+    const a = el('a', r.vpn_ip); a.href = '/fleet/gw/' + r.vpn_ip; const td = el('td'); td.append(a); tr.append(td);
+    [r.name, r.db_status, r.latency_ms, r.firmware, r.flow ? r.flow + (r.flow_current === false ? ' (alt)' : '') : null,
+     r.receiving == null ? null : r.receiving ? 'empfängt' : 'nein', r.net_type, r.signal_dbm, r.crc_error_pct, r.sensors]
+      .forEach((v, i) => tr.append(el('td', v ?? '–', i === 5 && r.receiving === false ? 'bad' : i === 4 && r.flow_current === false ? 'mid' : '')));
+    tb.append(tr);
+  });
+}
+
+function csv() {
+  if (!snap) return;
+  const cols = ['vpn_ip', 'name', 'eui', 'db_status', 'online', 'latency_ms', 'firmware', 'flow', 'flow_current', 'wifi_country',
+                'receiving', 'driveby_poll_s', 'net_type', 'signal_dbm', 'uptime_s', 'crc_error_pct', 'sensors'];
+  const q = v => v == null ? '' : /[;"\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
+  const text = [cols.join(';')].concat(snap.rows.map(r => cols.map(c => q(r[c])).join(';'))).join('\n');
+  const a = el('a'); a.href = URL.createObjectURL(new Blob(['﻿' + text], {type: 'text/csv'}));
+  a.download = 'flottenstand-' + snap.taken_at.slice(0, 16).replace(/[:T]/g, '-') + '.csv'; a.click();
+}
+
+loadList();
+</script>
+</body>
+</html>
