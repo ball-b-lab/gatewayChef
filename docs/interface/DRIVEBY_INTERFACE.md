@@ -1,7 +1,8 @@
 # Schnittstelle Gateway-Flow ↔ Drive-by-App (dbapp)
 
 Verbindlicher Vertrag zwischen dem Node-RED-Flow auf den UG65-Gateways (`gateway_profiles/flows/<ver>.json`)
-und allen Lesern (Drive-by-App, GatewayChef). Maschinenlesbar: [`driveby-health.schema.json`](driveby-health.schema.json).
+und allen Lesern (Drive-by-App, GatewayChef). Maschinenlesbar: [`driveby-health.schema.json`](driveby-health.schema.json), öffentlich abrufbar ohne Anmeldung unter
+`https://gatewaychef.app.ball-b.de/api/interface/driveby-health.schema.json` (diese Beschreibung: `/api/interface/DRIVEBY_INTERFACE.md`).
 
 ## Regeln (gelten für jede neue Flow-Version)
 
@@ -10,7 +11,9 @@ und allen Lesern (Drive-by-App, GatewayChef). Maschinenlesbar: [`driveby-health.
 3. **Version erkennen** über `flow_version` (in `/driveby/health` und `/device-info`), nicht über das Vorhandensein von Feldern raten.
 4. **HTTP-Status ≠ Ausfall der Schnittstelle:** `/driveby/health` und `/lora/health` liefern 503 mit vollständigem Body, wenn der Paket-Forwarder schweigt.
 
-## Endpunkte (Port 1880, alle Versionen ab 1.1.0 identisch)
+## Endpunkte (alle Versionen ab 1.1.0 identisch)
+
+Über das VPN erreichbar per Proxy auf Port 80: `http://<vpn-ip>/node-red/<endpunkt>` (Port 1880 direkt ist über das VPN nicht offen).
 
 | Endpunkt | Inhalt |
 |---|---|
@@ -34,4 +37,4 @@ und allen Lesern (Drive-by-App, GatewayChef). Maschinenlesbar: [`driveby-health.
 ## Für Entwickler der Leser
 
 - Testfälle: je eine Antwort aus 1.1.0, 1.2.0, 1.3.x, 1.4.0 parsen (fehlendes `radio`/`devices`, `null`-Werte, HTTP 503 mit Body).
-- Echte Antworten: `curl http://<vpn-ip>:1880/driveby/health` (0.116 läuft mit 1.4.0).
+- Echte Antworten: `curl http://<vpn-ip>/node-red/driveby/health` (0.116 läuft mit 1.4.0).

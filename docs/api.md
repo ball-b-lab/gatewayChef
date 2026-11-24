@@ -268,3 +268,9 @@ Bedienung: Gateway-Seite, Feld „Name / Kunde“.
 
 `GET /api/fleet/status?cached=1` antwortet sofort mit dem letzten vollständigen Stand aus dem Speicher der App
 (`{rows, age_s}`; leer nach einem Neustart der App). Die Flottenseite zeigt den zuerst und prüft dann live nach.
+
+
+## GET /api/interface/<datei>
+
+Öffentlich (ohne Anmeldung, CORS offen), nur lesend: Schnittstellenvertrag Gateway-Flow ↔ Drive-by-App.
+`driveby-health.schema.json` (JSON-Schema) und `DRIVEBY_INTERFACE.md`. `/api/interface/` listet die Dateien.
