@@ -61,6 +61,12 @@
     <div class="col-12 col-lg-4"><div class="card-box h-100 actions">
       <h2>Fernwartung für dieses Gateway</h2>
       <div class="small text-muted mb-2">„prüfen“ ändert nichts. Schreibende Aktionen fragen nach und laufen nur, wenn das Gateway stabil erreichbar ist.</div>
+      <div class="fw-semibold small">Name / Kunde</div>
+      <div class="d-flex gap-1 mb-1">
+        <input id="newname" class="form-control form-control-sm" placeholder="0.116 10999 - Kunde GmbH" title="Format: &lt;x.y&gt; &lt;Kunden-Nr.&gt; - &lt;Kundenname&gt;">
+        <button class="btn btn-sm btn-outline-secondary" onclick="renamePlan()">prüfen</button>
+      </div>
+      <div id="renameout" class="small mb-2"></div>
       <div class="fw-semibold small">Prüfen</div>
       <button class="btn btn-sm btn-outline-primary" onclick="loadLive()">Tief prüfen</button>
       <button class="btn btn-sm btn-outline-secondary" onclick="act('compare')">Standard prüfen</button>
@@ -203,6 +209,7 @@ function renderSensors(d) {
 function renderHead() {
   const g = (stats && stats.gateway) || db || {};
   document.getElementById('title').textContent = (g.gateway_name || 'Gateway') + ' · ' + IP;
+  const nn = document.getElementById('newname'); if (nn && !nn.value && g.gateway_name) nn.value = g.gateway_name;
   document.title = (g.gateway_name || IP) + ' – Gateway';
   document.getElementById('sub').textContent = [g.eui && 'EUI ' + g.eui, g.serial_number && 'S/N ' + g.serial_number,
     g.status_overall, live && live.wifi_country && 'WLAN-Region ' + live.wifi_country].filter(Boolean).join(' · ');
@@ -269,6 +276,31 @@ function chart(cs, rp) {
   if (fr.length) f.append(el('div', 'Empfangen je Funkkanal (Pakete im Zeitraum): ' + fr.map(([k, v]) => `${(k / 1e6 || k)} MHz: ${v}`).join(' · '), 'text-muted'));
 }
 
+const RN = {same: ['unverändert', 'text-muted'], change: ['wird geändert', 'text-primary'], done: ['geändert ✓', 'ok'],
+            manual: ['von Hand ändern', 'mid'], missing: ['nicht angelegt', 'mid'], skip: ['übersprungen', 'text-muted'], error: ['Fehler', 'bad']};
+function renderRename(p, applied) {
+  const box = document.getElementById('renameout'); box.replaceChildren();
+  if (p.client_change) box.append(el('div', `Kunde wechselt zu ${p.new_client.client_id} - ${p.new_client.client_name}`, 'fw-semibold'));
+  p.targets.forEach(t => {
+    const [txt, cls] = RN[t.action] || [t.action, ''];
+    box.append(el('div', `${t.system}: ${t.current ?? '–'} → ${txt}${t.client_id ? ' (Kunde ' + t.client_id + ')' : ''}${t.detail ? ' · ' + t.detail : ''}`, cls));
+  });
+  if (!applied && p.targets.some(t => t.action === 'change')) {
+    const b = el('button', 'Jetzt umbenennen', 'btn btn-sm btn-warning mt-1');
+    b.onclick = async () => {
+      if (!confirm(`„${p.old_name || '–'}“ → „${p.new_name}“ umbenennen?`)) return;
+      b.disabled = true;
+      try { renderRename(await api('/api/fleet/rename', {vpn_ip: IP, name: p.new_name, apply: true}), true); loadStats(1); }
+      catch (e) { box.append(el('div', e.message, 'bad')); }
+    };
+    box.append(b);
+  }
+}
+async function renamePlan() {
+  const box = document.getElementById('renameout'); box.textContent = 'lese aktuelle Namen …';
+  try { renderRename(await api('/api/fleet/rename', {vpn_ip: IP, name: document.getElementById('newname').value})); }
+  catch (e) { box.textContent = e.message; box.className = 'small mb-2 bad'; }
+}
 async function loadStats(days) {
   document.getElementById('d1').classList.toggle('active', days === 1);
   document.getElementById('d7').classList.toggle('active', days === 7);

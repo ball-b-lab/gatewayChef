@@ -253,3 +253,15 @@ Gateways melden sich selbst, statt nur über das VPN abgefragt zu werden.
 
 Konfiguration (Coolify): `GW_REPORT_TOKEN` (zufälliger Wert), optional `GW_REPORT_URL`
 (Standard `https://gatewaychef.app.ball-b.de/api/gw/report`). Ohne Token bietet die App Flow 1.4.0 nicht an.
+
+## Gateway umbenennen / Kunde ändern
+
+`POST /api/fleet/rename` mit `{vpn_ip, name, apply}`. Ohne `apply: true` nur Vorschau: aktueller Name je System und
+was passieren würde. Mit `apply: true` werden geschrieben:
+- GatewayChef-Datenbank (`gateway_inventory.gateway_name`)
+- ChirpStack (GET + PUT `/api/gateways/<eui>`, nur der Name ändert sich)
+
+Webservice (WS1): Die API kann Gateways nur suchen und anlegen (GET/POST `/api/v2/gateway`), nicht ändern. Die
+Vorschau zeigt den aktuellen Eintrag und Kunden; Name und Kunde müssen dort von Hand umgestellt werden.
+Der Kunde steckt im Namen (`<x.y> <Kunden-Nr.> - <Kundenname>`), ein Kundenwechsel wird in der Vorschau gemeldet.
+Bedienung: Gateway-Seite, Feld „Name / Kunde“.

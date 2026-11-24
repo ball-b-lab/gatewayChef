@@ -49,3 +49,5 @@ Stand: 2026-03-10
 Die Station holt `main` bei jedem Dienststart (`systemctl restart gatewaychef`). Ein Release ist also Merge
 auf `main` und danach ein Neustart auf der Station. Für einen festen Stand `GATEWAYCHEF_REF=<tag>` im
 Unit-File setzen.
+
+- 24.11.2026: alte Einrichtungsseite unter `/einrichtung`; `/` → `/fleet` (außer Windows-App, siehe DEPLOYMENT.md).
