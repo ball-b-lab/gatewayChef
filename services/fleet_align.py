@@ -30,9 +30,9 @@ from services import nodered as nr
 from services.setup import checks
 
 LNS_SECTION = ("yruo_loragw", "general_conf")
-# Node-RED as 1st LNS target only where tested: on 60.0.0.48 the forwarder log then lacks the
-# Cortex ACK lines and /lora/health shows OFFLINE although Cortex is connected (0.115, 22.11.2026).
-LNS_FIRST_FW = [v.strip() for v in os.getenv("LNS_NODERED_FIRST_FW", "60.0.0.50").split(",") if v.strip()]
+# Our standard LNS order is "driveby-udp-forward" (LEGACY_SERVS): internal LNS, Cortex, Node-RED 3rd.
+# Node-RED as 1st target (patch lns-nodered-first) only on firmware listed here (admin decision, default none).
+LNS_FIRST_FW = [v.strip() for v in os.getenv("LNS_NODERED_FIRST_FW", "").split(",") if v.strip()]
 LEGACY_SERVS = [
     {"id": 0, "serv_enabled": True, "serv_addr": "localhost", "serv_type": "ursalink", "serv_port_up": 1700,
      "serv_port_down": 1700, "serv_mqtt_port": 1883, "sync_freq_plan": False},
@@ -191,7 +191,8 @@ def _verify_lns(fleet, gw):
     return True, f"{lns_info}, {db_info}"
 
 
-def align(fleet, vpn_ip, apply=False, force=False):
+def align(fleet, vpn_ip, apply=False, force=False, lns=True):
+    """lns=False (no admin): LNS / packet forwarder targets are left as they are."""
     gw = fleet._gateway(vpn_ip)
     cmp_ = compare(fleet, gw)
     if cmp_["result"] in ("offline", "blocked", "ok") or not apply:
@@ -203,7 +204,11 @@ def align(fleet, vpn_ip, apply=False, force=False):
         return dict(public(cmp_), result="skipped", detail=f"nicht stabil: {why}", checks=_checks(steps))
 
     plan = cmp_["plan"]
+    lns_ok_to_write = lns
     lns = [c for c in plan["changes"] if _is_lns(c)]
+    if lns and not lns_ok_to_write:
+        steps.append(("LNS-Ziele", None, "weichen ab, nicht geändert: nur Admins dürfen das LNS umstellen"))
+        lns = []
     plain = [c for c in plan["changes"] if not _is_lns(c)]
 
     if not cmp_["flow"]["ok"]:
@@ -245,6 +250,9 @@ def align(fleet, vpn_ip, apply=False, force=False):
             return dict(public(cmp_), result="failed", detail="LNS-Umstellung zurueckgerollt",
                         rolled_back=True, rollback_ok=rb_ok, checks=_checks(steps))
 
+    if not plain and not lns and cmp_["flow"]["ok"]:
+        return dict(public(cmp_), result="skipped", detail="nur LNS weicht ab: das darf nur ein Admin ändern",
+                    checks=_checks(steps), needs_admin=True)
     return dict(public(cmp_), result="changed", detail="an Standard angeglichen: " + cmp_["detail"],
                 checks=_checks(steps))
 

@@ -208,6 +208,10 @@ if APP_MODE != 'cloud_api':
         app.register_blueprint(webservice_bp)
         app.register_blueprint(station_bp)
     app.register_blueprint(fleet_bp)
+    if APP_MODE == 'cloud' and os.getenv("ORDERS_WORKER", "1") == "1":
+        # open fleet orders: run as soon as the gateway is online (services/orders.py)
+        from services import fleet as _fl, orders as _orders
+        _orders.start_worker(_fl.from_env)
     app.register_blueprint(vpn_bp)
 
 

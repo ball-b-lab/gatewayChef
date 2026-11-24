@@ -15,10 +15,11 @@
           {
             "id": 0,
             "serv_enabled": true,
-            "serv_addr": "127.0.0.1",
-            "serv_type": "semtech",
-            "serv_port_up": 1702,
-            "serv_port_down": 1702,
+            "serv_addr": "localhost",
+            "serv_type": "ursalink",
+            "serv_port_up": 1700,
+            "serv_port_down": 1700,
+            "serv_mqtt_port": 1883,
             "sync_freq_plan": false
           },
           {
@@ -32,12 +33,11 @@
           },
           {
             "id": 2,
-            "serv_enabled": false,
-            "serv_addr": "localhost",
-            "serv_type": "ursalink",
-            "serv_port_up": 1700,
-            "serv_port_down": 1700,
-            "serv_mqtt_port": 1883,
+            "serv_enabled": true,
+            "serv_addr": "127.0.0.1",
+            "serv_type": "semtech",
+            "serv_port_up": 1702,
+            "serv_port_down": 1702,
             "sync_freq_plan": false
           }
         ]

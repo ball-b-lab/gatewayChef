@@ -14,11 +14,41 @@ from services import gw_reports
 from services import gateway_config as gc
 from services import jobs
 from services import nodered as nr
+from services import orders
+from services import roles
 from utils.response import error, ok
 
 bp = Blueprint("fleet", __name__)
 _LAST_STATUS = {"rows": None, "at": 0.0}  # last full status (any check), served instantly with ?cached=1
-_LAST_DEEP = {}  # vpn_ip -> (fields, time) of the last successful deep check (this process)
+_LAST_DEEP = {}  # vpn_ip -> (fields, time) of the last successful deep check
+# kept on disk too: the station restarts on every auto-update and would otherwise start empty (slow first load)
+_CACHE_FILE = os.getenv("FLEET_CACHE_FILE") or os.path.join(os.path.expanduser("~"), ".cache", "gatewaychef", "fleet-status.json")
+
+
+def _load_cache():
+    import json
+    try:
+        with open(_CACHE_FILE, encoding="utf-8") as fh:
+            d = json.load(fh)
+        _LAST_STATUS.update(rows=d.get("rows"), at=float(d.get("at") or 0))
+        _LAST_DEEP.update({k: tuple(v) for k, v in (d.get("deep") or {}).items()})
+    except (OSError, ValueError, TypeError):
+        pass
+
+
+def _save_cache():
+    import json
+    try:
+        os.makedirs(os.path.dirname(_CACHE_FILE), exist_ok=True)
+        tmp = _CACHE_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump({"rows": _LAST_STATUS["rows"], "at": _LAST_STATUS["at"], "deep": _LAST_DEEP}, fh, default=str)
+        os.replace(tmp, _CACHE_FILE)
+    except OSError:
+        pass
+
+
+_load_cache()
 _DEEP_KEYS = ("firmware", "profile_ok", "profile", "firmware_compat", "firmware_deltas", "wifi_country", "flow", "health")
 _ERRORS = (fl.FleetError, gc.GatewayConfigError, nr.NodeRedError, fw.FirmwareError)
 
@@ -101,6 +131,7 @@ def fleet_status():
     if not only:
         _LAST_STATUS.update(rows=rows, at=now)
         snaps.maybe_save(rows, deep)
+    _save_cache()
     return ok(rows)
 
 
@@ -135,12 +166,14 @@ def fleet_snapshot(snap_id):
 @bp.route("/api/fleet/catalog", methods=["GET"])
 def fleet_catalog():
     patches = [{"name": n, "description": p.get("description", ""), "risky": fl.patch_is_risky(p),
+                "admin_only": bool(fl.patch_is_risky(p) or fl.patch_touches_lns(p)),
                 "firmware": p.get("firmware")} for n, p in fl.list_patches().items()]
     bundles = nr.load_bundles()
     return ok({"patches": patches, "flows": sorted(bundles), "latest_flow": nr.latest_version(bundles),
                "profiles": fl.known_firmwares(),
                "firmware_images": [{"version": v, "label": i["label"], "mb": i["size"] // 1_000_000}
                                    for v, i in sorted(fw.find_images().items())],
+               "admin": roles.is_admin(), "orders": _cloud(),
                "firmware_upload_configured": bool(os.getenv("FIRMWARE_UPLOAD_TYPE") and os.getenv("FIRMWARE_UPLOAD_FILE"))})
 
 
@@ -151,6 +184,8 @@ def fleet_patch():
         patch = fl.load_patch(str(data.get("name") or ""))
     except (OSError, ValueError):
         return error("Patch nicht gefunden.", 404)
+    if bool(data.get("apply")) and (fl.patch_touches_lns(patch) or fl.patch_is_risky(patch)) and not roles.is_admin():
+        return error("LNS- und Netzeinstellungen dürfen nur Admins ändern (Standard: driveby-udp-forward).", 403)
     try:
         ip, apply = data.get("vpn_ip"), bool(data.get("apply"))
         run = lambda: _fleet().patch(ip, patch, apply=apply, allow_risky=bool(data.get("allow_risky")))  # noqa: E731
@@ -228,7 +263,8 @@ def fleet_align():
     data = request.json or {}
     try:
         ip, apply = data.get("vpn_ip"), bool(data.get("apply"))
-        run = lambda: fa.align(_fleet(), ip, apply=apply, force=bool(data.get("force")))  # noqa: E731
+        admin = roles.is_admin()
+        run = lambda: fa.align(_fleet(), ip, apply=apply, force=bool(data.get("force")) and admin, lns=admin)  # noqa: E731
         return ok(jobs.tracked("align", ip, "An Standard angleichen", run) if apply else run())
     except _ERRORS as exc:
         return error(str(exc), 400)
@@ -242,12 +278,47 @@ def gw_report():
     got = request.headers.get("X-GW-Report-Token", "")
     if not expected or not got or not hmac.compare_digest(got, expected):
         return error("Token fehlt oder falsch", 401)
+    body = request.get_json(silent=True)
     try:
-        return ok(gw_reports.store(request.get_json(silent=True)))
+        res = gw_reports.store(body)
     except gw_reports.ReportError as exc:
         return error(str(exc), 400)
     except Exception as exc:  # DB down etc.
         return error(f"nicht gespeichert: {type(exc).__name__}", 503)
+    samples = body.get("samples") if isinstance(body, dict) and isinstance(body.get("samples"), list) else [body]
+    ip = next((x.get("vpn_ip") for x in samples if isinstance(x, dict) and x.get("vpn_ip")), None)
+    orders.wake(ip)   # gateway is online right now: run its open orders
+    return ok(res)
+
+
+@bp.route("/api/fleet/orders", methods=["GET"])
+def orders_list():
+    if not _cloud():
+        return ok([])
+    try:
+        return ok(orders.listing())
+    except Exception as exc:
+        return error(f"Aufträge nicht lesbar: {exc}", 502)
+
+
+@bp.route("/api/fleet/orders", methods=["POST"])
+def orders_create():
+    """Body {ips: [...], action: align | flow | patch:<name>}: done as soon as each gateway is online."""
+    if not _cloud():
+        return error("Aufträge gibt es nur in der Cloud (dort läuft der Auftragsdienst).", 400)
+    data = request.get_json(silent=True) or {}
+    try:
+        return ok(orders.create(data.get("ips") or [], str(data.get("action") or ""), roles.user_name(), roles.is_admin()))
+    except orders.OrderError as exc:
+        return error(str(exc), 400)
+
+
+@bp.route("/api/fleet/orders/<int:order_id>", methods=["DELETE"])
+def orders_cancel(order_id):
+    try:
+        return ok(orders.cancel(order_id))
+    except orders.OrderError as exc:
+        return error(str(exc), 409)
 
 
 @bp.route("/api/fleet/gateway/<ip>/reports", methods=["GET"])

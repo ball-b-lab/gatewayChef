@@ -7,6 +7,7 @@ Every request needs a logged-in session, except:
 Pages without a session are redirected to Authentik, API calls get 401.
 """
 import base64
+import os
 import hashlib
 import hmac
 import secrets
@@ -128,6 +129,7 @@ def callback():
     session["user"] = {"name": claims.get("name") or claims.get("preferred_username"),
                        "email": claims.get("email"), "sub": claims.get("sub")}
     session["exp"] = time.time() + 12 * 3600
+    session["admin"] = os.getenv("OIDC_ADMIN_GROUP", "gatewaychef-admin") in groups
     current_app.logger.info("Login: %s", session["user"]["email"])
     return redirect(pending["next"])
 
@@ -142,7 +144,7 @@ def logout():
 @bp.route("/auth/me")
 def me():
     user = session.get("user") if session.get("exp", 0) > time.time() else None
-    return jsonify({"ok": bool(user), "data": user})
+    return jsonify({"ok": bool(user), "data": dict(user, admin=bool(session.get("admin"))) if user else None})
 
 
 def init_app(app, issuer, client_id, client_secret, allowed_group, secret_key):
