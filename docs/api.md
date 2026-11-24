@@ -224,3 +224,15 @@ In der Cloud gibt es nur Fernwartung: `/` leitet auf `/fleet`, die Einrichtung v
   VPN-Handshake und Traffic, Soll-Ist, letzte Vorgänge, Aktionen für dieses Gateway.
 - `GET /api/fleet/gateway/<ip>/stats?days=1|7` → `{gateway, chirpstack{last_seen, rx, tx, rx_per_freq}, vpn}`
 - `GET /api/fleet/jobs?ip=` → letzte Vorgänge (nur seit Start des Prozesses)
+
+## Flottenstände (Snapshots)
+
+Nach jeder Prüfung der ganzen Flotte (`GET /api/fleet/status` ohne `ip`) speichert die App einen datierten
+Stand in der Tabelle `fleet_snapshots` (legt sie selbst an, siehe `migrations/003_fleet_snapshots.sql`):
+nach `deep=1` immer, nach der schnellen Prüfung höchstens alle 30 min. Gespeichert werden nur kompakte,
+nicht geheime Felder (Name, Online, Firmware, Flow, Funk, Netz/Signal, CRC %, Sensoranzahl). Braucht die
+App-Datenbank, also nur in der Cloud; ohne DB wird nichts gespeichert und die Prüfung läuft normal.
+
+- `GET /api/fleet/snapshots` → Liste `{id, taken_at, deep, summary}` (neueste zuerst, max. 200)
+- `GET /api/fleet/snapshots/<id>` → ein Stand mit `rows`
+- Seite: `/fleet/history` (Verlauf, Stand ansehen, CSV)

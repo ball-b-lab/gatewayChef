@@ -9,6 +9,7 @@ from flask import Blueprint, render_template, request
 
 from services import firmware as fw
 from services import fleet as fl
+from services import fleet_snapshots as snaps
 from services import gateway_config as gc
 from services import jobs
 from services import nodered as nr
@@ -76,7 +77,31 @@ def fleet_status():
             for k, v in cached.items():
                 r.setdefault(k, v)
             r["deep_age"] = int(now - at)
+    if not only:
+        snaps.maybe_save(rows, deep)
     return ok(rows)
+
+
+@bp.route("/fleet/history")
+def fleet_history_page():
+    return render_template("fleet_history.html", cloud=_cloud())
+
+
+@bp.route("/api/fleet/snapshots", methods=["GET"])
+def fleet_snapshots():
+    try:
+        return ok(snaps.list_snapshots())
+    except Exception as exc:
+        return error(f"Flottenstände nicht lesbar: {exc}", 502)
+
+
+@bp.route("/api/fleet/snapshots/<int:snap_id>", methods=["GET"])
+def fleet_snapshot(snap_id):
+    try:
+        snap = snaps.get_snapshot(snap_id)
+    except Exception as exc:
+        return error(f"Flottenstand nicht lesbar: {exc}", 502)
+    return ok(snap) if snap else error("Flottenstand nicht gefunden", 404)
 
 
 @bp.route("/api/fleet/catalog", methods=["GET"])
