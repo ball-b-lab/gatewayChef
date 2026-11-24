@@ -56,7 +56,14 @@ sudo -H -u gatewaychef gatewaychef setup --new --apply --client-id 10999 --iccid
 Das Setup (und die Weboberfläche) sucht das Gateway automatisch (`utils/gateway_lan.py`): zuerst die neuesten
 DHCP-Leases der Station (`/var/lib/gatewaychef/dhcp-lan.leases`, je Station-Port `dhcp-gcp<N>.leases`), dann
 `GATEWAY_LAN_CANDIDATES` (Standard `192.168.1.1,192.168.23.150`). Genommen wird die erste Adresse, deren
-Node-RED `/device-info` antwortet. „Gateway Login“ und „Copy & Open“ zeigen dann auf diese Adresse. Danach das Gateway abziehen und das nächste anstecken.
+Node-RED `/device-info` antwortet. „Gateway Login“ und „Copy & Open“ zeigen dann auf diese Adresse.
+
+**Neues Gateway ohne Flow:** Fabrikneue UG65 haben unseren Node-RED-Flow noch nicht, `/device-info` fehlt.
+Dann wird das Gateway an seiner Weboberfläche erkannt (Seite enthält „Milesight“). Die EUI liest die Station
+per Gateway-Login (`yruo_loragw/general_conf` → `gateway_id`); probiert wird erst `GATEWAY_PASSWORD`, dann
+`GATEWAY_FACTORY_PASSWORD` (Standard `password`). Die Einrichtung installiert den Flow im Schritt
+„Drive-by-Flow“ nach der Gateway-Konfiguration selbst (Node-RED wird dort per Profil eingeschaltet) und
+prüft danach `/device-info`. Danach das Gateway abziehen und das nächste anstecken.
 
 **Am Gerät zu prüfen:** welche Werksadresse der Ethernet-Port des UG65 hat und ob er per DHCP eine Adresse
 holt. Bisher lief alles über `192.168.1.1`. Mit einem VLAN-Switch für mehrere Gateways gleichzeitig wird
