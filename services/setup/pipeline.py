@@ -342,6 +342,11 @@ class Pipeline:
             r.detail = "Eintrag vorhanden"
             return r
         lacking = [f for f in reg.required_fields() if not getattr(gw, f)]
+        if "client_id" in lacking:
+            # set up without a customer: the gateway is fully configured, the registry entry
+            # follows when it is assigned (gateway page: Name / Kunde). Stays IN_PROGRESS until then.
+            r.status, r.detail = SKIPPED, "ohne Kunde: Eintrag folgt bei der Kundenzuordnung"
+            return r
         if lacking:
             r.status, r.detail = FAIL, "fehlende Angaben: " + ", ".join(lacking)
             return r

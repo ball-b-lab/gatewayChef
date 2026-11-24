@@ -379,7 +379,8 @@ def from_env(**kw):
     from services.setup.factory import build_inventory
     return Fleet(
         build_inventory(),
-        gateway_user=os.getenv("GATEWAY_USER", "admin"), gateway_password=os.getenv("GATEWAY_PASSWORD", ""),
+        gateway_user=os.getenv("GATEWAY_USER", "admin"),
+        gateway_password=kw.pop("gateway_password", None) or os.getenv("GATEWAY_PASSWORD", ""),
         nodered_user=os.getenv("NODERED_USER", os.getenv("GATEWAY_USER", "admin")),
         nodered_password=os.getenv("NODERED_PASSWORD", os.getenv("GATEWAY_PASSWORD", "")),
         backup_dir=os.getenv("FLEET_BACKUP_DIR", os.path.join(os.path.expanduser("~"), ".gatewaychef", "backups")),

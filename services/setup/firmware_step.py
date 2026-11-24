@@ -44,11 +44,18 @@ def step_firmware(pipeline, apply, images=None, fleet_factory=None):
         r.status, r.detail = OK, "kein FIRMWARE_DIR: Firmware wird nicht angehoben"
         return r
     client = pipeline.client
-    try:
-        client.login(pipeline.user, pipeline.password)
-        client.get("yruo_wifi", "yruo_wifi")
-    except Exception as exc:  # noqa: BLE001 - preflight reports the details
-        r.status, r.detail = OK, f"Firmware nicht lesbar ({str(exc)[:80]})"
+    from utils.gateway_lan import gateway_passwords
+    password, last = None, None
+    for pw in [pipeline.password] + [p for p in gateway_passwords() if p != pipeline.password]:
+        try:   # ours first, then the factory password (new gateway)
+            client.login(pipeline.user, pw)
+            client.get("yruo_wifi", "yruo_wifi")
+            password = pw
+            break
+        except Exception as exc:  # noqa: BLE001 - preflight reports the details
+            last = exc
+    if password is None:
+        r.status, r.detail = OK, f"Firmware nicht lesbar ({str(last)[:80]})"
         return r
     current = client.firmware
     if not is_older(current, target):
@@ -66,7 +73,7 @@ def step_firmware(pipeline, apply, images=None, fleet_factory=None):
         eui, vpn_ip = dev.get("eui"), dev.get("vpn_ip")
     except Exception:  # noqa: BLE001
         pass
-    fleet = (fleet_factory or (lambda inv: fl.from_env(reachable_wait=120)))(None)
+    fleet = (fleet_factory or (lambda inv: fl.from_env(reachable_wait=120, gateway_password=password)))(None)
     fleet.inventory = _LanInventory(pipeline.host, eui, [vpn_ip])  # VPN as fallback (update over WLAN)
     try:
         res = fl.firmware_upgrade(fleet, fleet.inventory.row, target, apply=True, images=images)
