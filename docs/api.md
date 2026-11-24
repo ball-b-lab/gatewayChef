@@ -284,11 +284,12 @@ Ein Auftrag = eine Aktion für ein Gateway, die automatisch läuft, sobald das G
 - `POST {ips: [...], action}` mit `action` = `align` (auf Standard bringen) · `flow` (neueste Drive-by-Schnittstelle) ·
   `patch:<name>` (z. B. `patch:wifi-country-de`). Firmware gibt es nicht als Auftrag.
 - Stände: `open` (wartet: offline oder nicht stabil) → `running` → `done` / `failed`; `cancelled` per DELETE (nur offene).
-- LNS-Ziele ändert ein Auftrag nur, wenn ein Admin ihn angelegt hat.
+- LNS-Ziele stellt ein Auftrag nur auf unseren Standard (Node-RED-UDP zuerst).
 
 ## Rollen
 
-Admin = Authentik-Gruppe `OIDC_ADMIN_GROUP` (Standard `gatewaychef-admin`). Nur Admins dürfen LNS-/Packet-Forwarder-Ziele
-und riskante Patches schreiben (`/api/fleet/patch` → 403, `/api/fleet/align` lässt das LNS sonst unverändert).
-Standard für die LNS-Ziele ist **driveby-udp-forward** (interner LNS, Cortex, Node-RED 127.0.0.1:1702 als drittes Ziel).
+Admin = Authentik-Gruppe `OIDC_ADMIN_GROUP` (Standard `gatewaychef-admin`). Standard für die LNS-Ziele ist
+**Node-RED-UDP 127.0.0.1:1702 zuerst, dann Cortex** (Profile, Patch `lns-nodered-first`, ab Firmware `LNS_NODERED_FIRST_FW`
+= 60.0.0.50; ältere Firmware behält die alte Reihenfolge). Darauf umstellen darf jeder („Auf Standard bringen“).
+Andere LNS-Reihenfolgen (z. B. Patch `driveby-udp-forward`) und riskante Patches nur Admins (`/api/fleet/patch` → 403).
 Station (Linux-Laptop): kein Admin, außer `STATION_ADMIN=1`. `GET /api/fleet/catalog` liefert `admin` und `orders`.

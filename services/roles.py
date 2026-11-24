@@ -1,7 +1,7 @@
 """
 Who may do what. Admins (cloud: Authentik group OIDC_ADMIN_GROUP, default "gatewaychef-admin")
-may change LNS / packet forwarder targets and risky patches. Everyone else keeps our standard
-(driveby-udp-forward). A station (Linux laptop with setup ports) is not admin unless STATION_ADMIN=1;
+may write risky patches and LNS orders other than our standard. Everyone may set the LNS to our
+standard (Node-RED UDP 127.0.0.1:1702 first). A station (Linux laptop with setup ports) is not admin unless STATION_ADMIN=1;
 the local tool on a developer machine is admin.
 """
 import os

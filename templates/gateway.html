@@ -87,7 +87,7 @@
   <div class="row g-2 mt-0">
     <div class="col-12 col-lg-6"><div class="card-box h-100">
       <h2>Soll-Ist gegen unseren Standard <button class="btn btn-sm btn-link p-0 ms-2" onclick="loadCompare()">neu prüfen</button></h2>
-      <div class="small text-muted mb-1">Vergleicht die Einstellungen auf dem Gateway mit unserem Standard (Profil zur Firmware, LNS driveby-udp-forward, neueste Drive-by-Schnittstelle). Zu jeder Abweichung steht die Lösung.</div>
+      <div class="small text-muted mb-1">Vergleicht die Einstellungen auf dem Gateway mit unserem Standard (Profil zur Firmware, LNS Node-RED-UDP zuerst, neueste Drive-by-Schnittstelle). Zu jeder Abweichung steht die Lösung.</div>
       <div id="compare" class="small text-muted">lade …</div>
     </div></div>
     <div class="col-12 col-lg-6"><div class="card-box h-100">
@@ -427,9 +427,8 @@ async function loadCompare() {
       'auf Standard bringen: schreibt nur diese Werte, liest sie zurück und prüft die Erreichbarkeit. Läuft nur, wenn das Gateway stabil erreichbar ist.',
       [['jetzt angleichen', 'btn-warning', () => act('align', true)]].concat(later('align', 'Auf Standard bringen')));
     if (lns.length) fix(box, 'LNS / Packet Forwarder: ' + lns.map(c => Object.entries(c.fields).map(([k, v]) => `${k} ${fmtv(v[0])} → ${fmtv(v[1])}`).join(', ')).join(' · '),
-      CAT.admin ? 'auf Standard driveby-udp-forward umstellen. Läuft zuletzt und allein; klappt der Datenweg danach nicht, wird automatisch zurückgebaut.'
-                : 'nur ein Admin darf das LNS umstellen (Standard: driveby-udp-forward). Bitte Bescheid geben.',
-      CAT.admin ? [['jetzt angleichen (Admin)', 'btn-warning', () => act('align', true)]].concat(later('align', 'Auf Standard bringen')) : []);
+      'auf unseren Standard umstellen (Node-RED-UDP 127.0.0.1:1702 zuerst, dann Cortex). Läuft zuletzt und allein; klappt der Datenweg danach nicht, wird automatisch zurückgebaut.',
+      [['jetzt angleichen', 'btn-warning', () => act('align', true)]].concat(later('align', 'Auf Standard bringen')));
     if (r.firmware_ok === false) fix(box, `Firmware ${r.firmware}, neueste freigegebene ${r.firmware_newest}`,
       `oben bei „Firmware“ ${r.firmware_newest} wählen und aktualisieren (bis zu 20 Minuten, Gateway startet neu). Firmware läuft nie automatisch.`, []);
   } catch (e) { box.className = 'small bad'; box.textContent = e.message; }

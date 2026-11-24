@@ -92,7 +92,7 @@
   <details class="mb-3 small bg-white border rounded px-3 py-2">
     <summary class="fw-semibold">Hilfe: Was bedeuten die Spalten und Aktionen?</summary>
     <ul class="mt-2 mb-1">
-      <li><b>Standard</b> = Profil zur Firmware (WLAN, NTP, Funk …), LNS-Ziele <b>driveby-udp-forward</b> und die neueste Drive-by-Schnittstelle. „Auf Standard bringen“ läuft nur bei stabil erreichbaren Gateways: Schnittstelle → Einstellungen → LNS zuletzt, mit Rückbau bei Fehler. Die LNS-Ziele stellt nur ein Admin um.</li>
+      <li><b>Standard</b> = Profil zur Firmware (WLAN, NTP, Funk …), LNS-Ziele <b>Node-RED-UDP zuerst</b> (lns-nodered-first) und die neueste Drive-by-Schnittstelle. „Auf Standard bringen“ läuft nur bei stabil erreichbaren Gateways: Schnittstelle → Einstellungen → LNS zuletzt, mit Rückbau bei Fehler. LNS-Ziele werden nur auf unseren Standard (Node-RED-UDP zuerst) gestellt; andere Reihenfolgen nur als Admin.</li>
       <li><b>Drive-by-Schnittstelle</b> – die Software auf dem Gateway, über die die Drive-by-App per WLAN die Daten abholt.</li>
       <li><b>Firmware</b> – nie automatisch und nie als Auftrag; nacheinander, Stopp beim ersten Fehler, bis zu 20 Minuten je Gateway.</li>
       <li><b>gemeldet</b> – das Gateway meldet sich ab Drive-by-Schnittstelle 1.4.0 selbst (gesammelt alle 10 min). <b>DB-Status</b>: DEPLOYED = im Einsatz · IN_PROGRESS = Einrichtung begonnen, nicht abgeschlossen.</li>
@@ -363,6 +363,7 @@ async function run(kind, apply) {
       const checks = (r.checks || []).map(c => `${c.ok === false ? '✗' : c.ok ? '✓' : '·'} ${c.label}: ${c.info}`).join(' | ');
       results[ip] = {text: `${r.result}: ${r.detail || ''} ${changes}${rb} ${checks}`, cls};
       render();
+      if (apply) refreshRow(ip);
       if (kind === 'align' && r.result === 'failed') { alert('Angleichen fehlgeschlagen bei ' + ip + '. Weitere Gateways werden nicht geändert.'); return; }
       if (kind === 'firmware' && apply && cls === 'text-danger') { alert('Firmware-Update fehlgeschlagen bei ' + ip + '. Weitere Gateways werden nicht aktualisiert.'); return; }
     } catch (e) {
@@ -370,6 +371,16 @@ async function run(kind, apply) {
       if (kind === 'firmware' && apply) return;
     }
   }
+}
+
+// after a change: read this gateway again so its row shows the new state right away
+async function refreshRow(ip) {
+  try {
+    const r = (await api('/api/fleet/status?deep=1&ip=' + encodeURIComponent(ip)))[0];
+    if (!r) return;
+    const i = rows.findIndex(x => x.vpn_ip === ip);
+    if (i >= 0) rows[i] = r; render();
+  } catch (e) { /* stays until the next check */ }
 }
 
 function uploadFw() {
@@ -391,7 +402,7 @@ async function deleteFw(v) {
   try { await fetch('/api/fleet/firmware/images/' + encodeURIComponent(v), {method: 'DELETE'}); } finally { loadCatalog(); }
 }
 let CAT = {};
-const HELP = {align: 'Behebt alle Abweichungen vom Standard. LNS-Ziele nur als Admin.',
+const HELP = {align: 'Behebt alle Abweichungen vom Standard. Stellt auch die LNS-Ziele auf den Standard (Node-RED-UDP zuerst).',
   'patch:wifi-country-de': 'Setzt nur die WLAN-Region auf DE (Name und Passwort des WLANs bleiben).',
   nodered: 'Installiert die gewählte Version der Drive-by-Schnittstelle, mit Rückbau bei Fehler.',
   patch: 'Schreibt eine vorbereitete Einstellung, liest sie zurück und prüft die Erreichbarkeit.',
@@ -424,11 +435,14 @@ async function createOrder(action) {
   catch (e) { alert('Fehler: ' + e.message); }
 }
 const OST = {open: ['wartet', 'text-primary'], running: ['läuft', 'text-primary'], done: ['erledigt', 'text-success'], failed: ['fehlgeschlagen', 'text-danger'], cancelled: ['abgebrochen', 'text-muted']};
+const orderState = {};
 async function loadOrders() {
   if (!CAT.orders) return;
   document.getElementById('ordersbox').style.display = '';
   try {
     const list = await api('/api/fleet/orders'), tb = document.getElementById('orders'); tb.replaceChildren();
+    // an order finished since the last look: show that gateway's new state in the table
+    list.forEach(o => { const was = orderState[o.id]; if (was && was !== o.state && ['done', 'failed'].includes(o.state)) refreshRow(o.vpn_ip); orderState[o.id] = o.state; });
     const open = list.filter(o => o.state === 'open' || o.state === 'running').length, failed = list.filter(o => o.state === 'failed').length;
     document.getElementById('ordersum').textContent = `· ${open} offen` + (failed ? ` · ${failed} fehlgeschlagen` : '') + ' · letzte 14 Tage';
     if (!list.length) { const tr = el('tr'); tr.append(el('td', 'keine Aufträge')); tb.append(tr); }

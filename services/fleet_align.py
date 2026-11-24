@@ -30,9 +30,11 @@ from services import nodered as nr
 from services.setup import checks
 
 LNS_SECTION = ("yruo_loragw", "general_conf")
-# Our standard LNS order is "driveby-udp-forward" (LEGACY_SERVS): internal LNS, Cortex, Node-RED 3rd.
-# Node-RED as 1st target (patch lns-nodered-first) only on firmware listed here (admin decision, default none).
-LNS_FIRST_FW = [v.strip() for v in os.getenv("LNS_NODERED_FIRST_FW", "").split(",") if v.strip()]
+# Our standard LNS order (profiles, patch lns-nodered-first): Node-RED UDP 127.0.0.1:1702 first, Cortex 2nd.
+# Everyone may switch a gateway to it. Only where tested: on 60.0.0.48 the forwarder log then lacks the
+# Cortex ACK lines and /lora/health shows OFFLINE although Cortex is connected (0.115, 22.11.2026);
+# older firmware keeps LEGACY_SERVS. Any other LNS order is admin only (patches).
+LNS_FIRST_FW = [v.strip() for v in os.getenv("LNS_NODERED_FIRST_FW", "60.0.0.50").split(",") if v.strip()]
 LEGACY_SERVS = [
     {"id": 0, "serv_enabled": True, "serv_addr": "localhost", "serv_type": "ursalink", "serv_port_up": 1700,
      "serv_port_down": 1700, "serv_mqtt_port": 1883, "sync_freq_plan": False},

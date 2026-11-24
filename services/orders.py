@@ -9,7 +9,7 @@ An order is one action for one gateway:
 A background worker (one thread per web process, claims rows with SKIP LOCKED) looks at
 open orders every ORDER_INTERVAL seconds and right away when a gateway reports itself
 (POST /api/gw/report). Offline or not stable yet -> stays open and is tried again later.
-LNS changes only run if the order was created by an admin (allow_lns).
+LNS targets are only ever set to our standard (Node-RED UDP first), which everyone may do.
 """
 import json
 import os
@@ -72,7 +72,7 @@ def check_action(action, admin=False):
             patch = fl.load_patch(action[6:])
         except (OSError, ValueError):
             raise OrderError("Einstellung nicht gefunden")
-        if (fl.patch_is_risky(patch) or fl.patch_touches_lns(patch)) and not admin:
+        if fl.patch_admin_only(patch) and not admin:
             raise OrderError("Diese Einstellung dürfen nur Admins ändern")
         return action
     raise OrderError("unbekannte Aktion")
@@ -145,7 +145,7 @@ def run_action(fleet, ip, action, allow_lns):
     from services import fleet as fl
     from services import fleet_align as fa
     if action == "align":
-        res = fa.align(fleet, ip, apply=True, lns=allow_lns)
+        res = fa.align(fleet, ip, apply=True)
         r = res.get("result")
         state = DONE if r in ("changed", "ok") or res.get("needs_admin") else OPEN if r in ("offline", "skipped") else FAILED
     elif action == "flow":
@@ -190,7 +190,7 @@ def _finish(conn, oid, state, detail, result=None):
     conn.commit()
 
 
-def work_once(fleet, only=None, connect=None):
+def work_once(fleet, only=None, connect=None, on_change=None):
     """One pass over gateways with open orders. Returns how many orders were finished."""
     conn = _conn(connect)
     finished = 0
@@ -219,6 +219,8 @@ def work_once(fleet, only=None, connect=None):
                 _finish(conn, oid, state, ("wartet: " + detail) if state == OPEN else detail,
                         {k: v for k, v in (res or {}).items() if k not in ("plan", "client")})
                 finished += state in (DONE, FAILED)
+                if on_change and state in (DONE, FAILED):
+                    on_change(ip)
                 if state == OPEN:
                     break   # not stable now: rest of this gateway later
     finally:
@@ -226,7 +228,7 @@ def work_once(fleet, only=None, connect=None):
     return finished
 
 
-def start_worker(fleet_factory):
+def start_worker(fleet_factory, on_change=None):
     if _state["started"]:
         return
     _state["started"] = True
@@ -238,7 +240,7 @@ def start_worker(fleet_factory):
             _woken.clear()
             _wake.clear()
             try:
-                work_once(fleet_factory(), only)
+                work_once(fleet_factory(), only, on_change=on_change)
             except Exception as exc:  # noqa: BLE001 - database down etc.: keep the thread alive
                 print(f"orders: {type(exc).__name__}: {exc}", flush=True)
             _wake.wait(INTERVAL if not only else 1)
