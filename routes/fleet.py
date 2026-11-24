@@ -5,7 +5,7 @@ Writes require apply=true in the body; without it everything is a dry run.
 """
 import os
 
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, send_from_directory
 
 from services import firmware as fw
 from services import fleet as fl
@@ -288,3 +288,20 @@ def gw_rename():
     except Exception as exc:
         return error(f"Umbenennen fehlgeschlagen: {exc}", 502)
     return ok(out)
+
+
+_IFACE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "interface")
+_IFACE_FILES = {"driveby-health.schema.json": "application/schema+json", "DRIVEBY_INTERFACE.md": "text/markdown; charset=utf-8"}
+
+
+@bp.route("/api/interface/", methods=["GET"])
+@bp.route("/api/interface/<name>", methods=["GET"])
+def interface_file(name=None):
+    """Public, read-only: the gateway-flow interface contract (schema + description) for readers like the drive-by app."""
+    if name is None:
+        return ok({"files": sorted(_IFACE_FILES)})
+    if name not in _IFACE_FILES:
+        return error("unbekannt", 404)
+    resp = send_from_directory(_IFACE_DIR, name, mimetype=_IFACE_FILES[name], max_age=300)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
