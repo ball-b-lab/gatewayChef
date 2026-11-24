@@ -39,6 +39,10 @@ def find_gateway(candidates, http=None):
                 return h
         except requests.RequestException:
             continue
+    for h in hosts:   # new gateway without our flow: only the web UI answers
+        if gateway_lan.web_answers(h, http=http):
+            print(f"Gateway ohne Drive-by-Flow gefunden unter {h}")
+            return h
     return hosts[0]
 
 

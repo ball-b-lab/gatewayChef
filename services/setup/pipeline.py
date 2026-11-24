@@ -5,6 +5,7 @@ Gateway setup pipeline: one gateway on the bench -> fully provisioned.
   2 Identitaet    EUI from gateway; VPN IP/key, serial, SIM, name from DB/args/Milesight
   3 Datenbank     write master data to gateway_inventory (IN_PROGRESS)
   4 Gateway       write config from profile (only differences), verify
+  4b Flow         new gateway without our Node-RED flow: install the latest one over the LAN
   5 Netz          WireGuard up, Mobilfunk, Packet Forwarder -> LNS, VPN end-to-end
   6 Register      Milesight, ChirpStack, Webservice: find -> create -> find again
   7 Abschluss     all green -> DEPLOYED
@@ -15,9 +16,11 @@ and reports ok. Without apply=True nothing is written anywhere.
 import os
 
 from services import gateway_config as gc
+from services import nodered as nr
 from services.setup import checks
 from services.setup.model import (CHANGED, FAIL, OK, SKIPPED, WARN, WOULD_CHANGE, Gateway, SetupError,
                                   StepResult, is_valid_eui, normalize_eui)
+from utils import gateway_lan
 from utils.helpers import derive_wifi_ssid
 
 
@@ -73,20 +76,33 @@ class Pipeline:
         try:
             info = checks.device_info(self.host, http=self.http)
             r.checks.append(("Gateway erreichbar (LAN)", True, self.host))
+            self.flow_missing = False
         except Exception as exc:  # noqa: BLE001
-            r.checks.append(("Gateway erreichbar (LAN)", False, str(exc)[:120]))
-            r.status = FAIL
-            return r, None
-        if not self.password:
+            if not gateway_lan.web_answers(self.host, http=self.http):
+                r.checks.append(("Gateway erreichbar (LAN)", False, str(exc)[:120]))
+                r.status = FAIL
+                return r, None
+            # new gateway: web UI answers, our Node-RED flow is not there yet (installed in step "Drive-by-Flow")
+            info, self.flow_missing = None, True
+            r.checks.append(("Gateway erreichbar (LAN)", True, f"{self.host} (Weboberflaeche, noch ohne Drive-by-Flow)"))
+        passwords = [p for p in [self.password] + [x for x in gateway_lan.gateway_passwords() if x != self.password] if p]
+        if not passwords:
             r.checks.append(("Gateway-Login", False, "GATEWAY_PASSWORD fehlt"))
             r.status = FAIL
             return r, info
-        try:
-            self.client.login(self.user, self.password)
-            self.client.get("yruo_wifi", "yruo_wifi")   # also fills firmware/model
-            r.checks.append(("Gateway-Login", True, self.user))
-        except gc.GatewayConfigError as exc:
-            r.checks.append(("Gateway-Login", False, str(exc)))
+        last_err = None
+        for i, pw in enumerate(passwords):
+            try:
+                self.client.login(self.user, pw)
+                self.client.get("yruo_wifi", "yruo_wifi")   # also fills firmware/model
+                self.password = pw   # Node-RED on the gateway uses the same login
+                r.checks.append(("Gateway-Login", True, self.user + (" (Werkspasswort)" if pw != passwords[0] else "")))
+                last_err = None
+                break
+            except gc.GatewayConfigError as exc:
+                last_err = exc
+        if last_err is not None:
+            r.checks.append(("Gateway-Login", False, str(last_err)))
             r.status = FAIL
             return r, info
         if self.profile is None:
@@ -118,6 +134,9 @@ class Pipeline:
         device = (info or {}).get("device") or {}
         gw.mac = device.get("mac")
         gw.eui = normalize_eui(device.get("eui") or gw.eui)
+        if not is_valid_eui(gw.eui):   # no flow yet: EUI from the packet forwarder config
+            conf = self.client.get("yruo_loragw", "general_conf")
+            gw.eui = normalize_eui(((conf[0] if conf else {}).get("value") or {}).get("gateway_id") or gw.eui)
         r.checks.append(("EUI gueltig", is_valid_eui(gw.eui), gw.eui))
         if not is_valid_eui(gw.eui):
             r.status = FAIL
@@ -248,6 +267,41 @@ class Pipeline:
             r.detail += ", Neustart ausgeloest"
         return r
 
+    def step_flow(self, gw, apply):
+        """New gateway: install our Node-RED flow (Drive-by, device-info, health) over the LAN."""
+        r = StepResult("Drive-by-Flow", OK)
+        try:
+            checks.device_info(self.host, http=self.http, tries=1)
+            r.detail = "vorhanden"
+            return r
+        except Exception:  # noqa: BLE001
+            pass
+        bundles = nr.load_bundles()
+        version = nr.latest_version(bundles)
+        if not apply:
+            r.status, r.detail = WOULD_CHANGE, f"fehlt, wuerde Flow {version} installieren"
+            return r
+
+        def post_check():
+            for _ in range(12):
+                try:
+                    checks.device_info(self.host, http=self.http, tries=1)
+                    return True, "device-info antwortet"
+                except Exception:  # noqa: BLE001
+                    self.sleep(5)
+            return False, "device-info antwortet nach dem Deploy nicht"
+        client = nr.NodeRedClient(self.host, os.getenv("NODERED_USER", self.user),
+                                  os.getenv("NODERED_PASSWORD") or self.password)
+        try:
+            out = nr.update(client, bundles[version], post_check, sleep=self.sleep)
+        except nr.NodeRedError as exc:
+            r.status, r.detail = FAIL, f"Node-RED: {exc} (in der Weboberflaeche unter App > Node-RED aktiviert?)"
+            return r
+        ok = out.get("result") in ("updated", "unchanged", "ok")
+        r.status = CHANGED if ok else FAIL
+        r.detail = f"Flow {version} installiert" if ok else f"Installation fehlgeschlagen: {out.get('detail')}"
+        return r
+
     def step_network(self, gw, apply):
         r = StepResult("Netz & VPN", OK)
         try:
@@ -348,6 +402,8 @@ class Pipeline:
                 return self.results
             if reboot and apply:
                 self.sleep(90)
+            if not only_check and add(self.step_flow(gw, apply)).failed:
+                return self.results
             add(self.step_network(gw, apply))
             for reg in self.registries:
                 try:

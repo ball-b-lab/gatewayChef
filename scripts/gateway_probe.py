@@ -1,7 +1,8 @@
 """
 Is a gateway plugged in? Prints one JSON line, used by the station per port:
   {"host": "192.168.23.150", "eui": "24E124...", "device": {...}}   or   {"host": null}
-Reads only Node-RED /device-info (no login). Exit 0 found, 3 nothing answers.
+Reads Node-RED /device-info (no login); a new gateway without flow is found by its web UI and
+identified by a gateway API login (flow: false). Exit 0 found, 3 nothing answers.
 """
 import json
 import os
@@ -30,6 +31,13 @@ def probe(candidates, http=requests):
                 return {"host": host, "eui": (dev.get("eui") or "").upper() or None, "device": dev}
         except (requests.RequestException, ValueError):
             continue
+    # new gateway: no flow yet, only the web UI answers; EUI via gateway API login
+    for host in [h.strip() for h in candidates.split(",") if h.strip()]:
+        if gateway_lan.web_answers(host, http=http):
+            ident = gateway_lan.cgi_identity(host) or {}
+            return {"host": host, "eui": ident.get("eui"), "flow": False, "firmware": ident.get("firmware"),
+                    "device": {}, "note": "neues Gateway ohne Drive-by-Flow" if ident else
+                    "neues Gateway ohne Flow, Login fehlgeschlagen (GATEWAY_FACTORY_PASSWORD?)"}
     return {"host": None}
 
 
