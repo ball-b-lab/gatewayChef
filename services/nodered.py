@@ -146,7 +146,14 @@ class NodeRedClient:
 
     def _req(self, method, path, **kw):
         try:
-            resp = self.http.request(method, self.base + path, timeout=self.timeout, **kw)
+            real = isinstance(self.http, requests.Session)
+            resp = self.http.request(method, self.base + path, timeout=self.timeout, **(dict(kw, allow_redirects=False) if real else kw))
+            if real and resp.is_redirect and self.base.startswith("http://") and \
+                    str(resp.headers.get("Location", "")).startswith("https://"):
+                # gateway web server only on HTTPS (newer firmware), self-signed certificate
+                self.base = "https://" + self.base[len("http://"):]
+                self.http.verify = False
+                resp = self.http.request(method, self.base + path, timeout=self.timeout, **kw)
         except requests.RequestException as exc:
             raise NodeRedError(f"Node-RED nicht erreichbar: {type(exc).__name__}") from exc
         if resp.status_code == 401:

@@ -21,6 +21,9 @@ import re
 from dataclasses import dataclass, field
 
 import requests
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # self-signed HTTPS on newer firmware
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
@@ -57,7 +60,14 @@ class UG65Client:
         body = {"id": self._id, "execute": 1, "core": core, "function": function, "values": values}
         self._id += 1
         try:
-            resp = self.session.post(self.url, data=json.dumps(body), timeout=timeout or self.timeout)
+            kw = {"allow_redirects": False} if isinstance(self.session, requests.Session) else {}
+            resp = self.session.post(self.url, data=json.dumps(body), timeout=timeout or self.timeout, **kw)
+            if kw and resp.is_redirect and self.url.startswith("http://") and \
+                    str(resp.headers.get("Location", "")).startswith("https://"):
+                # newer firmware (factory state): web server only on HTTPS, self-signed certificate
+                self.url = "https://" + self.url[len("http://"):]
+                self.session.verify = False
+                resp = self.session.post(self.url, data=json.dumps(body), timeout=timeout or self.timeout)
         except requests.RequestException as exc:
             raise GatewayConfigError(f"Gateway nicht erreichbar: {exc}") from exc
         try:
