@@ -254,7 +254,13 @@ class Pipeline:
             if not apply:
                 r.checks.append(("Admin-Passwort", None, "Werkspasswort -> unser Passwort"))
             else:
-                self.client.change_password(self.password, self.target_password)
+                try:
+                    self.client.change_password(self.password, self.target_password)
+                except gc.GatewayConfigError as exc:
+                    # no answer in time: the change may still have gone through, our login decides
+                    if "nicht erreichbar" not in str(exc):
+                        raise
+                    self.sleep(5)
                 self.client.login(self.user, self.target_password)
                 self.password = self.target_password
                 r.checks.append(("Admin-Passwort", True, "auf unser Passwort gesetzt"))

@@ -141,7 +141,8 @@ class UG65Client:
         """Admin password as on the web UI (top right > change password); needs a fresh login afterwards."""
         enc = encrypt_login_password
         res = self._call("yruo_usermanagement", "set", [{"base": "security", "index": "setting", "value": {
-            "old_password": enc(old), "new_password": enc(new), "confirm_password": enc(new)}}])
+            "old_password": enc(old), "new_password": enc(new), "confirm_password": enc(new)}}],
+            timeout=max(60, self.timeout))
         code = (res[0] or {}).get("code") if res and isinstance(res[0], dict) else None
         if code:
             raise GatewayConfigError(f"Passwort aendern abgelehnt (code {code}, Passwortregeln des Gateways?)")
