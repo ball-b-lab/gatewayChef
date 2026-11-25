@@ -49,6 +49,14 @@ class FirmwareStepTest(unittest.TestCase):
         os.environ["FIRMWARE_AUTO_UPGRADE"] = "0"
         self.assertIsNone(fs.step_firmware(Pipe("60.0.0.49"), apply=True, images=IMAGES))
 
+    def test_upgrade_path_needs_intermediate_version(self):
+        imgs = {"60.0.0.44": 1, "60.0.0.49": 1, "60.0.0.50": 1}
+        self.assertEqual(fs.upgrade_path("60.0.0.49-r4", imgs), ["60.0.0.50"])
+        self.assertEqual(fs.upgrade_path("60.0.0.42-r5", imgs), ["60.0.0.49", "60.0.0.50"])
+        self.assertEqual(fs.upgrade_path("60.0.0.50", imgs), [])
+        with self.assertRaises(ValueError):
+            fs.upgrade_path("60.0.0.42", {"60.0.0.50": 1})
+
     def test_apply_uses_fleet_upgrade(self):
         from services import fleet as fl
         orig = fl.firmware_upgrade

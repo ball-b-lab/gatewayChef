@@ -345,6 +345,10 @@ def firmware_upgrade(fleet, gw, version, apply=False, images=None, wait_secs=Non
     before = client.firmware
     if before == version:
         return {"vpn_ip": host, "result": "ok", "detail": f"Firmware {before} bereits installiert"}
+    from services.setup.firmware_step import MIN_FROM, is_older
+    if is_older(before, MIN_FROM.get(version, "")):
+        return {"vpn_ip": host, "result": "skipped",
+                "detail": f"{before} -> {version} geht laut Milesight erst ab {MIN_FROM[version]}: zuerst Zwischenversion einspielen"}
     plan_txt = f"{before} -> {image['label']} ({image['size'] // 1_000_000} MB Upload)"
     if not apply:
         return {"vpn_ip": host, "result": "would_change", "detail": plan_txt}
