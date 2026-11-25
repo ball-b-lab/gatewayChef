@@ -5,6 +5,16 @@
   "source": "Qualifiziert 2026-11-22 an 24E124FFFEF783E6: Schnittstelle wie ug65-60.0.0.49",
   "sections": [
     {
+      "label": "LAN-Port (WAN eth0)",
+      "core": "yruo_wan",
+      "base": "yruo_wan",
+      "index": null,
+      "value": {
+        "enable_wan": 1,
+        "protocol": 1
+      }
+    },
+    {
       "label": "Packet Forwarder",
       "core": "yruo_loragw",
       "base": "general_conf",

@@ -24,7 +24,7 @@ from services.setup.model import normalize_eui
 
 PATCH_DIR = os.path.join(gc.PROFILE_DIR, "patches")
 # A remote patch on these sections can cut the gateway off the VPN.
-RISKY_CORES = {"yruo_wireguard", "yruo_cell", "yruo_network", "yruo_upgrade"}
+RISKY_CORES = {"yruo_wireguard", "yruo_cell", "yruo_network", "yruo_wan", "yruo_upgrade"}
 
 
 class FleetError(Exception):
