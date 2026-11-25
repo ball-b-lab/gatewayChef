@@ -200,10 +200,10 @@ class Pipeline:
                     if found and found.get("sn"):
                         gw.serial_number = found["sn"]
                         r.checks.append(("Seriennummer aus Milesight", True, gw.serial_number))
-        if not gw.name:
-            suffix = ".".join(gw.vpn_ip.split(".")[-2:])
-            client = " - ".join(p for p in (gw.client_id, gw.client_name) if p)
-            gw.name = f"{suffix} {client}".strip()
+        suffix = ".".join(gw.vpn_ip.split(".")[-2:])
+        if not gw.name or gw.name == suffix:   # bare "1.162" from an earlier run without customer: rename too
+            client = " - ".join(p for p in (gw.client_id, gw.client_name) if p) or "LAGER GW"
+            gw.name = f"{suffix} {client}"
         r.checks.append(("Seriennummer", bool(gw.serial_number), gw.serial_number or "fehlt (--serial)"))
         r.checks.append(("SIM ICCID", bool(gw.sim_iccid), gw.sim_iccid or "fehlt (--iccid)"))
         r.checks.append(("Name", bool(gw.name), gw.name))

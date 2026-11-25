@@ -151,6 +151,12 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(exit_code(results), 1)
         self.assertEqual(gw.name, "0.116 10999")
 
+    def test_without_customer_named_lager(self):
+        for name in (None, "0.116"):   # new, or bare name from an earlier run
+            gw = Gateway(name=name)
+            _pipeline(MemInventory({VPN: _row()}), []).run(gw, allocate_new=True)
+            self.assertEqual(gw.name, "0.116 LAGER GW")
+
     def test_new_gateway_apply_then_rerun_is_noop(self):
         inv = MemInventory({VPN: _row()})
         ws, ms = MemRegistry("webservice"), MemRegistry("milesight")
