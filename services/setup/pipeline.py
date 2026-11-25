@@ -257,7 +257,7 @@ class Pipeline:
             r.status = WOULD_CHANGE
             return r
         gc.execute(self.client, plan, force_firmware=force_firmware or self.fw_allowed)
-        verify = gc.plan(self.client, self.profile, dv)
+        verify = self._read_back(dv)
         if verify["changes"]:
             r.status, r.detail = FAIL, "nach dem Schreiben weichen Werte ab: " + ", ".join(c.label for c in verify["changes"])
             return r
@@ -266,6 +266,21 @@ class Pipeline:
             self.client.reboot()
             r.detail += ", Neustart ausgeloest"
         return r
+
+    def _read_back(self, dv, tries=18):
+        """After apply the gateway restarts services (web server answers 503, session may be gone):
+        log in again and read until it answers, up to ~90 s."""
+        for i in range(tries):
+            try:
+                return gc.plan(self.client, self.profile, dv)
+            except gc.GatewayConfigError:
+                if i == tries - 1:
+                    raise
+                self.sleep(5)
+                try:
+                    self.client.login(self.user, self.password)
+                except gc.GatewayConfigError:
+                    pass
 
     def step_flow(self, gw, apply):
         """New gateway: install our Node-RED flow (Drive-by, device-info, health) over the LAN."""
