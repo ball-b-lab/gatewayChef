@@ -71,6 +71,7 @@ def _fetch_gateway_health_direct(host):
             resp = requests.get(
                 url,
                 timeout=(GATEWAY_HEALTH_CONNECT_TIMEOUT_SECS, GATEWAY_HEALTH_READ_TIMEOUT_SECS),
+                verify=False,   # newer firmware redirects to HTTPS with a self-signed certificate
             )
             break
         except requests.RequestException as exc:
@@ -103,6 +104,7 @@ def _proxy_gateway_health(host):
                 headers=headers,
                 json={"host": host},
                 timeout=(GATEWAY_HEALTH_CONNECT_TIMEOUT_SECS, GATEWAY_HEALTH_READ_TIMEOUT_SECS),
+                verify=False,   # newer firmware redirects to HTTPS with a self-signed certificate
             )
             payload = resp.json() if resp.content else {}
             break

@@ -48,6 +48,11 @@ class Pipeline:
         self.on_step = on_step  # called with each StepResult as soon as it is done (live progress)
 
     # ------------------------------------------------------------ helpers
+    def say(self, msg):
+        """Live progress line (station log) while a step is still running."""
+        if self.on_step:
+            print(f"       ... {msg}", flush=True)
+
     def _lns_address(self):
         for section in (self.profile or {}).get("sections", []):
             for serv in section.get("value", {}).get("servs", []):
@@ -254,6 +259,7 @@ class Pipeline:
             if not apply:
                 r.checks.append(("Admin-Passwort", None, "Werkspasswort -> unser Passwort"))
             else:
+                self.say("Admin-Passwort setzen (Werkspasswort -> unser Passwort)")
                 try:
                     self.client.change_password(self.password, self.target_password)
                 except gc.GatewayConfigError as exc:
@@ -284,7 +290,9 @@ class Pipeline:
         if not apply:
             r.status = WOULD_CHANGE
             return r
+        self.say("schreibe: " + ", ".join(ch.label for ch in plan["changes"]) + " (kann je Bereich bis 60 s dauern)")
         gc.execute(self.client, plan, force_firmware=force_firmware or self.fw_allowed)
+        self.say("zuruecklesen und vergleichen")
         verify = self._read_back(dv)
         if verify["changes"]:
             r.status, r.detail = FAIL, "nach dem Schreiben weichen Werte ab: " + ", ".join(c.label for c in verify["changes"])
@@ -304,6 +312,7 @@ class Pipeline:
             except gc.GatewayConfigError:
                 if i == tries - 1:
                     raise
+                self.say(f"Gateway startet Dienste neu, warte ... ({i + 1}/{tries})")
                 self.sleep(5)
                 try:
                     self.client.login(self.user, self.password)
@@ -336,6 +345,7 @@ class Pipeline:
         client = nr.NodeRedClient(self.host, os.getenv("NODERED_USER", self.user),
                                   self.password or os.getenv("NODERED_PASSWORD"))  # the login that worked (ours or factory)
         try:
+            self.say(f"installiere Flow {version} und warte auf Node-RED")
             out = nr.update(client, bundles[version], post_check, sleep=self.sleep)
         except nr.NodeRedError as exc:
             r.status, r.detail = FAIL, f"Node-RED: {exc} (in der Weboberflaeche unter App > Node-RED aktiviert?)"
@@ -356,6 +366,7 @@ class Pipeline:
                 break
             except Exception as exc:  # noqa: BLE001
                 last = exc
+                self.say(f"Gateway/Node-RED antwortet noch nicht, warte ... ({_ + 1}/{12 if apply else 1})")
                 self.sleep(10)
         try:
             if last:
@@ -373,6 +384,7 @@ class Pipeline:
         r.checks.append(("LNS-Verbindung", lns_ok, lns_info))
         health_ok, health_info = checks.check_lora_health(self.host, http=self.http)
         r.checks.append(("Node-RED LoRa-Health", health_ok, health_info))
+        self.say(f"VPN Ende-zu-Ende: {gw.vpn_ip} ueber die Cloud (kann bis {self.vpn_wait_secs} s dauern)")
         vpn_ok, vpn_info = checks.check_vpn_reachable(
             gw.vpn_ip, gw.eui, self.vpn_proxy_url, self.vpn_proxy_token,
             wait_secs=self.vpn_wait_secs if wg_ok else 0, http=self.http, sleep=self.sleep)
@@ -448,11 +460,13 @@ class Pipeline:
         fw_pending = False
         if not only_check:
             from services.setup.firmware_step import step_firmware
+            self.say("Firmware pruefen")
             fw_result = step_firmware(self, apply)
             if fw_result and add(fw_result).failed:
                 return self.results
             # dry run: the firmware step would raise the firmware first, the real run then uses its profile
             fw_pending = bool(fw_result and fw_result.status == WOULD_CHANGE)
+        self.say("Vorpruefung: Gateway, Login, Profil")
         pre, info = self.step_preflight(gw, apply)
         only_fw = pre.checks and all(ok is not False for label, ok, _ in pre.checks
                                      if label not in ("Firmware freigegeben", "  Delta"))
@@ -462,17 +476,21 @@ class Pipeline:
         if add(pre).failed and not ((force_firmware or fw_pending) and only_fw):
             return self.results
         try:
+            self.say("Identitaet: EUI, VPN-IP, Seriennummer")
             if add(self.step_identity(gw, info, apply and not only_check, allocate_new)).failed:
                 return self.results
             if not only_check:
                 if add(self.step_database(gw, apply)).failed:
                     return self.results
+            self.say("Gateway-Konfiguration lesen und abgleichen")
             if add(self.step_gateway_config(gw, apply and not only_check, force_firmware, reboot)).failed:
                 return self.results
             if reboot and apply:
                 self.sleep(90)
+            self.say("Drive-by-Flow pruefen")
             if not only_check and add(self.step_flow(gw, apply)).failed:
                 return self.results
+            self.say("Netz & VPN pruefen (Gateway, LNS, VPN Ende-zu-Ende)")
             add(self.step_network(gw, apply))
             for reg in self.registries:
                 try:
