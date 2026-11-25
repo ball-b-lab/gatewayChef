@@ -28,7 +28,8 @@ def probe(candidates, http=requests):
                     time.sleep(1)
                     info = http.get(f"http://{host}/node-red/device-info", timeout=2).json()
                 dev = info.get("device") or {}
-                return {"host": host, "eui": (dev.get("eui") or "").upper() or None, "device": dev}
+                return {"host": host, "eui": (dev.get("eui") or "").upper() or None, "device": dev,
+                        "sn": dev.get("sn") or dev.get("serial") or None}
         except (requests.RequestException, ValueError):
             continue
     # new gateway: no flow yet, only the web UI answers; EUI via gateway API login
@@ -36,6 +37,7 @@ def probe(candidates, http=requests):
         if gateway_lan.web_answers(host, http=http):
             ident = gateway_lan.cgi_identity(host) or {}
             return {"host": host, "eui": ident.get("eui"), "flow": False, "firmware": ident.get("firmware"),
+                    "sn": ident.get("sn"),
                     "device": {}, "note": "neues Gateway ohne Drive-by-Flow" if ident else
                     "neues Gateway ohne Flow, Login fehlgeschlagen (GATEWAY_FACTORY_PASSWORD?)"}
     return {"host": None}

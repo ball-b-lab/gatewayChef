@@ -44,10 +44,11 @@ class NewGatewayDetectTest(unittest.TestCase):
             def __init__(self, ok): self.ok = ok
             def login(self, u, p):
                 if p != "password": raise gc.GatewayConfigError("bad login")
-            def get(self, core, base): return [{"value": {"gateway_id": "24e124fffef00001"}}]
+            def get(self, core, base):
+                return [{"value": {"sn": "6221D0817081"}}] if base == "summary" else [{"value": {"gateway_id": "24e124fffef00001"}}]
         with mock.patch.dict("os.environ", {"GATEWAY_PASSWORD": "ours", "GATEWAY_FACTORY_PASSWORD": "password"}):
             ident = gateway_lan.cgi_identity("192.168.1.1", client_factory=lambda h: C(True))
-        self.assertEqual(ident, {"eui": "24E124FFFEF00001", "firmware": "60.0.0.50"})
+        self.assertEqual(ident, {"eui": "24E124FFFEF00001", "firmware": "60.0.0.50", "sn": "6221D0817081"})
 
 
 if __name__ == "__main__":
