@@ -36,11 +36,14 @@ CREATE TABLE IF NOT EXISTS fleet_orders (
     result JSONB
 );
 CREATE INDEX IF NOT EXISTS idx_fleet_orders_state ON fleet_orders(state, vpn_ip);
+ALTER TABLE fleet_orders ADD COLUMN IF NOT EXISTS direct BOOLEAN NOT NULL DEFAULT false;
 """
 _state = {"ready": False, "started": False}
 _wake = threading.Event()
 _woken = set()
 LABELS = {"align": "Auf Standard bringen", "flow": "Drive-by-Schnittstelle aktualisieren"}
+LOG_LABELS = {"firmware": "Firmware-Update"}   # direct runs only, never an order
+OK_RESULTS = ("ok", "changed", "updated", "unchanged")
 
 
 class OrderError(ValueError):
@@ -50,7 +53,7 @@ class OrderError(ValueError):
 def label(action):
     if action.startswith("patch:"):
         return "Einstellung " + action[6:]
-    return LABELS.get(action, action)
+    return LABELS.get(action) or LOG_LABELS.get(action, action)
 
 
 def _conn(connect=None):
@@ -78,11 +81,16 @@ def check_action(action, admin=False):
     raise OrderError("unbekannte Aktion")
 
 
-def create(ips, action, user=None, admin=False, connect=None):
+def create(ips, action, user=None, admin=False, connect=None, already=None):
+    """already: {vpn_ip: reason} gateways known to be done (e.g. WLAN region already DE): no order for them."""
     action = check_action(action, admin)
     ips = [ip for ip in dict.fromkeys(ips) if ip]
     if not ips:
         raise OrderError("keine Gateways markiert")
+    already = {ip: why for ip, why in (already or {}).items() if ip in ips}
+    ips = [ip for ip in ips if ip not in already]
+    if not ips:
+        return {"created": 0, "already_open": 0, "already_done": len(already), "label": label(action)}
     conn = _conn(connect)
     try:
         with conn.cursor() as cur:
@@ -98,14 +106,39 @@ def create(ips, action, user=None, admin=False, connect=None):
     finally:
         conn.close()
     _wake.set()
-    return {"created": len(new), "already_open": len(have), "label": label(action)}
+    return {"created": len(new), "already_open": len(have), "already_done": len(already), "label": label(action)}
+
+
+def log_direct(ip, action, res, user=None, connect=None):
+    """Write a direct run ("Jetzt ausführen") into the same table, so the box shows what was done.
+    Best effort: no database (station, Mac) -> nothing logged."""
+    if not isinstance(res, dict) or res.get("result") == "would_change":
+        return
+    r = res.get("result")
+    state = DONE if r in OK_RESULTS else FAILED
+    detail = (f"{r}: {res.get('detail') or ''}").strip(": ")[:500]
+    try:
+        conn = _conn(connect)
+    except Exception:  # noqa: BLE001
+        return
+    try:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO fleet_orders (created_by, vpn_ip, action, state, attempts, last_try, finished_at, "
+                        "detail, result, direct) VALUES (%s,%s,%s,%s,1,now(),now(),%s,%s,true)",
+                        (user, ip, action, state, detail,
+                         json.dumps({k: v for k, v in res.items() if k not in ("plan", "client")}, default=str)))
+        conn.commit()
+    except Exception:  # noqa: BLE001 - the log must never break the action
+        pass
+    finally:
+        conn.close()
 
 
 def listing(limit=300, connect=None):
     conn = _conn(connect)
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT id, created_at, created_by, vpn_ip, action, state, attempts, last_try, finished_at, detail "
+            cur.execute("SELECT id, created_at, created_by, vpn_ip, action, state, attempts, last_try, finished_at, detail, direct "
                         "FROM fleet_orders WHERE state IN ('open','running') OR finished_at > now() - interval '14 days' "
                         "ORDER BY (state IN ('open','running')) DESC, COALESCE(finished_at, created_at) DESC LIMIT %s", (limit,))
             rows = cur.fetchall()
@@ -113,8 +146,8 @@ def listing(limit=300, connect=None):
         conn.close()
     iso = lambda t: t.isoformat() if t else None  # noqa: E731
     return [{"id": i, "created_at": iso(c), "created_by": b, "vpn_ip": ip, "action": a, "label": label(a), "state": s,
-             "attempts": n, "last_try": iso(lt), "finished_at": iso(f), "detail": d}
-            for i, c, b, ip, a, s, n, lt, f, d in rows]
+             "attempts": n, "last_try": iso(lt), "finished_at": iso(f), "detail": d, "direct": bool(x)}
+            for i, c, b, ip, a, s, n, lt, f, d, x in rows]
 
 
 def cancel(order_id, connect=None):

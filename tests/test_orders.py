@@ -36,3 +36,29 @@ class ProfileRevisionTest(unittest.TestCase):
         from services import gateway_config as gc
         self.assertEqual(gc.profile_for_firmware("60.0.0.49-r4"), "ug65-60.0.0.49")
         self.assertEqual(gc.profile_for_firmware("60.0.0.50"), "ug65-60.0.0.50")
+
+
+class DirectLogTest(unittest.TestCase):
+    def test_direct_run_is_logged_as_done(self):
+        cur = mock.MagicMock()
+        conn = mock.MagicMock()
+        conn.cursor.return_value.__enter__.return_value = cur
+        orders._state["ready"] = True
+        orders.log_direct("172.30.0.5", "patch:wifi-country-de", {"result": "changed", "detail": "WLAN: country_code CN->DE"},
+                          "nina", connect=lambda: conn)
+        args = cur.execute.call_args[0][1]
+        self.assertEqual(args[:4], ("nina", "172.30.0.5", "patch:wifi-country-de", orders.DONE))
+        cur.reset_mock()
+        orders.log_direct("x", "flow", {"result": "would_change"}, connect=lambda: conn)
+        cur.execute.assert_not_called()
+
+    def test_already_done_gets_no_order(self):
+        r = orders.create(["a"], "patch:wifi-country-de", already={"a": "schon DE"}, connect=lambda: 1 / 0)
+        self.assertEqual((r["created"], r["already_done"]), (0, 1))
+
+    def test_patch_already(self):
+        from services import fleet as fl
+        p = fl.load_patch("wifi-country-de")
+        self.assertTrue(fl.patch_already(p, {"wifi_country": "DE"}))
+        self.assertFalse(fl.patch_already(p, {"wifi_country": "CN"}))
+        self.assertFalse(fl.patch_already(p, {}))

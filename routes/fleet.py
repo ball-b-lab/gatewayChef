@@ -55,9 +55,11 @@ def refresh_gateway(ip):
         threading.Thread(target=run, name=f"refresh-{ip}", daemon=True).start()
 
 
-def _changed(ip, res):
+def _changed(ip, res, action=None):
     if isinstance(res, dict) and res.get("result") not in ("would_change", "offline"):
         refresh_gateway(ip)
+    if action and _cloud():
+        orders.log_direct(ip, action, res, roles.user_name())
     return res
 
 
@@ -217,7 +219,7 @@ def fleet_patch():
     try:
         ip, apply = data.get("vpn_ip"), bool(data.get("apply"))
         run = lambda: _fleet().patch(ip, patch, apply=apply, allow_risky=bool(data.get("allow_risky")))  # noqa: E731
-        return ok(_changed(ip, jobs.tracked("patch", ip, f"Patch {patch.get('name')}", run)) if apply else run())
+        return ok(_changed(ip, jobs.tracked("patch", ip, f"Patch {patch.get('name')}", run), "patch:" + patch["name"]) if apply else run())
     except _ERRORS as exc:
         return error(str(exc), 400)
 
@@ -228,7 +230,7 @@ def fleet_nodered():
     try:
         ip, apply = data.get("vpn_ip"), bool(data.get("apply"))
         run = lambda: _fleet().nodered_update(ip, data.get("version"), apply=apply)  # noqa: E731
-        return ok(_changed(ip, jobs.tracked("nodered", ip, f"Node-RED {data.get('version') or 'neueste'}", run)) if apply else run())
+        return ok(_changed(ip, jobs.tracked("nodered", ip, f"Node-RED {data.get('version') or 'neueste'}", run), "flow") if apply else run())
     except _ERRORS as exc:
         return error(str(exc), 400)
 
@@ -239,7 +241,7 @@ def fleet_firmware():
     try:
         ip, version, apply = data.get("vpn_ip"), str(data.get("version") or ""), bool(data.get("apply"))
         run = lambda: _fleet().firmware_upgrade(ip, version, apply=apply, force=bool(data.get("force")))  # noqa: E731
-        return ok(_changed(ip, jobs.tracked("firmware", ip, f"Firmware {version}", run)) if apply else run())
+        return ok(_changed(ip, jobs.tracked("firmware", ip, f"Firmware {version}", run), "firmware") if apply else run())
     except _ERRORS as exc:
         return error(str(exc), 400)
 
@@ -293,7 +295,7 @@ def fleet_align():
         ip, apply = data.get("vpn_ip"), bool(data.get("apply"))
         admin = roles.is_admin()
         run = lambda: fa.align(_fleet(), ip, apply=apply, force=bool(data.get("force")) and admin)  # noqa: E731
-        return ok(_changed(ip, jobs.tracked("align", ip, "An Standard angleichen", run)) if apply else run())
+        return ok(_changed(ip, jobs.tracked("align", ip, "An Standard angleichen", run), "align") if apply else run())
     except _ERRORS as exc:
         return error(str(exc), 400)
 
@@ -336,9 +338,28 @@ def orders_create():
         return error("Aufträge gibt es nur in der Cloud (dort läuft der Auftragsdienst).", 400)
     data = request.get_json(silent=True) or {}
     try:
-        return ok(orders.create(data.get("ips") or [], str(data.get("action") or ""), roles.user_name(), roles.is_admin()))
+        action = str(data.get("action") or "")
+        return ok(orders.create(data.get("ips") or [], action, roles.user_name(), roles.is_admin(),
+                                already=_already_done(action, data.get("ips") or [])))
     except orders.OrderError as exc:
         return error(str(exc), 400)
+
+
+def _already_done(action, ips):
+    """Patch orders: skip gateways whose last detail check already shows the target value (e.g. WLAN region DE).
+    Unknown -> order anyway; the worker reads first and writes nothing if it is already right."""
+    if not action.startswith("patch:"):
+        return {}
+    try:
+        patch = fl.load_patch(action[6:])
+    except (OSError, ValueError):
+        return {}
+    done = {}
+    for ip in ips:
+        cached = _LAST_DEEP.get(ip)
+        if cached and fl.patch_already(patch, cached[0]):
+            done[ip] = "laut letzter Detailpruefung schon richtig"
+    return done
 
 
 @bp.route("/api/fleet/orders/<int:order_id>", methods=["DELETE"])

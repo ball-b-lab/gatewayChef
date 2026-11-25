@@ -15,5 +15,9 @@
         "country_code": "DE"
       }
     }
-  ]
+  ],
+  "status": {
+    "field": "wifi_country",
+    "value": "DE"
+  }
 }

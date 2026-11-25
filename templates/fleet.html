@@ -74,6 +74,7 @@
         <button class="btn btn-sm btn-primary" id="orderbtn" onclick="doAction('order')" style="display:none">Als Auftrag (sobald online)</button>
       </div>
       <div id="actionhelp" class="small text-muted"></div>
+      <div id="runsum" class="small fw-semibold mt-1"></div>
       <details class="small mt-1"><summary>Firmware-Dateien verwalten</summary>
         <div class="text-muted my-1">.bin vom Hersteller, Name mit Version (z. B. 60.0.0.50.bin). Liegt dann für alle bereit.</div>
         <input type="file" id="fwfile" accept=".bin" class="form-control form-control-sm mb-1">
@@ -85,7 +86,7 @@
   </div>
 
   <details id="ordersbox" class="mb-3 small bg-white border rounded px-3 py-2" style="display:none">
-    <summary class="fw-semibold">Aufträge <span id="ordersum" class="fw-normal text-muted"></span></summary>
+    <summary class="fw-semibold">Aufträge &amp; Protokoll <span id="ordersum" class="fw-normal text-muted"></span></summary>
     <table class="table table-sm small mt-2 mb-1"><thead><tr><th>angelegt</th><th>Gateway</th><th>Aktion</th><th>Stand</th><th>Versuche</th><th>Info</th><th></th></tr></thead>
       <tbody id="orders"></tbody></table>
   </details>
@@ -96,7 +97,7 @@
       <li><b>Standard</b> = Profil zur Firmware (WLAN, NTP, Funk …), LNS-Ziele <b>Node-RED-UDP zuerst</b> (lns-nodered-first) und die neueste Drive-by-Schnittstelle. „Auf Standard bringen“ läuft nur bei stabil erreichbaren Gateways: Schnittstelle → Einstellungen → LNS zuletzt, mit Rückbau bei Fehler. LNS-Ziele werden nur auf unseren Standard (Node-RED-UDP zuerst) gestellt; andere Reihenfolgen nur als Admin.</li>
       <li><b>Drive-by-Schnittstelle</b> – die Software auf dem Gateway, über die die Drive-by-App per WLAN die Daten abholt.</li>
       <li><b>Firmware</b> – nie automatisch und nie als Auftrag; nacheinander, Stopp beim ersten Fehler, bis zu 20 Minuten je Gateway.</li>
-      <li><b>gemeldet</b> – das Gateway meldet sich ab Drive-by-Schnittstelle 1.4.0 selbst (gesammelt alle 10 min). <b>DB-Status</b>: DEPLOYED = im Einsatz · IN_PROGRESS = Einrichtung begonnen, nicht abgeschlossen.</li>
+      <li><b>gemeldet</b> – das Gateway meldet sich ab Drive-by-Schnittstelle 1.4.0 selbst (gesammelt alle 10 min).</li>
       <li><b>Einzelsicht</b> – Klick auf den Namen: Verlauf (online, Neustarts, Funkpakete), Soll-Ist mit Lösungen, Name/Kunde ändern.</li>
       <li>Nicht per Fernwartung: Ersteinrichtung und alles, was das VPN selbst betrifft (dafür die Station vor Ort).</li>
     </ul>
@@ -109,8 +110,6 @@
       <option value="">Drive-by-Schnittstelle: alle</option><option value="current">aktuell</option><option value="old">veraltet / fehlt</option></select>
     <select id="fRx" class="form-select form-select-sm" style="width:auto" onchange="render()">
       <option value="">Funkempfang: alle</option><option value="yes">empfängt</option><option value="no">kein Empfang</option></select>
-    <select id="fDb" class="form-select form-select-sm" style="width:auto" onchange="render()">
-      <option value="">DB-Status: alle</option><option value="DEPLOYED">im Einsatz (DEPLOYED)</option><option value="IN_PROGRESS">Einrichtung offen (IN_PROGRESS)</option></select>
     <label class="form-check-label small"><input type="checkbox" class="form-check-input me-1" id="fSel" onchange="render()">nur markierte</label>
     <span id="selInfo" class="small text-muted"></span>
     <button class="btn btn-sm btn-link" onclick="resetFilters()">Filter zurücksetzen</button>
@@ -121,7 +120,7 @@
       <thead class="table-light"><tr>
         <th><input type="checkbox" id="all" title="alle angezeigten markieren" onchange="toggleAll(this.checked)"></th>
         <th data-k="online" title="sortieren">●</th><th data-k="ip">VPN-IP</th><th data-k="name" class="nm" title="sortieren · Breite: rechte untere Ecke ziehen">Name</th><th data-k="eui">EUI</th>
-        <th data-k="db" title="DEPLOYED = im Einsatz · IN_PROGRESS = Einrichtung begonnen, nicht abgeschlossen">DB-Status</th><th data-k="ms">ms</th>
+        <th data-k="ms">ms</th>
         <th data-k="fw">Firmware</th><th data-k="wifi">WLAN-Region</th><th data-k="flow">Drive-by-Schnittstelle</th>
         <th data-k="rx" title="Packet Forwarder → Drive-by-Schnittstelle: letzte Statusmeldung / letztes Funkpaket">Funkempfang</th>
         <th data-k="poll" title="Wann hat die Drive-by-App (dbmonitor) zuletzt Daten per WLAN abgeholt?">Drive-by zuletzt</th>
@@ -139,7 +138,7 @@ let sortKey = 'online', sortDir = 1;
 const ipNum = ip => (ip || '').split('.').reduce((a, b) => a * 256 + +b, 0);
 const SORT = {
   online: r => r.online === true ? 0 : r.online == null ? 1 : 2, ip: r => ipNum(r.vpn_ip), name: r => (r.gateway_name || '').toLowerCase(),
-  eui: r => r.eui || '', db: r => r.status_overall || '', ms: r => r.latency_ms ?? 1e9, fw: r => r.firmware || '~',
+  eui: r => r.eui || '', ms: r => r.latency_ms ?? 1e9, fw: r => r.firmware || '~',
   wifi: r => r.wifi_country || '~', flow: r => flowText(r) || '~', rx: r => r.driveby ? (r.driveby.receiving ? 0 : 1) : 2,
   poll: r => r.driveby && r.driveby.app_seconds_since_poll != null ? r.driveby.app_seconds_since_poll : 1e12,
   rep: r => reports[r.vpn_ip] ? -Date.parse(reports[r.vpn_ip].t) : 1e15,
@@ -213,7 +212,7 @@ function appCell(r) {
 function visible() {
   const q = document.getElementById('q').value.toLowerCase();
   const fw = document.getElementById('fFw').value, fl = document.getElementById('fFlow').value;
-  const rx = document.getElementById('fRx').value, db = document.getElementById('fDb').value;
+  const rx = document.getElementById('fRx').value;
   const onlySel = document.getElementById('fSel').checked;
   return rows.filter(r => {
     if (q && !q.split(/\s+/).every(w => haystack(r).includes(w))) return false;
@@ -225,7 +224,6 @@ function visible() {
     if (fl === 'old' && (flowCurrent(r) || r.online === false)) return false;
     if (rx === 'yes' && !receiving(r)) return false;
     if (rx === 'no' && (receiving(r) || r.online === false)) return false;
-    if (db && r.status_overall !== db) return false;
     if (onlySel && !selected.has(r.vpn_ip)) return false;
     return true;
   });
@@ -273,11 +271,14 @@ function render() {
       w.title = 'Weboberfläche des Gateways öffnen (nur mit VPN auf deinem Rechner)'; ipTd.append(w, ' ↗'); }
     else ipTd.textContent = r.vpn_ip;
     tr.append(ipTd, name, el('td', r.eui || '', 'font-monospace small'),
-              el('td', r.status_overall || '', 'small'), el('td', r.latency_ms ?? ''),
+              el('td', r.latency_ms ?? ''),
               fwCell(r), el('td', r.wifi_country || ''), el('td', flowText(r)), receiveCell(r), appCell(r), reportCell(r));
     const res = results[r.vpn_ip];
     const c = el('td', res ? res.text : (r.online === false ? r.identity : (r.cgi_error || r.flow_error || '')), 'result');
     if (res) c.classList.add(res.cls);
+    // one line; full text on hover (title) and on click (expand/collapse)
+    c.title = c.textContent; c.style.cssText = 'max-width:28rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer';
+    c.onclick = () => { const open = c.style.whiteSpace === 'normal'; c.style.whiteSpace = open ? 'nowrap' : 'normal'; };
     tr.append(c);
     body.append(tr);
   }
@@ -286,7 +287,7 @@ function render() {
 }
 function selInfo() { const t = selected.size ? `${selected.size} markiert` : 'keins markiert'; document.getElementById('selInfo').textContent = t; document.getElementById('selCount').textContent = '(' + t + ')'; }
 function toggleAll(on) { visible().forEach(r => on ? selected.add(r.vpn_ip) : selected.delete(r.vpn_ip)); render(); }
-function resetFilters() { ['q', 'fFw', 'fFlow', 'fRx', 'fDb'].forEach(i => document.getElementById(i).value = ''); document.getElementById('fSel').checked = false; stateFilter = ''; render(); }
+function resetFilters() { ['q', 'fFw', 'fFlow', 'fRx'].forEach(i => document.getElementById(i).value = ''); document.getElementById('fSel').checked = false; stateFilter = ''; render(); }
 
 document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
   sortDir = sortKey === th.dataset.k ? -sortDir : 1; sortKey = th.dataset.k; render();
@@ -349,6 +350,13 @@ async function run(kind, apply) {
   if (apply && kind === 'firmware' && ips.length > 1 &&
       !confirm('Firmware auf mehrere Gateways: zuerst ein einzelnes Test-Gateway aktualisieren. Trotzdem fortfahren?')) return;
   if (apply && !confirm(`${what} auf ${ips.length} Gateway(s) schreiben?`)) return;
+  const tally = {}, sumEl = document.getElementById('runsum');
+  const SUM = {changed: 'geändert', updated: 'geändert', ok: 'schon richtig', unchanged: 'schon richtig', would_change: 'würde ändern',
+               offline: 'offline', skipped: 'übersprungen', failed: 'Fehler', error: 'Fehler'};
+  const showSum = (done) => { sumEl.className = 'small fw-semibold mt-1 ' + (tally['Fehler'] ? 'text-danger' : 'text-success');
+    sumEl.textContent = `${what}: ${done ? 'fertig' : 'läuft'} ${Object.values(tally).reduce((a, b) => a + b, 0)}/${ips.length} · ` +
+      Object.entries(tally).map(([k, v]) => `${v} ${k}`).join(' · ') + (done && apply && CAT.orders ? ' · steht im Protokoll unten' : ''); };
+  showSum(false);
   for (const ip of ips) {
     results[ip] = {text: 'läuft …', cls: 'text-muted'}; render();
     try {
@@ -363,15 +371,19 @@ async function run(kind, apply) {
                    would_change: 'text-primary', skipped: 'text-muted'}[r.result] || 'text-danger';
       const checks = (r.checks || []).map(c => `${c.ok === false ? '✗' : c.ok ? '✓' : '·'} ${c.label}: ${c.info}`).join(' | ');
       results[ip] = {text: `${r.result}: ${r.detail || ''} ${changes}${rb} ${checks}`, cls};
+      const k = SUM[r.result] || 'Fehler'; tally[k] = (tally[k] || 0) + 1; showSum(false);
       render();
       if (apply) refreshRow(ip);
       if (kind === 'align' && r.result === 'failed') { alert('Angleichen fehlgeschlagen bei ' + ip + '. Weitere Gateways werden nicht geändert.'); return; }
       if (kind === 'firmware' && apply && cls === 'text-danger') { alert('Firmware-Update fehlgeschlagen bei ' + ip + '. Weitere Gateways werden nicht aktualisiert.'); return; }
     } catch (e) {
       results[ip] = {text: 'Fehler: ' + e.message, cls: 'text-danger'}; render();
+      tally['Fehler'] = (tally['Fehler'] || 0) + 1; showSum(false);
       if (kind === 'firmware' && apply) return;
     }
   }
+  showSum(true);
+  if (apply) loadOrders();
 }
 
 // after a change: read this gateway again so its row shows the new state right away
@@ -431,7 +443,8 @@ async function createOrder(action) {
   if (!ips.length) { alert('Erst Gateways in der Tabelle markieren.'); return; }
   if (!confirm(`Auftrag für ${ips.length} Gateway(s) anlegen? Er läuft automatisch, sobald das jeweilige Gateway online und stabil ist.`)) return;
   try { const r = await api('/api/fleet/orders', {ips, action});
-        alert(`${r.label}: ${r.created} Auftrag/Aufträge angelegt` + (r.already_open ? `, ${r.already_open} war(en) schon offen` : '') + '.');
+        alert(`${r.label}: ${r.created} Auftrag/Aufträge angelegt` + (r.already_open ? `, ${r.already_open} war(en) schon offen` : '') +
+              (r.already_done ? `, ${r.already_done} schon richtig (letzte Detailprüfung), kein Auftrag` : '') + '.');
         document.getElementById('ordersbox').open = true; loadOrders(); }
   catch (e) { alert('Fehler: ' + e.message); }
 }
@@ -452,7 +465,7 @@ async function loadOrders() {
       const name = (rows.find(r => r.vpn_ip === o.vpn_ip) || {}).gateway_name || '';
       const a = el('a', o.vpn_ip + (name ? ' · ' + name : '')); a.href = '/fleet/gw/' + o.vpn_ip; const td = el('td'); td.append(a);
       tr.append(el('td', new Date(o.created_at).toLocaleString('de-DE', {dateStyle: 'short', timeStyle: 'short'}) + (o.created_by ? ' · ' + o.created_by : '')), td,
-                el('td', o.label), el('td', st, cls), el('td', o.attempts), el('td', o.detail || ''));
+                el('td', o.label + (o.direct ? ' (direkt)' : '')), el('td', st, cls), el('td', o.attempts), el('td', o.detail || ''));
       const c = el('td');
       if (o.state === 'open') { const b = el('button', 'abbrechen', 'btn btn-sm btn-link p-0'); b.onclick = async () => { await fetch('/api/fleet/orders/' + o.id, {method: 'DELETE'}); loadOrders(); }; c.append(b); }
       tr.append(c); tb.append(tr);
