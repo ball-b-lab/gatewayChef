@@ -21,7 +21,7 @@ from flask import Blueprint, current_app, g, jsonify, redirect, request, session
 bp = Blueprint("oidc", __name__)
 
 PUBLIC = ("/auth/", "/api/version", "/healthz", "/static/", "/api/gw/report", "/api/interface/")  # interface: public contract docs; report: own token check
-MACHINE = ("/api/db/", "/api/network/", "/api/fleet/snapshots", "/api/fleet/reports/", "/api/fleet/gateway/")  # reads for stations
+MACHINE = ("/api/db/", "/api/sim/", "/api/confirm", "/api/provision", "/api/network/", "/api/fleet/snapshots", "/api/fleet/reports/", "/api/fleet/gateway/")  # reads for stations
 
 
 class OidcConfig:
