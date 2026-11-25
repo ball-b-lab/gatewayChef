@@ -55,6 +55,11 @@
         <b>Prüfen</b> nur kontrollieren, z. B. vor dem Versand.</li>
     </ol>
     Gefundene Adresse: DHCP der Station (eingerichtete Gateways) oder Werks-IP (neue Gateways).
+    <div class="mt-2"><b>Ohne Station, über WLAN (Windows-App):</b> PC mit dem WLAN des Gateways verbinden
+      (neu: <code>Gateway_xxxxxx</code> mit dem Werks-WLAN-Schlüssel), dann erscheint die Karte „Gateway im WLAN“.
+      Ein Gateway nach dem anderen. Beim Einrichten bekommt das Gateway-WLAN unseren Namen
+      (<code>bbdbmon_…</code>); der PC wechselt automatisch mit. Für Netz &amp; VPN braucht das Gateway Internet
+      (SIM oder LAN-Kabel).</div>
   </details>
 
   <div class="block mb-3" id="credblock">
@@ -170,11 +175,15 @@ function portCard(row) {
         : known && known.error ? `<span class="st st-db" title="${esc(known.error)}">DB nicht erreichbar</span>`
         : `<span class="st st-new">neu</span>`;
   }
+  const title = row.wlan ? "Gateway im WLAN" : `Port ${p}`;
   const head = `<div class="port-head"><span class="dot ${gw.host ? "on" : gw.error ? "off" : "unk"}"></span>
-      <h2 class="mb-0">Port ${p}</h2><span class="small text-muted">${where}</span><span class="ms-auto">${tag}</span></div>`;
+      <h2 class="mb-0">${title}</h2><span class="small text-muted">${row.wlan ? "über diesen PC" : where}</span><span class="ms-auto">${tag}</span></div>`;
+  const empty = row.wlan
+    ? `kein Gateway gefunden – PC mit dem WLAN des Gateways verbinden (neu: <b>Gateway_xxxxxx</b>, eingerichtet: <b>bbdbmon_…</b>), Gateway eingeschaltet lassen. ${esc(gw.note || "")}`
+    : "kein Gateway – Kabel stecken, rund 2 Minuten warten";
   if (!gw.host) {
     return `<div class="block port">${head}
-      <p>${gw.error ? "Fehler: " + esc(gw.error) : "kein Gateway – Kabel stecken, rund 2 Minuten warten"}</p>
+      <p>${gw.error ? "Fehler: " + esc(gw.error) : empty}</p>
       ${job ? jobPart(job) : ""}</div>`;
   }
   const dis = running ? "disabled" : "";

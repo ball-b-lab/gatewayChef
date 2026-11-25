@@ -7,7 +7,12 @@ block_cipher = None
 
 project_dir = os.path.abspath(os.getcwd())
 
-hiddenimports = collect_submodules('flask') + collect_submodules('jinja2')
+hiddenimports = (
+    collect_submodules('flask') + collect_submodules('jinja2')
+    # Einrichtungsstation im WLAN-Modus laeuft in-process (gateway_setup.main)
+    + collect_submodules('services') + collect_submodules('utils') + ['scripts.gateway_setup', 'scripts.gateway_probe']
+    + collect_submodules('routes') + collect_submodules('repositories') + collect_submodules('cryptography')
+)
 
 app = Analysis(
     ['app.py'],
@@ -17,6 +22,7 @@ app = Analysis(
         (os.path.join(project_dir, 'templates'), 'templates'),
         (os.path.join(project_dir, 'static'), 'static'),
         (os.path.join(project_dir, '.env'), '.'),
+        (os.path.join(project_dir, 'gateway_profiles'), 'gateway_profiles'),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],

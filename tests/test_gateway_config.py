@@ -187,8 +187,10 @@ class ApplyTimeoutTest(unittest.TestCase):
             def post(self, url, data, timeout):
                 raise rq.ConnectionError("down")
 
+        # connection drops while the access point restarts (WLAN mode): read-back decides, not apply
+        self.assertEqual(UG65Client(session=Down()).apply(), [])
         with self.assertRaises(GatewayConfigError):
-            UG65Client(session=Down()).apply()
+            UG65Client(session=Down()).get("yruo_wifi", "yruo_wifi")
 
 
 if __name__ == "__main__":

@@ -34,6 +34,7 @@ Stand: 2026-03-10
 - PyInstaller spec: `gatewaychef.spec`
 - Expected output: `dist/GatewayChef/GatewayChef.exe`
 - Windows operator note: see `README_WINDOWS.md`
+- Die Spec packt `gateway_profiles/` und die Setup-Module (`services`, `utils`, `scripts.gateway_setup`, `scripts.gateway_probe`) mit ein, weil `/station` im WLAN-Modus das Setup in-process startet.
 
 ## Windows Launcher (Nachfolger der EXE)
 
