@@ -68,6 +68,8 @@ def main(argv=None):
     p.add_argument("--reboot", action="store_true")
     p.add_argument("--force-firmware", action="store_true")
     p.add_argument("--vpn-wait", type=int, default=90, help="Sekunden auf VPN warten")
+    p.add_argument("--wlan", action="store_true",
+                   help="dieser PC haengt im WLAN des Gateways: beim Umbenennen des WLAN automatisch mitwechseln")
     p.add_argument("--live", action="store_true",
                    help="jeden Schritt sofort ausgeben und am Ende eine @@RESULT-Zeile (fuer die Station)")
     a = p.parse_args(argv)
@@ -77,6 +79,7 @@ def main(argv=None):
     host = a.host or find_gateway(",".join(gateway_lan.candidates()))
     try:
         pipeline = from_env(host, a.profile, vpn_wait_secs=a.vpn_wait, on_step=_live if a.live else None)
+        pipeline.wlan_follow = a.wlan
     except ValueError as exc:
         print(f"FEHLER: {exc}", file=sys.stderr)
         return 2

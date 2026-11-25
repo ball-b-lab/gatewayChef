@@ -133,7 +133,9 @@ class UG65Client:
             return self._call("yruo_apply", "apply", [], timeout=max(timeout, self.timeout))
         except GatewayConfigError as exc:
             # services restart: no answer in time, or the web server says 503 meanwhile
-            if isinstance(exc.__cause__, requests.ReadTimeout) or getattr(exc, "http_status", 0) >= 500:
+            # WLAN mode: the access point restarts and the connection drops: same, read back later
+            if isinstance(exc.__cause__, (requests.ReadTimeout, requests.ConnectionError)) or \
+                    getattr(exc, "http_status", 0) >= 500:
                 return []
             raise
 

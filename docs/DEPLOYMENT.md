@@ -24,6 +24,17 @@ holt bei jedem Start den aktuellen `main` und startet die UI; `gatewaychef.cmd s
 das Setup-CLI. Voraussetzung: `git` mit Zugriff auf das Repo (Git Credential Manager).
 Die `.env` liegt in `%LOCALAPPDATA%\GatewayChef\.env`. Details: `docs/GATEWAY_SETUP_KONZEPT.md`.
 
+### Einrichtung über WLAN (ohne Linux-Station)
+
+Ohne `/etc/gatewaychef/ports` läuft `/station` im WLAN-Modus: eine Karte „Gateway im WLAN“ für das
+Gateway, mit dessen WLAN der PC verbunden ist (neu: `Gateway_xxxxxx`). Erreichbar über `/station`
+oder den Knopf „Automatisch einrichten (neu)“ im alten Tool. Ein Gateway nach dem anderen.
+Das Setup läuft im App-Prozess; wenn es das WLAN auf `bbdbmon_…` umbenennt, legt die App per
+`netsh wlan` ein Profil an und verbindet den PC neu (andere Systeme: Hinweis im Log, von Hand wechseln).
+Netz & VPN braucht Internet am Gateway (SIM oder LAN). `.env` wie für das Setup-CLI
+(`GATEWAY_PASSWORD`, `GATEWAY_WIFI_KEY`, DB-/VPN-Provider, `GW_REPORT_TOKEN`, `FIRMWARE_DIR`).
+`STATION_WLAN=0` schaltet den Modus ab.
+
 ## Windows Build Shortcut (EXE, auslaufend)
 
 For Windows operators who want the latest `main` plus EXE build in one step:

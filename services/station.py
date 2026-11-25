@@ -31,6 +31,15 @@ class StationError(Exception):
     pass
 
 
+WLAN_PORT = {"port": 1, "iface": "WLAN", "vlan": None, "wlan": True}
+
+
+def wlan_mode():
+    """No station ports (Windows app, Mac): one 'port' = the gateway whose WLAN this PC is connected to.
+    STATION_WLAN=0 switches it off."""
+    return os.getenv("STATION_WLAN", "1") != "0" and not load_ports()
+
+
 def runner_prefix():
     return shlex.split(os.getenv("STATION_RUNNER", "sudo -n /usr/local/sbin/gatewaychef-port"))
 
@@ -106,9 +115,15 @@ class Station:
         self._probe_cache = {}
         self.lookup = lookup or default_lookup
         self._known_cache = {}
+        self._wlan_probing = threading.Event()
 
     def ports(self):
-        return self._ports if self._ports is not None else load_ports()
+        if self._ports is not None:
+            return self._ports
+        return load_ports() or ([WLAN_PORT] if wlan_mode() else [])
+
+    def _is_wlan(self, port):
+        return any(p.get("wlan") and p["port"] == int(port) for p in self.ports())
 
     def _prefix(self, port):
         return (self.runner or runner_prefix()) + [str(int(port))]
@@ -124,6 +139,8 @@ class Station:
         cached = self._probe_cache.get(port)
         if cached and time.time() - cached[0] < max_age:
             return cached[1]
+        if self._is_wlan(port):
+            return self._probe_wlan(port, max_age)
         try:
             out = self.run(self._prefix(port) + ["probe"], capture_output=True, text=True, timeout=20)
             line = (out.stdout or "").strip().splitlines()[-1:] or ["{}"]
@@ -136,6 +153,25 @@ class Station:
             info = {"host": None, "error": type(exc).__name__}
         self._probe_cache[port] = (time.time(), info)
         return info
+
+    def _probe_wlan(self, port, max_age):
+        """Probing over WLAN takes seconds when no gateway answers: refresh in the background and
+        answer the page from the last result; a setup start (max_age=0) probes right away."""
+        if max_age == 0:
+            info = probe_wlan()
+            self._probe_cache[port] = (time.time(), info)
+            return info
+        cached = self._probe_cache.get(port)
+        if (not cached or time.time() - cached[0] >= max_age) and not self._wlan_probing.is_set():
+            self._wlan_probing.set()
+
+            def refresh():
+                try:
+                    self._probe_cache[port] = (time.time(), probe_wlan())
+                finally:
+                    self._wlan_probing.clear()
+            threading.Thread(target=refresh, daemon=True).start()
+        return cached[1] if cached else {"host": None, "note": "suche Gateway ..."}
 
     def known(self, eui, max_age=60):
         """DB record for a detected gateway: {"record": {...}|None, "error": str|None}, cached per EUI."""
@@ -175,7 +211,11 @@ class Station:
         job = self.board.start("setup", gw.get("eui") or f"port {port}", f"{label} Port {port}", port=port)
         job.gateway = {"eui": gw.get("eui"), "host": gw["host"]}
         job.log("$ gatewaychef " + " ".join(shlex.quote(a) for a in args))
-        thread = threading.Thread(target=self._run_job, args=(job, self._prefix(port) + args), daemon=True)
+        if self._is_wlan(port):
+            args.append("--wlan")   # the PC follows the gateway WLAN when the setup renames it
+            thread = threading.Thread(target=self._run_inprocess, args=(job, args), daemon=True)
+        else:
+            thread = threading.Thread(target=self._run_job, args=(job, self._prefix(port) + args), daemon=True)
         thread.start()
         return job
 
@@ -188,17 +228,7 @@ class Station:
                 logfile = open(os.path.join(self.log_dir, name), "w", encoding="utf-8")
             proc = self.popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
             for line in proc.stdout:
-                if logfile:
-                    logfile.write(line)
-                    logfile.flush()
-                if line.startswith("@@RESULT "):
-                    try:
-                        job.result = json.loads(line[len("@@RESULT "):])
-                        job.gateway.update({k: job.result.get(k) for k in ("eui", "vpn_ip", "name", "serial")})
-                    except ValueError:
-                        pass
-                    continue
-                job.log(line)
+                self._line(job, line, logfile)
             code = proc.wait()
         except OSError as exc:
             job.log(f"Start fehlgeschlagen: {exc}")
@@ -207,6 +237,73 @@ class Station:
         finally:
             if logfile:
                 logfile.close()
+        self._finish(job, code)
+
+    def _line(self, job, line, logfile=None):
+        if logfile:
+            logfile.write(line if line.endswith("\n") else line + "\n")
+            logfile.flush()
+        if line.startswith("@@RESULT "):
+            try:
+                job.result = json.loads(line[len("@@RESULT "):])
+                job.gateway.update({k: job.result.get(k) for k in ("eui", "vpn_ip", "name", "serial")})
+            except ValueError:
+                pass
+            return
+        job.log(line)
+
+    @staticmethod
+    def _finish(job, code):
         state = {0: jobs.OK, 1: jobs.DIFF}.get(code, jobs.FAILED)
         failed = [s["step"] for s in (job.result or {}).get("steps", []) if s["status"] == "fail"]
         job.finish(state, ("offen: " + ", ".join(failed)) if failed else f"Exit {code}")
+
+    def _run_inprocess(self, job, args):
+        """WLAN mode (Windows app): same setup CLI, run in this process; its prints go to the job log.
+        Only one WLAN job at a time, so redirecting stdout of the whole process is fine here."""
+        import contextlib
+        from scripts import gateway_setup
+        writer = _LineWriter(lambda line: self._line(job, line))
+        code = 2
+        try:
+            with _STDOUT_LOCK, contextlib.redirect_stdout(writer):
+                code = gateway_setup.main(args[1:])   # args[0] is the "setup" subcommand
+        except SystemExit as exc:   # argparse errors
+            code = exc.code if isinstance(exc.code, int) else 2
+        except Exception as exc:  # noqa: BLE001 - show it on the job instead of losing the thread
+            job.log(f"Abbruch: {type(exc).__name__}: {exc}")
+        finally:
+            writer.flush()
+        self._finish(job, code)
+
+
+_STDOUT_LOCK = threading.Lock()
+
+
+class _LineWriter:
+    """File-like object for redirect_stdout: hands every complete line to a callback."""
+
+    def __init__(self, on_line):
+        self.on_line, self.buf = on_line, ""
+
+    def write(self, text):
+        self.buf += text
+        while "\n" in self.buf:
+            line, self.buf = self.buf.split("\n", 1)
+            self.on_line(line + "\n")
+        return len(text)
+
+    def flush(self):
+        if self.buf:
+            self.on_line(self.buf)
+            self.buf = ""
+
+
+def probe_wlan():
+    """Gateway reachable from this PC (its WLAN, 192.168.1.1, or a LAN cable): same probe as the station."""
+    from scripts import gateway_probe
+    from utils import gateway_lan
+    try:
+        return gateway_probe.probe(",".join(gateway_lan.candidates()))
+    except Exception as exc:  # noqa: BLE001
+        return {"host": None, "error": type(exc).__name__}

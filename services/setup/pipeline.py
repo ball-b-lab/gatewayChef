@@ -39,6 +39,7 @@ class Pipeline:
         self.client = gateway_client or gc.UG65Client(host)
         self.user, self.password = gateway_user, gateway_password
         self.target_password = gateway_password   # ours; self.password becomes the one that works (maybe factory)
+        self.wlan_follow = False   # WLAN mode: this PC is in the gateway's WLAN and must follow a rename
         self.wifi_key, self.vpn_server_public_key = wifi_key, vpn_server_public_key
         self.vpn_proxy_url, self.vpn_proxy_token, self.vpn_wait_secs = vpn_proxy_url, vpn_proxy_token, vpn_wait_secs
         self.http = http or requests
@@ -292,6 +293,16 @@ class Pipeline:
             return r
         self.say("schreibe: " + ", ".join(ch.label for ch in plan["changes"]) + " (kann je Bereich bis 60 s dauern)")
         gc.execute(self.client, plan, force_firmware=force_firmware or self.fw_allowed)
+        wlan = next((ch for ch in plan["changes"] if ch.label == "WLAN"), None)
+        if self.wlan_follow and wlan and ({"ssid", "key"} & set(wlan.fields)):
+            from utils import wlan_follow
+            self.say(f"Gateway-WLAN heisst jetzt {gw.wifi_ssid}: PC wechselt mit")
+            ok, info = wlan_follow.follow(gw.wifi_ssid, self.wifi_key, self.host, say=self.say, sleep=self.sleep)
+            r.checks.append(("PC folgt Gateway-WLAN", ok, info))
+            if not ok:
+                r.status, r.detail = FAIL, info
+                return r
+            self.client.login(self.user, self.password)
         self.say("zuruecklesen und vergleichen")
         verify = self._read_back(dv)
         if verify["changes"]:
