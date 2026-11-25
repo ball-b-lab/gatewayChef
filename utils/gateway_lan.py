@@ -118,7 +118,12 @@ def cgi_identity(host, client_factory=None):
     except gc.GatewayConfigError:
         return None
     eui = ((conf[0] if conf else {}).get("value") or {}).get("gateway_id")
-    return {"eui": (eui or "").upper() or None, "firmware": client.firmware}
+    try:   # serial as on the web UI status page (Status > Summary)
+        summary = client.get("yruo_status", "summary")
+        sn = ((summary[0].get("value") or summary[0]) if summary else {}).get("sn")
+    except gc.GatewayConfigError:
+        sn = None
+    return {"eui": (eui or "").upper() or None, "firmware": client.firmware, "sn": sn or None}
 
 
 def answers(host, http=requests, timeout=2):

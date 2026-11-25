@@ -169,6 +169,14 @@ class PipelineTest(unittest.TestCase):
         bad = ok[:3] + [StepResult("Gateway-Konfiguration", FAIL, "x")]
         self.assertEqual(verdict(bad, Gateway())["current"]["text"], "NICHT fertig: Gateway-Konfiguration, Drive-by-Flow")
 
+    def test_serial_read_from_gateway(self):
+        p = _pipeline(MemInventory({VPN: _row()}), [])
+        get = p.client.get
+        p.client.get = lambda core, base: [{"value": {"sn": "6221D0817081"}}] if base == "summary" else get(core, base)
+        gw = Gateway()
+        p.run(gw, allocate_new=True)
+        self.assertEqual(gw.serial_number, "6221D0817081")
+
     def test_new_gateway_apply_then_rerun_is_noop(self):
         inv = MemInventory({VPN: _row()})
         ws, ms = MemRegistry("webservice"), MemRegistry("milesight")

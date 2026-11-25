@@ -146,9 +146,9 @@ function input(p, key, label, cls) {
 
 function facts(gw, known) {
   const rec = known && known.record;
-  const rows = [["EUI", gw.eui || "?"], ["LAN-Adresse", gw.host]];
+  const rows = [["EUI", gw.eui || "?"], ["Seriennummer", (rec && rec.serial) || gw.sn], ["LAN-Adresse", gw.host]];
   if (rec) {
-    rows.push(["Name", rec.name], ["VPN-IP", rec.vpn_ip], ["Seriennummer", rec.serial],
+    rows.push(["Name", rec.name], ["VPN-IP", rec.vpn_ip],
               ["ICCID", rec.iccid], ["SIM", rec.sim_vendor_name || rec.sim_vendor_id],
               ["Kunde", [rec.client_id, rec.client_name].filter(Boolean).join(" - ")], ["DB-Status", rec.status]);
   } else {

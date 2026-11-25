@@ -190,6 +190,15 @@ class Pipeline:
         gw.wifi_ssid = derive_wifi_ssid(gw.vpn_ip)
         gw.lns_address = self._lns_address()
 
+        if not gw.serial_number:   # the gateway knows its own serial (web UI: Status > Summary)
+            try:
+                summary = self.client.get("yruo_status", "summary")
+                sn = ((summary[0].get("value") or summary[0]) if summary else {}).get("sn")
+            except Exception:  # noqa: BLE001 - older firmware or busy: try Milesight below
+                sn = None
+            if sn:
+                gw.serial_number = str(sn).strip()
+                r.checks.append(("Seriennummer vom Gateway", True, gw.serial_number))
         if not gw.serial_number:
             for reg in self.registries:
                 if reg.name == "milesight" and not reg.missing_config():

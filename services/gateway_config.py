@@ -115,8 +115,16 @@ class UG65Client:
             raise GatewayConfigError(f"{core}/{base}: {entry['error']}")
         return entry.get("get") or []
 
-    def set(self, core, base, index, value):
-        return self._call(core, "set", [{"base": base, "index": index, "value": value}])
+    def set(self, core, base, index, value, timeout=60):
+        """Some sets restart a service before answering (packet forwarder, Node-RED): give them time.
+        No answer at all is not an error: callers read the values back after apply anyway."""
+        try:
+            return self._call(core, "set", [{"base": base, "index": index, "value": value}],
+                              timeout=max(timeout, self.timeout))
+        except GatewayConfigError as exc:
+            if isinstance(exc.__cause__, requests.ReadTimeout):
+                return []
+            raise
 
     def apply(self, timeout=60):
         """Apply restarts services (WLAN, packet forwarder); the answer can come late or
