@@ -18,7 +18,7 @@ from utils import gateway_lan  # noqa: E402
 def probe(candidates, http=requests):
     for host in [h.strip() for h in candidates.split(",") if h.strip()]:
         try:
-            resp = http.get(f"http://{host}/node-red/device-info", timeout=2)
+            resp = http.get(f"http://{host}/node-red/device-info", timeout=4, **gateway_lan._tls(http))
             if resp.status_code == 200:
                 info = resp.json()
                 for _ in range(3):   # flow <= 1.3.0 answers concurrent requests with MAC 00:00:...
@@ -26,7 +26,7 @@ def probe(candidates, http=requests):
                     if not mac or mac.replace(":", "").strip("0"):
                         break
                     time.sleep(1)
-                    info = http.get(f"http://{host}/node-red/device-info", timeout=2).json()
+                    info = http.get(f"http://{host}/node-red/device-info", timeout=4, **gateway_lan._tls(http)).json()
                 dev = info.get("device") or {}
                 return {"host": host, "eui": (dev.get("eui") or "").upper() or None, "device": dev,
                         "sn": dev.get("sn") or dev.get("serial") or None}
