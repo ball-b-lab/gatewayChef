@@ -61,11 +61,14 @@ class UG65Client:
 
     def _call(self, core, function, values, timeout=None):
         for attempt in range(self.BUSY_RETRIES):
+            # reads may be slow (packet forwarder busy after a factory start): longer timeout each try
+            t = timeout if function != "get" else max(timeout or self.timeout, 10) * (1 + attempt)
             try:
-                return self._call_once(core, function, values, timeout)
+                return self._call_once(core, function, values, t)
             except GatewayConfigError as exc:
-                busy = getattr(exc, "http_status", 0) == 503 and function != "apply"
-                if not busy or attempt == self.BUSY_RETRIES - 1:
+                busy = getattr(exc, "http_status", 0) == 503 or \
+                    (function == "get" and isinstance(exc.__cause__, requests.Timeout))
+                if function == "apply" or not busy or attempt == self.BUSY_RETRIES - 1:
                     raise
                 time.sleep(2 * (attempt + 1))
 
@@ -82,7 +85,7 @@ class UG65Client:
                 self.session.verify = False
                 resp = self.session.post(self.url, data=json.dumps(body), timeout=timeout or self.timeout)
         except requests.RequestException as exc:
-            raise GatewayConfigError(f"Gateway nicht erreichbar: {exc}") from exc
+            raise GatewayConfigError(f"Gateway nicht erreichbar bei {core}/{function}: {exc}") from exc
         try:
             payload = resp.json()
         except ValueError as exc:
