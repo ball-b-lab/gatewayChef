@@ -8,6 +8,7 @@ Was er tut, bei jedem Start:
   4. starten: Web-UI (Standard) oder das Setup-CLI
 
 Die .env liegt in %LOCALAPPDATA%\GatewayChef\.env - ausserhalb des Codes, wird nie ueberschrieben.
+Fehlt sie und liegt eine .env neben gatewaychef.cmd, wird diese beim ersten Start uebernommen.
 
 Aufruf:
   gatewaychef.cmd                      # Web-UI
@@ -55,6 +56,11 @@ if (-not $Offline) {
 $Version = (git -C $App describe --tags --always).Trim()
 Write-Host "== GatewayChef $Version ==" -ForegroundColor Cyan
 
+$Beside = Join-Path $PSScriptRoot ".env"
+if ((-not (Test-Path $EnvFile)) -and (Test-Path $Beside)) {
+    Copy-Item $Beside $EnvFile
+    Write-Host ".. .env neben dem Launcher uebernommen -> $EnvFile" -ForegroundColor Yellow
+}
 if (-not (Test-Path $EnvFile)) {
     Copy-Item (Join-Path $App ".env.example") $EnvFile
     Write-Host "!! $EnvFile angelegt - bitte Zugangsdaten eintragen und neu starten." -ForegroundColor Red
