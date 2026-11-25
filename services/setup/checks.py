@@ -115,7 +115,7 @@ def check_lora_health(host, timeout=5, http=requests):
 
 def _status_items(host, since=None, timeout=5, http=requests):
     url = f"http://{host}/node-red/status" + (f"?since={since}" if since is not None else "")
-    data = http.get(url, timeout=timeout).json()
+    data = http.get(url, timeout=timeout, **_tls(http)).json()
     return data.get("latest_seq") or 0, data.get("items") or []
 
 
