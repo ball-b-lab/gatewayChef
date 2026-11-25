@@ -18,6 +18,7 @@ import copy
 import json
 import os
 import re
+import time
 from dataclasses import dataclass, field
 
 import requests
@@ -56,7 +57,19 @@ class UG65Client:
         self.model = None
         self._id = 1
 
+    BUSY_RETRIES = 5   # the web server answers 503 for a moment when busy (many reads in a row, service restart)
+
     def _call(self, core, function, values, timeout=None):
+        for attempt in range(self.BUSY_RETRIES):
+            try:
+                return self._call_once(core, function, values, timeout)
+            except GatewayConfigError as exc:
+                busy = getattr(exc, "http_status", 0) == 503 and function != "apply"
+                if not busy or attempt == self.BUSY_RETRIES - 1:
+                    raise
+                time.sleep(2 * (attempt + 1))
+
+    def _call_once(self, core, function, values, timeout=None):
         body = {"id": self._id, "execute": 1, "core": core, "function": function, "values": values}
         self._id += 1
         try:

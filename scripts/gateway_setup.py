@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config  # noqa: E402,F401  (loads .env)
 from services.setup.model import Gateway  # noqa: E402
 from utils import gateway_lan  # noqa: E402
-from services.setup.pipeline import exit_code, format_results, from_env  # noqa: E402
+from services.setup.pipeline import exit_code, format_results, from_env, verdict  # noqa: E402
 
 
 def find_gateway(candidates, http=None):
@@ -87,6 +87,7 @@ def main(argv=None):
         print(f"\nGateway: EUI {gw.eui} · VPN {gw.vpn_ip} · SN {gw.serial_number} · {gw.name}")
         print("@@RESULT " + json.dumps({
             "code": code, "eui": gw.eui, "vpn_ip": gw.vpn_ip, "serial": gw.serial_number, "name": gw.name,
+            "verdict": verdict(results, gw, applied=a.apply and not a.check),
             "steps": [{"step": r.step, "status": r.status, "detail": r.detail} for r in results]},
             ensure_ascii=False), flush=True)
     else:

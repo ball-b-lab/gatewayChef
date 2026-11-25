@@ -448,6 +448,29 @@ class Pipeline:
         return self.results
 
 
+CORE_STEPS = ("Firmware", "Vorpruefung", "Datenbank", "Gateway-Konfiguration", "Drive-by-Flow")
+
+
+def verdict(results, gw, applied=True):
+    """Plain answer for the person at the bench: (1) is the gateway current, (2) customer or LAGER."""
+    by = {r.step: r for r in results}
+    fail = [r.step for r in results if r.status == FAIL]
+    open_ = [s for s in CORE_STEPS if s in by and by[s].status not in (OK, CHANGED, WARN)]
+    missing = [s for s in CORE_STEPS if s not in by and s != "Firmware"]   # firmware step can be switched off
+    if not applied:
+        current = {"ok": None, "text": "Dry-Run / Pruefung: nichts geschrieben"}
+    elif fail or open_ or missing:
+        current = {"ok": False, "text": "NICHT fertig: " + ", ".join(dict.fromkeys(fail + open_ + missing))}
+    else:
+        import re
+        fw = re.findall(r"\d+\.\d+\.\d+\.\d+(?:-r\d+)?", (by["Firmware"].detail if "Firmware" in by else "") or "")
+        current = {"ok": True, "text": "Gateway auf dem aktuellen Stand" + (f" (Firmware {fw[-1]})" if fw else "")}
+    client = " - ".join(p for p in (gw.client_id, gw.client_name) if p)
+    customer = ({"ok": True, "text": f"Fuer Kunde konfiguriert: {client}"} if client else
+                {"ok": None, "text": "LAGER: noch keinem Kunden zugeordnet"})
+    return {"current": current, "customer": customer}
+
+
 SYMBOL = {OK: "OK  ", CHANGED: "NEU ", WOULD_CHANGE: "DIFF", SKIPPED: "--  ", WARN: "WARN", FAIL: "FEHL"}
 
 
