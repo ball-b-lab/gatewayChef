@@ -317,7 +317,21 @@ def _flow_hash(fleet, host):
         return None
 
 
-def firmware_upgrade(fleet, gw, version, apply=False, images=None, wait_secs=None, force=False):
+def _heartbeat(say, text, every=30):
+    """Say `text ... N s` every `every` seconds until the returned stop() is called."""
+    import threading
+    done = threading.Event()
+    t0 = time.monotonic()
+
+    def run():
+        while not done.wait(every):
+            say(f"{text} ... {int(time.monotonic() - t0)} s")
+    threading.Thread(target=run, daemon=True).start()
+    return done.set
+
+
+def firmware_upgrade(fleet, gw, version, apply=False, images=None, wait_secs=None, force=False, progress=None):
+    say = progress or (lambda msg: None)
     host = gw["vpn_ip"]
     images = images if images is not None else fw.find_images()
     if version not in images:
@@ -343,7 +357,13 @@ def firmware_upgrade(fleet, gw, version, apply=False, images=None, wait_secs=Non
             return {"vpn_ip": host, "result": "skipped", "detail": f"nicht stabil, kein Upload: {why}",
                     "checks": [{"label": "Stabil im Netz", "ok": False, "info": why}]}
     flows_before = _flow_hash(fleet, host)
-    up = fw.upload(client, host, image)
+    say(f"Upload startet: {plan_txt}")
+    stop = _heartbeat(say, "Upload laeuft")
+    try:
+        up = fw.upload(client, host, image)
+    finally:
+        stop()
+    say(f"Upload fertig: {up}")
     wait = wait_secs or int(os.getenv("FIRMWARE_UPGRADE_WAIT", "1200"))
     # The upload host can vanish with the reboot (WLAN of the gateway): also accept the
     # gateway coming back on one of its fallback hosts (its VPN IP) and check from there.
@@ -357,12 +377,13 @@ def firmware_upgrade(fleet, gw, version, apply=False, images=None, wait_secs=Non
                 return True
         return False
 
-    back, back_detail = fw.wait_reboot(_is_up, wait, sleep=fleet.sleep)
+    back, back_detail = fw.wait_reboot(_is_up, wait, sleep=fleet.sleep, progress=say)
     checks_out = [("Upload", True, up), ("Neustart", back, back_detail)]
     if back and seen["gw"]["vpn_ip"] != host:
         host = seen["gw"]["vpn_ip"]
         checks_out.append(("Nachpruefung ueber", None, f"{host} (Upload-Host nach Neustart weg)"))
     if back:
+        say("Nachpruefung: Firmware, Schnittstelle, Drive-by")
         client = fleet._login(host)
         client.get("yruo_wifi", "yruo_wifi")
         checks_out.append(("Firmware", client.firmware == version, f"{before} -> {client.firmware}"))
@@ -371,9 +392,12 @@ def firmware_upgrade(fleet, gw, version, apply=False, images=None, wait_secs=Non
         compat = gc.firmware_compat(client, gc.load_profile(gc.profile_for_firmware(client.firmware)))
         checks_out.append(("Schnittstelle", compat["allowed"], compat["status"] + (": " + "; ".join(
             d for d in compat["deltas"] if "neue Felder" not in d) if compat["status"] != "exact" else "")))
-        db_ok, db_info = checks.check_driveby(host, wait_secs=int(os.getenv("DRIVEBY_WAIT", "75")),
-                                              http=fleet.http, sleep=fleet.sleep)
-        checks_out.append(("Drive-by-Datenweg", db_ok, db_info))
+        if flows_before is None:   # new gateway without our flow: nothing to check yet (comes in a later step)
+            checks_out.append(("Drive-by-Datenweg", None, "noch kein Flow (wird danach installiert)"))
+        else:
+            db_ok, db_info = checks.check_driveby(host, wait_secs=int(os.getenv("DRIVEBY_WAIT", "75")),
+                                                  http=fleet.http, sleep=fleet.sleep)
+            checks_out.append(("Drive-by-Datenweg", db_ok, db_info))
         flows_after = _flow_hash(fleet, host)
         checks_out.append(("Node-RED-Flows erhalten", None if flows_before is None else flows_after == flows_before,
                            f"{flows_before} -> {flows_after}"))

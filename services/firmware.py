@@ -151,15 +151,23 @@ def upgrade_error(host, http=requests, timeout=8):
         return None
 
 
-def wait_reboot(is_up, wait_secs, sleep=time.sleep, interval=10):
+def wait_reboot(is_up, wait_secs, sleep=time.sleep, interval=10, progress=None):
     """Wait until the gateway was down once and is up again. Returns (ok, detail)."""
-    deadline = time.monotonic() + wait_secs
-    went_down = False
+    say = progress or (lambda msg: None)
+    t0 = time.monotonic()
+    deadline = t0 + wait_secs
+    went_down, last_say = False, t0
     while time.monotonic() < deadline:
         up = is_up()
+        if not up and not went_down:
+            say("Gateway offline: schreibt die Firmware und startet neu (dauert einige Minuten)")
         if not up:
             went_down = True
         elif went_down:
+            say(f"wieder erreichbar nach {int(time.monotonic() - t0)} s")
             return True, "Neustart erkannt, wieder erreichbar"
+        if time.monotonic() - last_say >= 60:
+            last_say = time.monotonic()
+            say(f"wartet auf Neustart ... {int(last_say - t0)} s" + ("" if went_down else " (noch erreichbar)"))
         sleep(interval)
     return (False, "nicht wieder erreichbar") if went_down else (False, "kein Neustart erkannt")

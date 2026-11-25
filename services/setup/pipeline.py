@@ -291,7 +291,7 @@ class Pipeline:
                     self.sleep(5)
             return False, "device-info antwortet nach dem Deploy nicht"
         client = nr.NodeRedClient(self.host, os.getenv("NODERED_USER", self.user),
-                                  os.getenv("NODERED_PASSWORD") or self.password)
+                                  self.password or os.getenv("NODERED_PASSWORD"))  # the login that worked (ours or factory)
         try:
             out = nr.update(client, bundles[version], post_check, sleep=self.sleep)
         except nr.NodeRedError as exc:

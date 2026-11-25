@@ -53,13 +53,13 @@ class FirmwareStepTest(unittest.TestCase):
         from services import fleet as fl
         orig = fl.firmware_upgrade
         try:
-            fl.firmware_upgrade = lambda f, gw, v, apply, images, force: force and {
+            fl.firmware_upgrade = lambda f, gw, v, apply, images, force, progress=None: force and {
                 "result": "updated", "checks": [{"label": "Firmware", "ok": True, "info": "49 -> 50"}]}
             p = Pipe("60.0.0.49")
             r = fs.step_firmware(p, apply=True, images=IMAGES, fleet_factory=lambda inv: FakeFleet(None))
             self.assertEqual(r.status, CHANGED)
             self.assertEqual(p.client.firmware, "60.0.0.50")
-            fl.firmware_upgrade = lambda f, gw, v, apply, images, force: {"result": "failed", "detail": "Neustart"}
+            fl.firmware_upgrade = lambda f, gw, v, apply, images, force, progress=None: {"result": "failed", "detail": "Neustart"}
             r = fs.step_firmware(Pipe("60.0.0.49"), apply=True, images=IMAGES, fleet_factory=lambda inv: FakeFleet(None))
             self.assertEqual(r.status, FAIL)
         finally:
