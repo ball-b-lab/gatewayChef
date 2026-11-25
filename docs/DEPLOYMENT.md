@@ -22,7 +22,7 @@ Statt die EXE zu bauen: `scripts/windows/gatewaychef.cmd` und `gatewaychef.ps1` 
 Operator-PC kopieren (z. B. Desktop) und per Doppelklick starten. Der Launcher installiert `uv`,
 holt bei jedem Start den aktuellen `main` und startet die UI; `gatewaychef.cmd setup ...` startet
 das Setup-CLI. Voraussetzung: `git` mit Zugriff auf das Repo (Git Credential Manager).
-Die `.env` liegt in `%LOCALAPPDATA%\GatewayChef\.env`. Details: `docs/GATEWAY_SETUP_KONZEPT.md`.
+Die `.env` liegt in `%LOCALAPPDATA%\GatewayChef\.env`. Liegt beim ersten Start eine `.env` neben `gatewaychef.cmd`, wird sie dorthin übernommen. Details: `docs/GATEWAY_SETUP_KONZEPT.md`.
 
 ### Einrichtung über WLAN (ohne Linux-Station)
 
