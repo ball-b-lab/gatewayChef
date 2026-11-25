@@ -53,6 +53,10 @@ def make_app(group="gatewaychef"):
     @app.route("/api/db/x")
     def db():
         return "db"
+
+    @app.route("/api/sim/vendors")
+    def sim():
+        return "sim"
     return app, http
 
 
@@ -98,6 +102,8 @@ class OidcTest(unittest.TestCase):
             self.assertEqual(self.c.get("/api/db/x", headers={"X-API-Token": "tok"}).data, b"db")
             self.assertEqual(self.c.get("/api/db/x", headers={"X-API-Token": "nein"}).status_code, 401)
             self.assertEqual(self.c.get("/api/fleet/x", headers={"X-API-Token": "tok"}).status_code, 401)
+            # old Windows tool proxies its SIM lookup with the token
+            self.assertEqual(self.c.get("/api/sim/vendors", headers={"X-API-Token": "tok"}).data, b"sim")
 
     def test_missing_config_refuses_start(self):
         with self.assertRaises(RuntimeError):
