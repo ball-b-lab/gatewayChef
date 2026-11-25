@@ -73,7 +73,9 @@ class UG65Client:
         try:
             payload = resp.json()
         except ValueError as exc:
-            raise GatewayConfigError(f"Ungueltige Antwort vom Gateway (HTTP {resp.status_code})") from exc
+            err = GatewayConfigError(f"Ungueltige Antwort vom Gateway bei {core}/{function} (HTTP {resp.status_code})")
+            err.http_status = resp.status_code
+            raise err from exc
         self.firmware = payload.get("rtver") or self.firmware
         self.model = payload.get("model") or self.model
         status = payload.get("status")
@@ -106,7 +108,8 @@ class UG65Client:
         try:
             return self._call("yruo_apply", "apply", [], timeout=max(timeout, self.timeout))
         except GatewayConfigError as exc:
-            if isinstance(exc.__cause__, requests.ReadTimeout):
+            # services restart: no answer in time, or the web server says 503 meanwhile
+            if isinstance(exc.__cause__, requests.ReadTimeout) or getattr(exc, "http_status", 0) >= 500:
                 return []
             raise
 

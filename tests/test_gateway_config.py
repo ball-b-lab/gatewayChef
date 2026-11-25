@@ -193,3 +193,22 @@ class ApplyTimeoutTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Apply503Test(unittest.TestCase):
+    def test_apply_tolerates_503_while_services_restart(self):
+        class R:
+            status_code = 503
+
+            def json(self):
+                raise ValueError("html")
+
+        class S:
+            def post(self, *a, **kw):
+                return R()
+        from services.gateway_config import GatewayConfigError, UG65Client
+        c = UG65Client("gw", session=S())
+        self.assertEqual(c.apply(), [])
+        with self.assertRaises(GatewayConfigError) as cm:
+            c.set("yruo_wifi", "yruo_wifi", 0, {})
+        self.assertIn("yruo_wifi/set", str(cm.exception))
