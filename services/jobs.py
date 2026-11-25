@@ -43,7 +43,8 @@ class Job:
         d = {"id": self.id, "kind": self.kind, "target": self.target, "label": self.label, "port": self.port,
              "state": self.state, "started": self.started, "finished": self.finished, "step": self.step,
              "detail": self.detail, "gateway": self.gateway,
-             "seconds": int((self.finished or time.time()) - self.started)}
+             "seconds": int((self.finished or time.time()) - self.started),
+             "verdict": (self.result or {}).get("verdict") if isinstance(self.result, dict) else None}
         if with_log:
             d["log"] = self.lines[-400:]
             d["result"] = self.result

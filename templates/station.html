@@ -191,8 +191,19 @@ function portCard(row) {
     ${job ? jobPart(job) : ""}</div>`;
 }
 
+function verdictBox(v) {
+  if (!v) return "";
+  const line = (x, icon) => {
+    const cls = x.ok === true ? "success" : x.ok === false ? "danger" : "secondary";
+    return `<div class="alert alert-${cls} py-1 px-2 mb-1 fw-semibold">${icon(x.ok)} ${esc(x.text)}</div>`;
+  };
+  const mark = ok => ok === true ? "✓" : ok === false ? "✗" : "•";
+  return `<div class="mt-2">${line(v.current, mark)}${line(v.customer, ok => ok ? "✓" : "📦")}</div>`;
+}
+
 function jobPart(job) {
-  return `<div class="mt-2 small border-top pt-2">${badge(job.state)} ${esc(job.label)} · ${dur(job.seconds)}
+  const v = job.state !== "running" && job.verdict;
+  return `${verdictBox(v)}<div class="mt-2 small border-top pt-2">${badge(job.state)} ${esc(job.label)} · ${dur(job.seconds)}
       ${job.gateway && job.gateway.vpn_ip ? `· VPN ${esc(job.gateway.vpn_ip)}` : ""}
       <div class="text-muted text-truncate" title="${esc(job.step || "")}">${esc(job.state === "running" ? (job.step || "startet …") : (job.detail || ""))}</div>
       <button class="btn btn-sm btn-link p-0" onclick="showLog(${job.id})">Protokoll</button></div>`;

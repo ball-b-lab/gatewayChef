@@ -157,6 +157,18 @@ class PipelineTest(unittest.TestCase):
             _pipeline(MemInventory({VPN: _row()}), []).run(gw, allocate_new=True)
             self.assertEqual(gw.name, "0.116 LAGER GW")
 
+    def test_verdict_for_the_bench(self):
+        from services.setup.model import StepResult
+        from services.setup.pipeline import verdict
+        ok = [StepResult("Firmware", CHANGED, "60.0.0.49-r4 -> 60.0.0.50")] + \
+             [StepResult(n, OK) for n in ("Vorpruefung", "Datenbank", "Gateway-Konfiguration", "Drive-by-Flow")]
+        v = verdict(ok, Gateway())
+        self.assertEqual(v["current"], {"ok": True, "text": "Gateway auf dem aktuellen Stand (Firmware 60.0.0.50)"})
+        self.assertIn("LAGER", v["customer"]["text"])
+        self.assertIn("4711", verdict(ok, Gateway(client_id="4711"))["customer"]["text"])
+        bad = ok[:3] + [StepResult("Gateway-Konfiguration", FAIL, "x")]
+        self.assertEqual(verdict(bad, Gateway())["current"]["text"], "NICHT fertig: Gateway-Konfiguration, Drive-by-Flow")
+
     def test_new_gateway_apply_then_rerun_is_noop(self):
         inv = MemInventory({VPN: _row()})
         ws, ms = MemRegistry("webservice"), MemRegistry("milesight")

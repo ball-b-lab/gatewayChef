@@ -208,7 +208,30 @@ class Apply503Test(unittest.TestCase):
                 return R()
         from services.gateway_config import GatewayConfigError, UG65Client
         c = UG65Client("gw", session=S())
+        c.BUSY_RETRIES = 1
         self.assertEqual(c.apply(), [])
         with self.assertRaises(GatewayConfigError) as cm:
             c.set("yruo_wifi", "yruo_wifi", 0, {})
         self.assertIn("yruo_wifi/set", str(cm.exception))
+
+
+class Busy503RetryTest(unittest.TestCase):
+    def test_get_retries_after_503(self):
+        from unittest import mock
+        from services.gateway_config import UG65Client
+        answers = [503, 503, 200]
+
+        class R:
+            def __init__(self, code):
+                self.status_code = code
+
+            def json(self):
+                if self.status_code != 200:
+                    raise ValueError("html")
+                return {"status": 0, "result": [{"get": [{"x": 1}]}]}
+
+        class S:
+            def post(self, *a, **kw):
+                return R(answers.pop(0))
+        with mock.patch("services.gateway_config.time.sleep"):
+            self.assertEqual(UG65Client("gw", session=S()).get("yruo_loragw", "x"), [{"x": 1}])
