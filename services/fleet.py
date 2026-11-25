@@ -122,6 +122,12 @@ def patch_admin_only(patch):
     return bool(patch_is_risky(patch) or (patch_touches_lns(patch) and patch.get("name") not in STANDARD_LNS_PATCHES))
 
 
+def patch_already(patch, status):
+    """Patch declares {"status": {"field": "wifi_country", "value": "DE"}}: is it done according to a status row?"""
+    want = patch.get("status") or {}
+    return bool(want.get("field")) and status.get(want["field"]) == want.get("value")
+
+
 def patch_is_risky(patch):
     return sorted({s["core"] for s in patch["sections"]} & RISKY_CORES)
 
@@ -254,7 +260,7 @@ class Fleet:
         changes = [{"label": c.label, "fields": {k: [gc._mask(k, a), gc._mask(k, b)] for k, (a, b) in c.fields.items()}}
                    for c in result["changes"]]
         if not result["changes"]:
-            return {"vpn_ip": vpn_ip, "result": "ok", "detail": "entspricht bereits dem Patch", "changes": []}
+            return {"vpn_ip": vpn_ip, "result": "ok", "detail": "schon richtig, nichts geschrieben", "changes": []}
         if not apply:
             return {"vpn_ip": vpn_ip, "result": "would_change", "changes": changes, "detail": fw_note.strip()}
         gc.execute(client, result)
@@ -266,7 +272,8 @@ class Fleet:
         if left:
             return {"vpn_ip": vpn_ip, "result": "failed", "changes": changes,
                     "detail": "Zuruecklesen: " + ", ".join(c.label for c in left) + " weicht noch ab"}
-        return {"vpn_ip": vpn_ip, "result": "changed", "changes": changes, "detail": "geschrieben, geprueft" + fw_note}
+        what = "; ".join(f"{c['label']}: " + ", ".join(f"{k} {a}->{b}" for k, (a, b) in c["fields"].items()) for c in changes)
+        return {"vpn_ip": vpn_ip, "result": "changed", "changes": changes, "detail": f"{what} geschrieben, zurueckgelesen ok" + fw_note}
 
     # ------------------------------------------------------------ firmware
     def firmware_upgrade(self, vpn_ip, version, apply=False, images=None, wait_secs=None, force=False):
