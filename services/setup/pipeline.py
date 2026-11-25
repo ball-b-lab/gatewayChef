@@ -328,9 +328,19 @@ class Pipeline:
 
     def step_network(self, gw, apply):
         r = StepResult("Netz & VPN", OK)
+        last = None
+        for _ in range(12 if apply else 1):   # Node-RED is still starting right after the flow deploy: up to ~2 min
+            try:
+                info = checks.device_info(self.host, http=self.http, timeout=15)
+                lora = checks.lora_info(self.host, http=self.http, timeout=15)
+                last = None
+                break
+            except Exception as exc:  # noqa: BLE001
+                last = exc
+                self.sleep(10)
         try:
-            info = checks.device_info(self.host, http=self.http)
-            lora = checks.lora_info(self.host, http=self.http)
+            if last:
+                raise last
         except Exception as exc:  # noqa: BLE001
             r.status, r.detail = FAIL, f"Gateway antwortet nicht: {exc}"
             if not apply:   # dry run: VPN and flow only exist after the setup
