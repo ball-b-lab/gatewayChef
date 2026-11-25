@@ -38,6 +38,7 @@ class Pipeline:
         self.registries = registries
         self.client = gateway_client or gc.UG65Client(host)
         self.user, self.password = gateway_user, gateway_password
+        self.target_password = gateway_password   # ours; self.password becomes the one that works (maybe factory)
         self.wifi_key, self.vpn_server_public_key = wifi_key, vpn_server_public_key
         self.vpn_proxy_url, self.vpn_proxy_token, self.vpn_wait_secs = vpn_proxy_url, vpn_proxy_token, vpn_wait_secs
         self.http = http or requests
@@ -248,6 +249,15 @@ class Pipeline:
 
     def step_gateway_config(self, gw, apply, force_firmware=False, reboot=False):
         r = StepResult("Gateway-Konfiguration", OK)
+        if self.target_password and self.password != self.target_password:
+            # still the factory password: our flow and the fleet log in with ours, so set it first
+            if not apply:
+                r.checks.append(("Admin-Passwort", None, "Werkspasswort -> unser Passwort"))
+            else:
+                self.client.change_password(self.password, self.target_password)
+                self.client.login(self.user, self.target_password)
+                self.password = self.target_password
+                r.checks.append(("Admin-Passwort", True, "auf unser Passwort gesetzt"))
         dv = self._device_vars(gw)
         plan = gc.plan(self.client, self.profile, dv, skip_missing=not apply)
         for ch in plan["changes"]:
@@ -257,8 +267,11 @@ class Pipeline:
                 r.checks.append((f"{ch.label}.peer {op.get('name')}", None, "anlegen" if op["action"] == 1 else "aendern"))
         for item in plan["skipped"]:
             r.checks.append((item, None, "nicht geprueft (Wert fehlt)"))
-        if not plan["changes"]:
+        pw_pending = not apply and any(c[0] == "Admin-Passwort" for c in r.checks)
+        if not plan["changes"] and not pw_pending:
             r.detail = "entspricht Profil"
+            if any(c[0] == "Admin-Passwort" and c[1] for c in r.checks):
+                r.status, r.detail = CHANGED, "Admin-Passwort gesetzt, sonst entspricht Profil"
             if plan["skipped"]:
                 r.status = WARN
             return r

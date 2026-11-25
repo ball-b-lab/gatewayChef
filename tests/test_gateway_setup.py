@@ -177,6 +177,22 @@ class PipelineTest(unittest.TestCase):
         p.run(gw, allocate_new=True)
         self.assertEqual(gw.serial_number, "6221D0817081")
 
+    def test_factory_password_is_replaced_by_ours(self):
+        p = _pipeline(MemInventory({VPN: _row()}), [])
+        calls = []
+        p.client.change_password = lambda old, new: calls.append((old, new))
+        p.client.login = lambda u, pw: calls.append(("login", pw))
+        p.target_password, p.password = "ours", "factory"
+        r = p.step_gateway_config(Gateway(vpn_ip=VPN, eui=EUI), apply=False)
+        self.assertEqual(calls, [])
+        self.assertTrue(any(c[0] == "Admin-Passwort" for c in r.checks))
+        try:
+            p.step_gateway_config(Gateway(vpn_ip=VPN, eui=EUI), apply=True)
+        except Exception:  # noqa: BLE001 - rest of the fake config does not matter here
+            pass
+        self.assertEqual(calls[:2], [("factory", "ours"), ("login", "ours")])
+        self.assertEqual(p.password, "ours")
+
     def test_new_gateway_apply_then_rerun_is_noop(self):
         inv = MemInventory({VPN: _row()})
         ws, ms = MemRegistry("webservice"), MemRegistry("milesight")
